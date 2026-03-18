@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
@@ -12,7 +13,8 @@ import FilaCorrecao from "@/components/admin/FilaCorrecao";
 import BancoQuestoes from "@/components/admin/BancoQuestoes";
 import MotorGerador from "@/components/admin/MotorGerador";
 import GestaoMateriais from "@/components/admin/GestaoMateriais";
-import GestaoPecas from "@/components/admin/GestaoPecas"; // <-- O Novo Motor de Peças
+import GestaoPecas from "@/components/admin/GestaoPecas";
+import GestaoCiclos from "@/components/admin/GestaoCiclos"; // <-- O Novo Motor de Ciclos
 
 const Painel = () => {
   const navigate = useNavigate();
@@ -35,40 +37,33 @@ const Painel = () => {
     navigate("/");
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-display text-primary italic">A carregar o Hub do Professor...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-accent rounded-full"></div></div>;
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-body pb-24">
-      {/* CABEÇALHO SUPERIOR */}
-      <header className="bg-primary border-b-4 border-accent py-4 sticky top-0 z-40 shadow-sm">
-        <div className="container flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h1 className="text-primary-foreground text-2xl font-display font-bold italic">
-              SUA<span className="text-accent italic">OAB</span>
-            </h1>
-            <span className="bg-accent text-accent-foreground font-bold px-3 py-1 rounded text-xs uppercase hidden md:block border border-white/20">
-              Centro de Comando
-            </span>
+    <div className="min-h-screen bg-muted/20 pb-20">
+      <header className="bg-primary text-primary-foreground shadow-md sticky top-0 z-40">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Cog className="h-6 w-6 text-accent" />
+            <h1 className="text-xl font-display font-bold tracking-tight">Sala de Comando</h1>
           </div>
-          <button onClick={handleLogout} className="text-destructive font-bold flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <LogOut className="h-5 w-5" /> Sair
-          </button>
+          <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10" onClick={handleLogout}>
+            <LogOut className="h-4 w-4 mr-2" /> Sair
+          </Button>
         </div>
       </header>
 
-      {/* ÁREA PRINCIPAL E MENU DE ABAS */}
-      <main className="container py-8">
+      <main className="container mx-auto px-4 mt-8">
         <Tabs defaultValue="crm" className="w-full">
-          
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 mb-8 h-auto gap-2 bg-transparent">
+          <TabsList className="w-full flex flex-wrap h-auto gap-2 bg-transparent p-0 mb-6">
             <TabsTrigger value="crm" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <Users className="h-4 w-4"/> Alunos
+              <Users className="h-4 w-4"/> Alunos (CRM)
             </TabsTrigger>
             
             <TabsTrigger value="correcoes" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <FileText className="h-4 w-4"/> Correções
             </TabsTrigger>
-            
+
             <TabsTrigger value="questoes" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <PenTool className="h-4 w-4"/> Banco
             </TabsTrigger>
@@ -84,6 +79,11 @@ const Painel = () => {
             <TabsTrigger value="materiais" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <BookOpen className="h-4 w-4"/> Publicados
             </TabsTrigger>
+
+            {/* A NOVA ABA AQUI */}
+            <TabsTrigger value="ciclos" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
+              <CalendarDays className="h-4 w-4"/> Ciclos e Prazos
+            </TabsTrigger>
           </TabsList>
 
           {/* CONTEÚDO DAS ABAS */}
@@ -94,6 +94,8 @@ const Painel = () => {
           <TabsContent value="motor"><MotorGerador /></TabsContent>
           <TabsContent value="materiais"><GestaoMateriais /></TabsContent>
           
+          {/* CONTEÚDO DA NOVA ABA AQUI */}
+          <TabsContent value="ciclos"><GestaoCiclos /></TabsContent>
         </Tabs>
       </main>
     </div>

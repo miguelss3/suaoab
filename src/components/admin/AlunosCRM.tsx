@@ -1,11 +1,11 @@
 // src/components/admin/AlunosCRM.tsx
 import { useState, useEffect } from "react";
 import { db, storage } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   Search, ChevronLeft, Plus, Trash2, Unlock, Lock, 
-  Target, Link as LinkIcon, FileText, UploadCloud, Wand2, Calendar, ArrowRight, CheckCircle2, Pencil, X, AlertCircle, Clock, Ban 
+  Target, Link as LinkIcon, FileText, UploadCloud, Wand2, Calendar, CheckCircle2, Pencil, X, AlertCircle, Ban 
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,12 +36,15 @@ const AlunosCRM = () => {
   const [editMetaPrazo, setEditMetaPrazo] = useState("");
   const [isEditingMeta, setIsEditingMeta] = useState(false);
 
-  // Estados - Motor Adaptativo
+  // Estados - Motor Adaptativo (ROTA)
   const [showRotaModal, setShowRotaModal] = useState(false);
-  const [dataProva, setDataProva] = useState("");
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewMetas, setPreviewMetas] = useState<any[]>([]);
+  const [tipoDataRota, setTipoDataRota] = useState("oficial"); // "oficial" ou "personalizada"
+  const [dataProva, setDataProva] = useState(""); // Personalizada
+  const [globalDataProva, setGlobalDataProva] = useState(""); // Oficial (do Motor de Ciclos)
 
+  // Busca inicial dos alunos
   useEffect(() => {
     const qAlunos = query(collection(db, "alunos"), orderBy("data_cadastro", "desc"));
     const unsub = onSnapshot(qAlunos, (snap) => {
@@ -54,6 +57,21 @@ const AlunosCRM = () => {
     });
     return () => unsub();
   }, [alunoSelecionado?.id]);
+
+  // Busca da data oficial do Exame no Motor de Ciclos
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const snap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
+        if (snap.exists() && snap.data().data_prova) {
+          setGlobalDataProva(snap.data().data_prova);
+        }
+      } catch (error) {
+        console.error("Erro ao buscar ciclo atual", error);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   const calcularProgresso = (metas: any[]) => {
     if (!metas || metas.length === 0) return 0;
@@ -139,14 +157,18 @@ const AlunosCRM = () => {
     } catch (e) { toast.error("Erro ao atualizar a meta."); } finally { setIsEditingMeta(false); }
   };
 
+  // --- O NOVO CÉREBRO DA ROTA ADAPTATIVA ---
   const calcularRotaPreview = () => {
-    if (!dataProva) return toast.error("Defina a data da prova.");
+    const alvo = tipoDataRota === "oficial" ? globalDataProva : dataProva;
+
+    if (!alvo) return toast.error("Por favor, defina ou escolha uma data alvo.");
+
     const hoje = new Date();
-    const prova = new Date(dataProva);
+    const prova = new Date(alvo + "T12:00:00");
     const diffTime = prova.getTime() - hoje.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays <= 0) return toast.error("A prova deve ser no futuro.");
+    if (diffDays <= 0) return toast.error("A data limite deve ser no futuro.");
 
     let intervaloDias = diffDays >= 30 ? 7 : 3;
     let qtdMetasNovas = Math.floor(diffDays / intervaloDias);
@@ -190,8 +212,9 @@ const AlunosCRM = () => {
   const confirmarRotaAdaptativa = async () => {
     try {
       await updateDoc(doc(db, "alunos", alunoSelecionado.id), { metas: previewMetas });
-      toast.success("Rota Aplicada!");
-      setShowPreviewModal(false); setPreviewMetas([]); setDataProva("");
+      toast.success("Rota Adaptativa Aplicada com sucesso!");
+      setShowPreviewModal(false);
+      setPreviewMetas([]);
     } catch (e) { toast.error("Erro ao aplicar rota."); }
   };
 
@@ -209,7 +232,6 @@ const AlunosCRM = () => {
     await updateDoc(doc(db, "alunos", alunoSelecionado.id), { metas: novasMetas });
   };
 
-  // --- LÓGICA DE FILTRAGEM (PREMIUM, LEADS, INATIVOS) ---
   const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos') => {
     return alunos.filter(a => {
       const matchesSearch = a.nome?.toLowerCase().includes(busca.toLowerCase()) || a.email?.toLowerCase().includes(busca.toLowerCase());
@@ -218,7 +240,7 @@ const AlunosCRM = () => {
       let matchesStatus = false;
       if (filtro === 'premium') matchesStatus = status === "premium";
       else if (filtro === 'inativos') matchesStatus = status === "inativo";
-      else matchesStatus = status !== "premium" && status !== "inativo"; // Leads são tudo o resto
+      else matchesStatus = status !== "premium" && status !== "inativo"; 
       
       return matchesSearch && matchesStatus;
     });
@@ -231,14 +253,13 @@ const AlunosCRM = () => {
     return prazo < hoje;
   };
 
-  // --- CÁLCULO DE EXPIRAÇÃO EM HORAS ---
   const calcularExpiracaoLead = (aluno: any) => {
     let d;
     if (aluno.data_expiracao) {
       d = aluno.data_expiracao?.toDate ? aluno.data_expiracao.toDate() : new Date(aluno.data_expiracao);
     } else if (aluno.data_cadastro) {
       d = aluno.data_cadastro?.toDate ? aluno.data_cadastro.toDate() : new Date(aluno.data_cadastro);
-      d.setDate(d.getDate() + 3); // 72h default
+      d.setDate(d.getDate() + 3); 
     } else {
       return { texto: "Desconhecido", expirado: false };
     }
@@ -264,15 +285,9 @@ const AlunosCRM = () => {
 
       <Tabs defaultValue="premium" className="bg-card rounded-xl border border-border overflow-hidden">
          <TabsList className="w-full justify-start rounded-none border-b bg-muted/10 h-12 px-6 gap-6">
-          <TabsTrigger value="premium" className="font-bold">
-            Premium ({filtrarAlunos('premium').length})
-          </TabsTrigger>
-          <TabsTrigger value="leads" className="font-bold">
-            Em Teste ({filtrarAlunos('leads').length})
-          </TabsTrigger>
-          <TabsTrigger value="inativos" className="font-bold text-muted-foreground">
-            Inativos ({filtrarAlunos('inativos').length})
-          </TabsTrigger>
+          <TabsTrigger value="premium" className="font-bold">Premium ({filtrarAlunos('premium').length})</TabsTrigger>
+          <TabsTrigger value="leads" className="font-bold">Em Teste ({filtrarAlunos('leads').length})</TabsTrigger>
+          <TabsTrigger value="inativos" className="font-bold text-muted-foreground">Inativos ({filtrarAlunos('inativos').length})</TabsTrigger>
         </TabsList>
         
         {/* PREMIUM */}
@@ -282,7 +297,11 @@ const AlunosCRM = () => {
             <tbody>
               {filtrarAlunos('premium').map(aluno => (
                 <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors">
-                  <td className="px-6 py-4"><div className="font-bold text-primary">{aluno.nome}</div><div className="text-[10px] text-muted-foreground">{aluno.email}</div></td>
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-primary">{aluno.nome}</div>
+                    <div className="text-[10px] text-muted-foreground">{aluno.email}</div>
+                    <div className="text-[10px] font-black text-accent tracking-widest uppercase mt-0.5">Matrícula: {aluno.matricula || "S/N"}</div>
+                  </td>
                   <td className="px-6 py-4 font-bold">{aluno.materia}</td>
                   <td className="px-6 py-4"><div className="flex items-center gap-2"><Progress value={calcularProgresso(aluno.metas)} className="h-1.5 w-12" /><span className="text-[10px] font-bold">{calcularProgresso(aluno.metas)}%</span></div></td>
                   <td className="px-6 py-4 text-right space-x-2">
@@ -306,7 +325,11 @@ const AlunosCRM = () => {
                 const expiracao = calcularExpiracaoLead(aluno);
                 return (
                   <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors">
-                    <td className="px-6 py-4"><div className="font-bold text-primary">{aluno.nome}</div><div className="text-[10px] text-muted-foreground">{aluno.email}</div></td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-primary">{aluno.nome}</div>
+                      <div className="text-[10px] text-muted-foreground">{aluno.email}</div>
+                      <div className="text-[10px] font-black text-accent tracking-widest uppercase mt-0.5">Matrícula: {aluno.matricula || "S/N"}</div>
+                    </td>
                     <td className="px-6 py-4 font-bold">{aluno.materia}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-[10px] font-black uppercase flex items-center w-max gap-1 ${expiracao.expirado ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
@@ -334,7 +357,10 @@ const AlunosCRM = () => {
             <tbody>
               {filtrarAlunos('inativos').map(aluno => (
                   <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors opacity-60 grayscale">
-                    <td className="px-6 py-4 font-bold text-primary">{aluno.nome}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-primary">{aluno.nome}</div>
+                      <div className="text-[10px] font-black text-muted-foreground tracking-widest uppercase mt-0.5">Matrícula: {aluno.matricula || "S/N"}</div>
+                    </td>
                     <td className="px-6 py-4 font-bold">{aluno.materia}</td>
                     <td className="px-6 py-4 text-right space-x-2">
                       <Button variant="outline" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar (Premium)</Button>
@@ -373,7 +399,6 @@ const AlunosCRM = () => {
                       <Progress value={calcularProgresso(alunoSelecionado.metas)} className="h-4" />
                    </div>
 
-                   {/* INSERÇÃO MANUAL COM LAYOUT CORRIGIDO */}
                    <div className="lg:col-span-3 bg-muted/10 p-5 rounded-xl border border-border">
                       <Label className="font-bold flex items-center gap-2 mb-4"><Plus className="h-4 w-4 text-accent"/> Inserção Manual de Meta</Label>
                       
@@ -462,7 +487,7 @@ const AlunosCRM = () => {
         </div>
       )}
 
-      {/* MODAL DE EDIÇÃO DE META COM DATA CORRIGIDA */}
+      {/* MODAL DE EDIÇÃO DE META */}
       {metaEditandoIdx !== null && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl p-6">
@@ -511,8 +536,94 @@ const AlunosCRM = () => {
           </div>
         </div>
       )}
+
+      {/* --- NOVOS MODAIS DA ROTA ADAPTATIVA --- */}
       
-      {/* MODAL DE ROTA - (Ocultado código repetitivo por brevidade, já incluído acima nas funções) */}
+      {/* 1. Modal de Escolha da Data */}
+      {showRotaModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
+          <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
+            <button onClick={() => setShowRotaModal(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+              <X className="h-5 w-5"/>
+            </button>
+            <h3 className="text-xl font-display font-bold text-primary mb-6 flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-accent"/> Gerar Rota Adaptativa
+            </h3>
+            
+            <div className="space-y-4">
+              <div 
+                className={`p-4 border-2 rounded-xl cursor-pointer flex items-start gap-3 transition-colors ${tipoDataRota === "oficial" ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"}`} 
+                onClick={() => setTipoDataRota("oficial")}
+              >
+                <input type="radio" checked={tipoDataRota === "oficial"} onChange={() => {}} className="mt-1 accent-accent" />
+                <div>
+                  <h4 className="font-bold text-sm text-primary">Data Oficial do Exame</h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {globalDataProva ? `Exame configurado para: ${new Date(globalDataProva + "T12:00:00").toLocaleDateString('pt-BR')}` : "Nenhuma data configurada no Motor de Ciclos"}
+                  </p>
+                </div>
+              </div>
+
+              <div 
+                className={`p-4 border-2 rounded-xl cursor-pointer flex items-start gap-3 transition-colors ${tipoDataRota === "personalizada" ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"}`} 
+                onClick={() => setTipoDataRota("personalizada")}
+              >
+                <input type="radio" checked={tipoDataRota === "personalizada"} onChange={() => {}} className="mt-1 accent-accent" />
+                <div className="w-full">
+                  <h4 className="font-bold text-sm text-primary mb-2">Data Personalizada</h4>
+                  {tipoDataRota === "personalizada" && (
+                     <Input type="date" className="mt-2" value={dataProva} onChange={e => setDataProva(e.target.value)} />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <Button variant="hero" className="w-full mt-8 h-12" onClick={calcularRotaPreview}>
+              Gerar Pré-visualização
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal de Preview e Confirmação da Rota */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in slide-in-from-bottom-4">
+          <div className="bg-card border border-border w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
+             <div className="p-6 border-b bg-muted/10 flex justify-between items-center">
+               <div>
+                 <h3 className="text-xl font-bold text-primary">Pré-visualização da Rota</h3>
+                 <p className="text-xs text-muted-foreground mt-1">Confira as metas geradas antes de aplicar ao aluno.</p>
+               </div>
+               <button onClick={() => setShowPreviewModal(false)} className="text-muted-foreground hover:text-foreground">
+                 <X className="h-5 w-5"/>
+               </button>
+             </div>
+             
+             <div className="p-6 overflow-y-auto space-y-3 custom-scrollbar">
+                {previewMetas.map((m, i) => (
+                   <div key={i} className={`p-4 rounded-xl border-l-4 border flex justify-between items-center ${m.status === 'concluida' ? 'bg-success/5 border-l-success border-success/20 opacity-60' : 'bg-background border-l-accent border-border'}`}>
+                      <div>
+                        <span className="text-xs font-black uppercase text-muted-foreground tracking-wider mb-1 block">Meta {i}</span>
+                        <h4 className="font-bold text-primary text-sm">{m.atividade}</h4>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-black text-muted-foreground block mb-1">Prazo Calculado</span>
+                        <div className="text-sm font-bold flex items-center gap-1 justify-end text-primary">
+                          <Calendar className="h-4 w-4 text-accent" /> 
+                          {m.data_sugerida ? new Date(m.data_sugerida).toLocaleDateString('pt-BR') : 'Imediato'}
+                        </div>
+                      </div>
+                   </div>
+                ))}
+             </div>
+             
+             <div className="p-6 border-t bg-background flex gap-4">
+               <Button variant="outline" className="flex-1 h-12" onClick={() => setShowPreviewModal(false)}>Cancelar</Button>
+               <Button variant="accent" className="flex-1 h-12" onClick={confirmarRotaAdaptativa}>Confirmar e Aplicar Rota</Button>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

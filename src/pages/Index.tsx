@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
   Target, Scale, BarChart3, CheckCircle2, ArrowRight, 
-  Shield, Clock, X, Mail, Lock, User, Phone, Star 
+  Shield, Clock, X, Mail, Lock, User, Phone, Star, BookOpen 
 } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { doc, setDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { toast } from "sonner";
 import heroBg from "@/assets/hero-bg.jpg";
@@ -37,7 +37,22 @@ const Index = () => {
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [materia, setMateria] = useState(""); 
   const [loading, setLoading] = useState(false);
+
+  // NOVA FUNÇÃO: RECUPERAÇÃO DE SENHA
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error("Por favor, digite seu e-mail no campo acima para recuperar a senha.");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success("E-mail de recuperação enviado! Verifique sua caixa de entrada (e o spam).");
+    } catch (error: any) {
+      toast.error("Erro ao enviar e-mail. Verifique se o endereço está correto e se você já possui cadastro.");
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,8 +69,13 @@ const Index = () => {
           navigate("/aluno");
         }
       } else {
-        // CÁLCULO DA MATRÍCULA SEQUENCIAL
-        let novaMatricula = "2026100"; // Matrícula base se o BD estiver vazio
+        if (!materia) {
+          toast.error("Por favor, selecione a disciplina da 2ª Fase.");
+          setLoading(false);
+          return;
+        }
+
+        let novaMatricula = "2026100"; 
         const qMatricula = query(collection(db, "alunos"), orderBy("matricula", "desc"), limit(1));
         const snapMatricula = await getDocs(qMatricula);
         
@@ -71,12 +91,13 @@ const Index = () => {
           nome: nome,
           whatsapp: whatsapp,
           email: email,
-          matricula: novaMatricula, // <-- Aplicando a nova matrícula sequencial
+          materia: materia, 
+          matricula: novaMatricula, 
           status: "Lead",
           progresso: 0,
           data_cadastro: new Date(),
           metas: [{ 
-            atividade: "Boas-Vindas e Ambientação", 
+            atividade: "Meta 0: Boas-Vindas e Ambientação", 
             orientacoes: "Parabéns por chegar à 2ª Fase! Você está a um passo da sua aprovação e fez a escolha certa ao procurar uma mentoria direcionada. Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural na Sala de Aula Virtual.", 
             link: "",
             status: "liberada", 
@@ -186,7 +207,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* SEÇÃO DE DEPOIMENTOS ADICIONADA AQUI */}
       <section className="py-24 bg-muted/20 border-t border-border">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
@@ -239,7 +259,6 @@ const Index = () => {
           </div>
         </div>
       </section>
-      {/* FIM DA SEÇÃO DE DEPOIMENTOS */}
 
       <section className="py-24 bg-background">
         <div className="container flex justify-center">
@@ -309,6 +328,24 @@ const Index = () => {
                         <Input type="tel" className="pl-10" placeholder="(11) 99999-9999" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} required />
                       </div>
                     </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-accent font-bold">Disciplina da 2ª Fase</Label>
+                      <div className="relative">
+                        <BookOpen className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <select 
+                          className="w-full h-10 border border-input rounded-md pl-10 pr-3 bg-background text-sm focus:ring-2 focus:ring-accent" 
+                          value={materia} 
+                          onChange={(e) => setMateria(e.target.value)} 
+                          required
+                        >
+                          <option value="">Selecione sua matéria...</option>
+                          <option value="DADM">Direito Administrativo</option>
+                          <option value="DPEN">Direito Penal</option>
+                          <option value="DTRI">Direito Tributário</option>
+                        </select>
+                      </div>
+                    </div>
                   </>
                 )}
 
@@ -319,13 +356,27 @@ const Index = () => {
                     <Input type="email" className="pl-10" placeholder="exemplo@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
                 </div>
+                
+                {/* CAMPO DE SENHA ATUALIZADO COM BOTÃO DE RECUPERAÇÃO */}
                 <div className="space-y-2">
-                  <Label>Senha</Label>
+                  <div className="flex justify-between items-center">
+                    <Label>Senha</Label>
+                    {isLogin && (
+                      <button 
+                        type="button" 
+                        onClick={handleResetPassword} 
+                        className="text-[10px] text-accent font-bold hover:underline"
+                      >
+                        Esqueceu a senha?
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input type="password" minLength={6} placeholder="••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
                   </div>
                 </div>
+
                 <Button type="submit" className="w-full h-12 mt-2" variant="hero" disabled={loading}>
                   {loading ? "Processando..." : (isLogin ? "Entrar na Plataforma" : "Criar Conta de Teste")}
                 </Button>

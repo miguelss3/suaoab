@@ -7,13 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   LogOut, CheckCircle2, BookOpen, Clock, Target, 
   PenTool, Timer, Briefcase, Lock, FastForward,
-  MessageSquare, Mic, Trash2, X, AlertTriangle, Play
+  MessageSquare, Mic, Trash2, X, AlertTriangle, Play, AlertCircle,
+  Link as LinkIcon, FileText 
 } from "lucide-react";
 import { auth, db, storage } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { 
   doc, onSnapshot, updateDoc, collection, 
-  query, where, getDocs, addDoc, deleteDoc, serverTimestamp 
+  query, where, addDoc, deleteDoc, serverTimestamp, getDoc 
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "sonner"; 
@@ -36,9 +37,39 @@ const Aluno = () => {
   // Estados do Cronômetro de Simulado
   const [modalPreparacao, setModalPreparacao] = useState<any>(null);
   const [simuladoAtivo, setSimuladoAtivo] = useState<any>(null);
-  const [tempoRestante, setTempoRestante] = useState(18000); // 5 horas em segundos (5 * 60 * 60)
+  const [tempoRestante, setTempoRestante] = useState(18000);
 
-  // EFEITO DO CRONÔMETRO
+  // ESTADOS DO MOTOR DE CICLOS (BARREIRA TEMPORAL)
+  const [isExpirado, setIsExpirado] = useState(false);
+  const [dataCorteVisual, setDataCorteVisual] = useState("");
+
+  useEffect(() => {
+    const verificarCiclo = async () => {
+      try {
+        const docRef = doc(db, "configuracoes", "ciclo_atual");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const dataExp = docSnap.data().data_expiracao;
+          if (dataExp) {
+            const [ano, mes, dia] = dataExp.split('-');
+            setDataCorteVisual(`${dia}/${mes}/${ano}`);
+
+            const hoje = new Date();
+            hoje.setHours(0,0,0,0);
+            const corte = new Date(dataExp + "T00:00:00");
+
+            if (hoje > corte) {
+              setIsExpirado(true);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao ler o relógio do sistema", error);
+      }
+    };
+    verificarCiclo();
+  }, []);
+
   useEffect(() => {
     let intervalo: any;
     if (simuladoAtivo && tempoRestante > 0) {
@@ -46,16 +77,14 @@ const Aluno = () => {
         setTempoRestante((prev) => prev - 1);
       }, 1000);
     } else if (simuladoAtivo && tempoRestante === 0) {
-      // Dispara o alerta sonoro ao zerar
       const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
       audio.play().catch(e => console.log("O navegador bloqueou o áudio automático."));
       toast.error("TEMPO ESGOTADO! Canetas pousadas.", { duration: 10000 });
-      setSimuladoAtivo(null); // Encerra o simulado
+      setSimuladoAtivo(null);
     }
     return () => clearInterval(intervalo);
   }, [simuladoAtivo, tempoRestante]);
 
-  // Formatar tempo HH:MM:SS
   const formatarTempo = (segundosTotais: number) => {
     const h = Math.floor(segundosTotais / 3600);
     const m = Math.floor((segundosTotais % 3600) / 60);
@@ -65,7 +94,7 @@ const Aluno = () => {
 
   const iniciarSimulado = () => {
     setSimuladoAtivo(modalPreparacao);
-    setTempoRestante(18000); // Reseta para 5h
+    setTempoRestante(18000);
     setModalPreparacao(null);
     window.open(modalPreparacao.url_pdf || modalPreparacao.url || modalPreparacao.link, "_blank");
     toast.success("Cronômetro de 5 horas iniciado. Boa prova!");
@@ -192,6 +221,10 @@ const Aluno = () => {
     navigate("/");
   };
 
+  const handleSolicitarRepescagem = () => {
+    toast.success("Solicitação enviada ao seu mentor! A nossa equipa entrará em contacto em breve.");
+  };
+
   if (loading) return <div className="min-h-screen flex items-center justify-center font-display text-primary italic">Carregando Dossiê...</div>;
 
   return (
@@ -216,213 +249,254 @@ const Aluno = () => {
           )}
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
+        {isExpirado ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center animate-in fade-in zoom-in-95 duration-500">
+            <div className="bg-destructive/10 p-6 rounded-full mb-6 border-4 border-destructive/20">
+              <Lock className="h-16 w-16 text-destructive" />
+            </div>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-primary italic mb-3">Ciclo Encerrado</h2>
+            <p className="text-lg text-muted-foreground max-w-lg mb-8 leading-relaxed">
+              O ciclo de estudos para o Exame atual foi oficialmente encerrado no dia <span className="font-bold text-foreground">{dataCorteVisual}</span>. 
+              Esperamos que tenha feito uma excelente prova e conquistado a sua aprovação!
+            </p>
             
-            <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-              <div className="flex justify-between items-end mb-4">
-                <h3 className="text-lg font-bold text-primary italic">Meu Progresso</h3>
-                <span className="text-2xl font-bold text-primary">{progresso}%</span>
-              </div>
-              <Progress value={progresso} className="h-3" />
-            </div>
-
-            <Tabs defaultValue="metas" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-4">
-                <TabsTrigger value="metas">Cronograma</TabsTrigger>
-                <TabsTrigger value="laboratorio">Laboratório</TabsTrigger>
-                <TabsTrigger value="cadernos">Discursivas</TabsTrigger>
-                <TabsTrigger value="simulados">Simulados</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="metas" className="bg-card p-6 rounded-xl border border-border">
-                <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Clock className="h-5 w-5 text-accent" /> Minhas Metas</h3>
-                <div className="space-y-4">
-
-                  {/* META 0 FIXA - Independente do Gerador Adaptativo e visível para todos os alunos */}
-                  <div className={`flex flex-col sm:flex-row justify-between gap-4 p-5 rounded-xl border-2 transition-all ${perfilAluno?.metaZeroConcluida ? "border-border bg-background shadow-sm" : "border-accent shadow-sm bg-accent/5"}`}>
-                    <div className="flex gap-4 items-start flex-1">
-                      <input 
-                        type="checkbox" 
-                        className="h-5 w-5 accent-success mt-1 shrink-0 cursor-pointer" 
-                        checked={!!perfilAluno?.metaZeroConcluida} 
-                        onChange={async (e) => {
-                          const isChecked = e.target.checked;
-                          setPerfilAluno({...perfilAluno, metaZeroConcluida: isChecked});
-                          await updateDoc(doc(db, "alunos", perfilAluno.uid), { metaZeroConcluida: isChecked });
-                        }} 
-                      />
-                      <div className="flex-1">
-                        {!perfilAluno?.metaZeroConcluida && (
-                          <span className="bg-accent text-accent-foreground text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider mb-2 inline-block">
-                            Comece por aqui
-                          </span>
-                        )}
-                        <h4 className={`font-bold text-lg flex items-center gap-2 ${perfilAluno?.metaZeroConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"}`}>
-                          Meta 0: Boas-Vindas e Ambientação
-                        </h4>
-                        <p className={`text-sm mt-1 leading-relaxed ${perfilAluno?.metaZeroConcluida ? "opacity-50" : "text-muted-foreground"}`}>
-                          Parabéns por chegar à 2ª Fase! Você está a um passo da sua aprovação e fez a escolha certa ao procurar uma mentoria direcionada. Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural na Sala de Aula Virtual.
-                        </p>
-                        {!perfilAluno?.metaZeroConcluida && (
-                          <Button variant="hero" size="sm" className="mt-3 font-bold" asChild>
-                            <Link to="/aula">Assistir Aula Inaugural</Link>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {/* FIM DA META 0 FIXA */}
-
-                  {metas.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhuma meta adicional definida pelo professor.</p> : metas.map((m, i) => {
-                    // Oculta a meta de boas-vindas caso o banco de dados a envie para não gerar duplicidade
-                    if (m.atividade?.includes("Boas-Vindas")) return null;
-
-                    const isBloqueada = m.status === "bloqueada";
-                    const isPulada = m.status === "pulada";
-                    const isConcluida = m.status === "concluida" || m.concluida;
-
-                    if (isBloqueada) {
-                      return (
-                         <div key={i} className="flex gap-4 p-4 rounded-lg border border-dashed border-border bg-muted/20 opacity-50">
-                           <Lock className="h-5 w-5 text-muted-foreground shrink-0 mt-1" />
-                           <div><h4 className="font-bold text-muted-foreground">Meta {i}: Bloqueada</h4><p className="text-xs text-muted-foreground">Aguarde a liberação do seu mentor para aceder a esta etapa.</p></div>
-                         </div>
-                      )
-                    }
-
-                    return (
-                      <div key={i} className={`flex flex-col sm:flex-row justify-between gap-4 p-5 rounded-xl border-2 transition-all ${isPulada ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-background shadow-sm"}`}>
-                        <div className="flex gap-4 items-start flex-1">
-                          <input type="checkbox" className="h-5 w-5 accent-success mt-1 shrink-0 cursor-pointer" checked={isConcluida} onChange={(e) => handleStatusMeta(i, e.target.checked ? "concluida" : "liberada")} />
-                          <div className="flex-1">
-                            <h4 className={`font-bold text-lg flex items-center gap-2 ${isConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"} ${isPulada ? "text-yellow-600" : ""}`}>
-                              Meta {i}: {m.atividade}
-                            </h4>
-                            <p className={`text-sm mt-1 leading-relaxed ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}>{m.orientacoes}</p>
-                            {m.link && !isConcluida && (
-                              <Button variant="outline" size="sm" className="mt-3 font-bold text-accent border-accent/30" asChild>
-                                <a href={m.link} target="_blank" rel="noreferrer">Acessar Material / Aula</a>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        {!isConcluida && (
-                          <div className="shrink-0 flex items-center mt-4 sm:mt-0">
-                            {isPulada ? (
-                              <Button size="sm" variant="default" className="w-full sm:w-auto font-bold" onClick={() => handleStatusMeta(i, "liberada")}>Retomar Meta</Button>
-                            ) : (
-                              <Button size="sm" variant="ghost" className="w-full sm:w-auto text-yellow-600 hover:text-yellow-700 hover:bg-yellow-500/10 font-bold" onClick={() => handleStatusMeta(i, "pulada")}>
-                                <FastForward className="h-4 w-4 mr-2" /> Pular
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="laboratorio" className="bg-card p-6 rounded-xl border border-border">
-                <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Briefcase className="h-5 w-5 text-accent" /> Laboratório de Peças</h3>
-                <div className="grid gap-3">
-                  {laboratorio.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhuma peça cadastrada na disciplina.</p> : laboratorio.map((l, idx) => (
-                    <div key={idx} className="p-4 rounded-lg border border-border bg-background flex justify-between items-center transition-colors">
-                      <div><span className="font-bold text-sm block text-primary">{l.nome || "Peça sem nome"}</span><span className="text-[10px] text-muted-foreground uppercase">Material Prático</span></div>
-                      <Button variant="outline" size="sm" onClick={() => window.open(l.url_pdf || "#", "_blank")}>Abrir Peça</Button>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="cadernos" className="bg-card p-6 rounded-xl border border-border">
-                <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><PenTool className="h-5 w-5 text-accent" /> Cadernos de Discursivas</h3>
-                <div className="grid gap-3">
-                  {cadernos.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhum caderno publicado para a sua matéria.</p> : cadernos.map((c: any) => (
-                    <div key={c.id} className="p-4 rounded-lg border border-border bg-background flex justify-between items-center transition-colors">
-                      <div><span className="font-bold text-sm block text-primary">{c.titulo}</span>{c.data_publicacao && typeof c.data_publicacao.toDate === 'function' && <span className="text-[10px] text-muted-foreground">Publicado em: {c.data_publicacao.toDate().toLocaleDateString('pt-BR')}</span>}</div>
-                      <Button variant="outline" size="sm" onClick={() => window.open(c.url_pdf, "_blank")}>Abrir Caderno</Button>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="simulados" className="bg-card p-6 rounded-xl border border-border">
-                <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Timer className="h-5 w-5 text-accent" /> Área de Simulados</h3>
-                <div className="grid gap-3">
-                  {simulados.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhum simulado publicado para a sua matéria.</p> : simulados.map((s: any) => (
-                    <div key={s.id} className="p-4 rounded-lg border border-border bg-background flex justify-between items-center transition-colors">
-                      <div><span className="font-bold text-sm block text-primary">{s.titulo}</span>{s.data_publicacao && typeof s.data_publicacao.toDate === 'function' && <span className="text-[10px] text-muted-foreground">Publicado em: {s.data_publicacao.toDate().toLocaleDateString('pt-BR')}</span>}</div>
-                      {/* BOTÃO ALTERADO PARA ABRIR O MODAL DE PREPARAÇÃO DO CRONÔMETRO */}
-                      <Button variant="accent" size="sm" onClick={() => setModalPreparacao(s)}>Acessar Simulado</Button>
-                    </div>
-                  ))}
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          <div className="space-y-8">
-            <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-              <h3 className="text-lg font-bold text-primary mb-4 italic">Videoaulas</h3>
-              <Button asChild className="w-full h-12" variant="hero"><Link to="/aula">▶ Acessar Sala</Link></Button>
-            </div>
-
-            <div className="bg-card rounded-xl p-6 shadow-sm border border-dashed border-accent/50 bg-accent/5">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-primary italic">Upload de Peça</h3>
-              </div>
-              <input type="file" id="fileUpload" className="block w-full text-xs mb-4 cursor-pointer" disabled={historico.length >= 5} />
-              <Button className="w-full" onClick={handleUploadPeca} disabled={uploading || historico.length >= 5}>
-                {uploading ? "Aguarde..." : historico.length >= 5 ? "Limite Atingido" : "Submeter Peça"}
+            <div className="bg-card p-8 border border-border shadow-elevated rounded-2xl max-w-md w-full relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-accent"></div>
+              <h3 className="font-bold text-xl mb-3 flex items-center justify-center gap-2">
+                <AlertCircle className="h-5 w-5 text-accent" /> Precisa de Repescagem?
+              </h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Caso tenha havido algum imprevisto e necessite continuar os estudos para o próximo exame, 
+                você tem direito à nossa garantia de atualização de ciclo.
+              </p>
+              <Button variant="hero" size="lg" className="w-full h-14 text-base" onClick={handleSolicitarRepescagem}>
+                Quero ativar a minha Repescagem
               </Button>
             </div>
-
-            <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-primary italic">Histórico de Envios</h3>
-                <span className="text-xs font-bold bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/30">
-                  {historico.length} de 5 peças
-                </span>
+          </div>
+        ) : (
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-8">
+              
+              <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
+                <div className="flex justify-between items-end mb-4">
+                  <h3 className="text-lg font-bold text-primary italic">Meu Progresso</h3>
+                  <span className="text-2xl font-bold text-primary">{progresso}%</span>
+                </div>
+                <Progress value={progresso} className="h-3" />
               </div>
-              <div className="space-y-4">
-                {historico.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma peça submetida.</p> : historico.map((h, i) => (
-                  <div key={i} className="border-b pb-4 border-border last:border-0 last:pb-0">
-                    <div className="text-[11px] flex justify-between items-center mb-2">
-                      <span className="font-bold truncate max-w-[120px]" title={h.nome_documento}>{h.nome_documento}</span>
-                      <span className={`px-2 py-0.5 rounded-full font-black text-[8px] uppercase ${h.status === "Corrigido" ? "bg-success/20 text-success" : "bg-accent/20 text-accent"}`}>
-                        {h.status || "Pendente"}
-                      </span>
+
+              <Tabs defaultValue="metas" className="w-full">
+                <TabsList className="grid w-full grid-cols-4 mb-4">
+                  <TabsTrigger value="metas">Cronograma</TabsTrigger>
+                  <TabsTrigger value="laboratorio">Laboratório</TabsTrigger>
+                  <TabsTrigger value="cadernos">Discursivas</TabsTrigger>
+                  <TabsTrigger value="simulados">Simulados</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="metas" className="bg-card p-6 rounded-xl border border-border">
+                  <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Clock className="h-5 w-5 text-accent" /> Minhas Metas</h3>
+                  <div className="space-y-4">
+
+                    <div className={`flex flex-col sm:flex-row justify-between gap-4 p-5 rounded-xl border-2 transition-all ${perfilAluno?.metaZeroConcluida ? "border-border bg-background shadow-sm" : "border-accent shadow-sm bg-accent/5"}`}>
+                      <div className="flex gap-4 items-start flex-1">
+                        <input 
+                          type="checkbox" 
+                          className="h-5 w-5 accent-success mt-1 shrink-0 cursor-pointer" 
+                          checked={!!perfilAluno?.metaZeroConcluida} 
+                          onChange={async (e) => {
+                            const isChecked = e.target.checked;
+                            setPerfilAluno({...perfilAluno, metaZeroConcluida: isChecked});
+                            await updateDoc(doc(db, "alunos", perfilAluno.uid), { metaZeroConcluida: isChecked });
+                          }} 
+                        />
+                        <div className="flex-1">
+                          {!perfilAluno?.metaZeroConcluida && (
+                            <span className="bg-accent text-accent-foreground text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider mb-2 inline-block">
+                              Comece por aqui
+                            </span>
+                          )}
+                          <h4 className={`font-bold text-lg flex items-center gap-2 ${perfilAluno?.metaZeroConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"}`}>
+                            Meta 0: Boas-Vindas e Ambientação
+                          </h4>
+                          <p className={`text-sm mt-1 leading-relaxed ${perfilAluno?.metaZeroConcluida ? "opacity-50" : "text-muted-foreground"}`}>
+                            Parabéns por chegar à 2ª Fase! Você está a um passo da sua aprovação e fez a escolha certa ao procurar uma mentoria direcionada. Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural na Sala de Aula Virtual.
+                          </p>
+                          {!perfilAluno?.metaZeroConcluida && (
+                            <Button variant="hero" size="sm" className="mt-3 font-bold" asChild>
+                              <Link to="/aula">Assistir Aula Inaugural</Link>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-3">
-                      {h.status === "Corrigido" && h.observacao_professor && (
-                        <>
-                          <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 border-accent/30 text-accent hover:bg-accent/10" onClick={() => setFeedbackSelecionado(h)}>
-                            <MessageSquare className="h-3 w-3 mr-1" /> Feedback
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-6 px-2 opacity-50 cursor-not-allowed" title="Em breve: Áudio do Mentor">
-                            <Mic className="h-3 w-3 text-muted-foreground" />
-                          </Button>
-                        </>
-                      )}
-                      
-                      {h.status !== "Corrigido" && (
-                        <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive hover:bg-destructive/10" onClick={() => handleExcluirPeca(h.id)}>
-                          <Trash2 className="h-3 w-3 mr-1" /> Apagar
-                        </Button>
-                      )}
-                    </div>
+                    {/* LÓGICA DO CONTADOR CORRIGIDA AQUI */}
+                    {metas.length === 0 ? (
+                      <p className="text-sm italic text-muted-foreground">Nenhuma meta adicional definida pelo professor.</p>
+                    ) : (
+                      (() => {
+                        let metaCounter = 1; // Contador visual independente
+                        return metas.map((m, i) => {
+                          if (m.atividade?.includes("Boas-Vindas")) return null;
+
+                          const currentMetaNum = metaCounter++;
+                          const isBloqueada = m.status === "bloqueada";
+                          const isPulada = m.status === "pulada";
+                          const isConcluida = m.status === "concluida" || m.concluida;
+
+                          if (isBloqueada) {
+                            return (
+                               <div key={i} className="flex gap-4 p-4 rounded-lg border border-dashed border-border bg-muted/20 opacity-50">
+                                 <Lock className="h-5 w-5 text-muted-foreground shrink-0 mt-1" />
+                                 <div><h4 className="font-bold text-muted-foreground">Meta {currentMetaNum}: Bloqueada</h4><p className="text-xs text-muted-foreground">Aguarde a liberação do seu mentor para aceder a esta etapa.</p></div>
+                               </div>
+                            )
+                          }
+
+                          return (
+                            <div key={i} className={`flex flex-col sm:flex-row justify-between gap-4 p-5 rounded-xl border-2 transition-all ${isPulada ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-background shadow-sm"}`}>
+                              <div className="flex gap-4 items-start flex-1">
+                                <input type="checkbox" className="h-5 w-5 accent-success mt-1 shrink-0 cursor-pointer" checked={isConcluida} onChange={(e) => handleStatusMeta(i, e.target.checked ? "concluida" : "liberada")} />
+                                <div className="flex-1">
+                                  <h4 className={`font-bold text-lg flex items-center gap-2 ${isConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"} ${isPulada ? "text-yellow-600" : ""}`}>
+                                    Meta {currentMetaNum}: {m.atividade}
+                                  </h4>
+                                  <p className={`text-sm mt-1 leading-relaxed ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}>{m.orientacoes}</p>
+                                  
+                                  {(m.link || m.arquivo_url) && !isConcluida && (
+                                    <div className="flex flex-wrap gap-3 mt-4">
+                                      {m.link && (
+                                        <Button variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
+                                          <a href={m.link} target="_blank" rel="noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> Acessar Link</a>
+                                        </Button>
+                                      )}
+                                      {m.arquivo_url && (
+                                        <Button variant="outline" size="sm" className="font-bold text-success border-success/30 hover:bg-success/10" asChild>
+                                          <a href={m.arquivo_url} target="_blank" rel="noreferrer"><FileText className="h-4 w-4 mr-2" /> {m.arquivo_nome || "Baixar Anexo"}</a>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {!isConcluida && (
+                                <div className="shrink-0 flex items-center mt-4 sm:mt-0">
+                                  {isPulada ? (
+                                    <Button size="sm" variant="default" className="w-full sm:w-auto font-bold" onClick={() => handleStatusMeta(i, "liberada")}>Retomar Meta</Button>
+                                  ) : (
+                                    <Button size="sm" variant="ghost" className="w-full sm:w-auto text-yellow-600 hover:text-yellow-700 hover:bg-yellow-500/10 font-bold" onClick={() => handleStatusMeta(i, "pulada")}>
+                                      <FastForward className="h-4 w-4 mr-2" /> Pular
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()
+                    )}
                   </div>
-                ))}
+                </TabsContent>
+
+                <TabsContent value="laboratorio" className="bg-card p-6 rounded-xl border border-border">
+                  <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Briefcase className="h-5 w-5 text-accent" /> Laboratório de Peças</h3>
+                  <div className="grid gap-3">
+                    {laboratorio.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhuma peça cadastrada na disciplina.</p> : laboratorio.map((l, idx) => (
+                      <div key={idx} className="p-4 rounded-lg border border-border bg-background flex justify-between items-center transition-colors">
+                        <div><span className="font-bold text-sm block text-primary">{l.nome || "Peça sem nome"}</span><span className="text-[10px] text-muted-foreground uppercase">Material Prático</span></div>
+                        <Button variant="outline" size="sm" onClick={() => window.open(l.url_pdf || "#", "_blank")}>Abrir Peça</Button>
+                      </div>
+                    ))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="cadernos" className="bg-card p-6 rounded-xl border border-border">
+                  <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><PenTool className="h-5 w-5 text-accent" /> Cadernos de Discursivas</h3>
+                  <div className="grid gap-3">
+                    {cadernos.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhum caderno publicado para a sua matéria.</p> : cadernos.map((c: any) => (
+                      <div key={c.id} className="p-4 rounded-lg border border-border bg-background flex justify-between items-center transition-colors">
+                        <div><span className="font-bold text-sm block text-primary">{c.titulo}</span>{c.data_publicacao && typeof c.data_publicacao.toDate === 'function' && <span className="text-[10px] text-muted-foreground">Publicado em: {c.data_publicacao.toDate().toLocaleDateString('pt-BR')}</span>}</div>
+                        <Button variant="outline" size="sm" onClick={() => window.open(c.url_pdf, "_blank")}>Abrir Caderno</Button>
+                      </div>
+                    ))}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="simulados" className="bg-card p-6 rounded-xl border border-border">
+                  <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Timer className="h-5 w-5 text-accent" /> Área de Simulados</h3>
+                  <div className="grid gap-3">
+                    {simulados.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhum simulado publicado para a sua matéria.</p> : simulados.map((s: any) => (
+                      <div key={s.id} className="p-4 rounded-lg border border-border bg-background flex justify-between items-center transition-colors">
+                        <div><span className="font-bold text-sm block text-primary">{s.titulo}</span>{s.data_publicacao && typeof s.data_publicacao.toDate === 'function' && <span className="text-[10px] text-muted-foreground">Publicado em: {s.data_publicacao.toDate().toLocaleDateString('pt-BR')}</span>}</div>
+                        <Button variant="accent" size="sm" onClick={() => setModalPreparacao(s)}>Acessar Simulado</Button>
+                      </div>
+                    ))}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+
+            <div className="space-y-8">
+              <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
+                <h3 className="text-lg font-bold text-primary mb-4 italic">Videoaulas</h3>
+                <Button asChild className="w-full h-12" variant="hero"><Link to="/aula">▶ Acessar Sala</Link></Button>
+              </div>
+
+              <div className="bg-card rounded-xl p-6 shadow-sm border border-dashed border-accent/50 bg-accent/5">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-primary italic">Upload de Peça</h3>
+                </div>
+                <input type="file" id="fileUpload" className="block w-full text-xs mb-4 cursor-pointer" disabled={historico.length >= 5} />
+                <Button className="w-full" onClick={handleUploadPeca} disabled={uploading || historico.length >= 5}>
+                  {uploading ? "Aguarde..." : historico.length >= 5 ? "Limite Atingido" : "Submeter Peça"}
+                </Button>
+              </div>
+
+              <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-primary italic">Histórico de Envios</h3>
+                  <span className="text-xs font-bold bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/30">
+                    {historico.length} de 5 peças
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  {historico.length === 0 ? <p className="text-xs text-muted-foreground">Nenhuma peça submetida.</p> : historico.map((h, i) => (
+                    <div key={i} className="border-b pb-4 border-border last:border-0 last:pb-0">
+                      <div className="text-[11px] flex justify-between items-center mb-2">
+                        <span className="font-bold truncate max-w-[120px]" title={h.nome_documento}>{h.nome_documento}</span>
+                        <span className={`px-2 py-0.5 rounded-full font-black text-[8px] uppercase ${h.status === "Corrigido" ? "bg-success/20 text-success" : "bg-accent/20 text-accent"}`}>
+                          {h.status || "Pendente"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-3">
+                        {h.status === "Corrigido" && h.observacao_professor && (
+                          <>
+                            <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 border-accent/30 text-accent hover:bg-accent/10" onClick={() => setFeedbackSelecionado(h)}>
+                              <MessageSquare className="h-3 w-3 mr-1" /> Feedback
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 opacity-50 cursor-not-allowed" title="Em breve: Áudio do Mentor">
+                              <Mic className="h-3 w-3 text-muted-foreground" />
+                            </Button>
+                          </>
+                        )}
+                        
+                        {h.status !== "Corrigido" && (
+                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-destructive hover:bg-destructive/10" onClick={() => handleExcluirPeca(h.id)}>
+                            <Trash2 className="h-3 w-3 mr-1" /> Apagar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
 
-      {/* MODAL DE PREPARAÇÃO PARA O SIMULADO */}
       {modalPreparacao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/80 backdrop-blur-sm">
           <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-2xl p-8 relative">
@@ -454,7 +528,6 @@ const Aluno = () => {
         </div>
       )}
 
-      {/* CRONÔMETRO FLUTUANTE QUANDO O SIMULADO ESTÁ ATIVO */}
       {simuladoAtivo && (
         <div className="fixed bottom-6 right-6 bg-card border-2 border-accent shadow-[0_10px_40px_rgba(0,0,0,0.3)] p-5 rounded-2xl z-50 flex flex-col items-center w-64 animate-in slide-in-from-bottom-8">
           <h4 className="text-primary font-bold text-sm mb-1 text-center truncate w-full">{simuladoAtivo.titulo}</h4>
@@ -470,7 +543,6 @@ const Aluno = () => {
         </div>
       )}
 
-      {/* MODAL PARA LER O FEEDBACK */}
       {feedbackSelecionado && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-primary/80 backdrop-blur-sm">
           <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
