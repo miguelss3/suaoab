@@ -40,7 +40,7 @@ const Index = () => {
   const [materia, setMateria] = useState(""); 
   const [loading, setLoading] = useState(false);
 
-  // NOVA FUNÇÃO: RECUPERAÇÃO DE SENHA
+  // FUNÇÃO: RECUPERAÇÃO DE SENHA
   const handleResetPassword = async () => {
     if (!email) {
       toast.error("Por favor, digite seu e-mail no campo acima para recuperar a senha.");
@@ -113,6 +113,12 @@ const Index = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // FUNÇÃO: REDIRECIONAR PARA A HOTMART (LINK ATUALIZADO)
+  const handleComprarHotmart = () => {
+    const linkHotmart = "https://pay.hotmart.com/Q104967483T";
+    window.open(linkHotmart, "_blank");
   };
 
   return (
@@ -276,7 +282,8 @@ const Index = () => {
               </p>
             </div>
 
-            <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
+            {/* BOTÃO DA HOTMART ATIVADO AQUI */}
+            <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={handleComprarHotmart}>
               Efetuar Compra
             </Button>
             
@@ -357,7 +364,6 @@ const Index = () => {
                   </div>
                 </div>
                 
-                {/* CAMPO DE SENHA ATUALIZADO COM BOTÃO DE RECUPERAÇÃO */}
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <Label>Senha</Label>
