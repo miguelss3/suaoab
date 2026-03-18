@@ -238,7 +238,46 @@ const Aluno = () => {
               <TabsContent value="metas" className="bg-card p-6 rounded-xl border border-border">
                 <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Clock className="h-5 w-5 text-accent" /> Minhas Metas</h3>
                 <div className="space-y-4">
-                  {metas.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhuma meta definida pelo professor.</p> : metas.map((m, i) => {
+
+                  {/* META 0 FIXA - Independente do Gerador Adaptativo e visível para todos os alunos */}
+                  <div className={`flex flex-col sm:flex-row justify-between gap-4 p-5 rounded-xl border-2 transition-all ${perfilAluno?.metaZeroConcluida ? "border-border bg-background shadow-sm" : "border-accent shadow-sm bg-accent/5"}`}>
+                    <div className="flex gap-4 items-start flex-1">
+                      <input 
+                        type="checkbox" 
+                        className="h-5 w-5 accent-success mt-1 shrink-0 cursor-pointer" 
+                        checked={!!perfilAluno?.metaZeroConcluida} 
+                        onChange={async (e) => {
+                          const isChecked = e.target.checked;
+                          setPerfilAluno({...perfilAluno, metaZeroConcluida: isChecked});
+                          await updateDoc(doc(db, "alunos", perfilAluno.uid), { metaZeroConcluida: isChecked });
+                        }} 
+                      />
+                      <div className="flex-1">
+                        {!perfilAluno?.metaZeroConcluida && (
+                          <span className="bg-accent text-accent-foreground text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider mb-2 inline-block">
+                            Comece por aqui
+                          </span>
+                        )}
+                        <h4 className={`font-bold text-lg flex items-center gap-2 ${perfilAluno?.metaZeroConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"}`}>
+                          Meta 0: Boas-Vindas e Ambientação
+                        </h4>
+                        <p className={`text-sm mt-1 leading-relaxed ${perfilAluno?.metaZeroConcluida ? "opacity-50" : "text-muted-foreground"}`}>
+                          Parabéns por chegar à 2ª Fase! Você está a um passo da sua aprovação e fez a escolha certa ao procurar uma mentoria direcionada. Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural na Sala de Aula Virtual.
+                        </p>
+                        {!perfilAluno?.metaZeroConcluida && (
+                          <Button variant="hero" size="sm" className="mt-3 font-bold" asChild>
+                            <Link to="/aula">Assistir Aula Inaugural</Link>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {/* FIM DA META 0 FIXA */}
+
+                  {metas.length === 0 ? <p className="text-sm italic text-muted-foreground">Nenhuma meta adicional definida pelo professor.</p> : metas.map((m, i) => {
+                    // Oculta a meta de boas-vindas caso o banco de dados a envie para não gerar duplicidade
+                    if (m.atividade?.includes("Boas-Vindas")) return null;
+
                     const isBloqueada = m.status === "bloqueada";
                     const isPulada = m.status === "pulada";
                     const isConcluida = m.status === "concluida" || m.concluida;

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
   Target, Scale, BarChart3, CheckCircle2, ArrowRight, 
-  Shield, Clock, X, Mail, Lock, User, Phone 
+  Shield, Clock, X, Mail, Lock, User, Phone, Star 
 } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
@@ -186,13 +186,68 @@ const Index = () => {
         </div>
       </section>
 
+      {/* SEÇÃO DE DEPOIMENTOS ADICIONADA AQUI */}
+      <section className="py-24 bg-muted/20 border-t border-border">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-primary italic mb-4">Aprovados que seguiram o método</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Histórias reais de quem já esteve exatamente onde você está hoje e conquistou a tão sonhada carteira vermelha.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
+              <div className="flex text-accent mb-4">
+                <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
+              </div>
+              <p className="text-foreground/80 italic mb-6">"Eu trabalhava o dia todo e não sabia como organizar o tempo. O cronograma adaptativo foi a minha salvação. As correções pareciam que o professor estava do meu lado ensinando."</p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">M</div>
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">Mariana Costa</h4>
+                  <span className="text-[10px] uppercase font-black text-accent tracking-widest">D. Administrativo</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
+              <div className="flex text-accent mb-4">
+                <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
+              </div>
+              <p className="text-foreground/80 italic mb-6">"Fazer os simulados com a mesma formatação gráfica da prova real tirou o meu nervosismo. Quando abri o caderno da FGV, senti que era apenas mais um PDF da plataforma."</p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">R</div>
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">Rafael Oliveira</h4>
+                  <span className="text-[10px] uppercase font-black text-accent tracking-widest">D. Penal</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
+              <div className="flex text-accent mb-4">
+                <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
+              </div>
+              <p className="text-foreground/80 italic mb-6">"A objetividade é o ponto forte. Nada de doutrinas infinitas. Fui direto para a resolução de peças e no dia da prova sabia exatamente a estrutura que o examinador queria ver."</p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">L</div>
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">Larissa Mendes</h4>
+                  <span className="text-[10px] uppercase font-black text-accent tracking-widest">D. Tributário</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      {/* FIM DA SEÇÃO DE DEPOIMENTOS */}
+
       <section className="py-24 bg-background">
         <div className="container flex justify-center">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} className="relative max-w-2xl w-full bg-card rounded-3xl p-12 shadow-elevated border-2 border-accent/30 text-center">
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg">
               🔥 OFERTA POR TEMPO LIMITADO
             </div>
-            <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mt-4 mb-2">Garante a tua Aprovação na 2ª Fase</h2>
+            <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mt-4 mb-2">Garanta a sua Aprovação na 2ª Fase</h2>
             <p className="text-muted-foreground text-lg mb-8">Plataforma Completa + Aulas + Correção de Peças + Cronograma Inteligente.</p>
             
             <div className="mb-8">
@@ -234,7 +289,7 @@ const Index = () => {
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-card border border-border w-full max-w-md p-8 rounded-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
               <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X /></button>
               <div className="text-center mb-6">
-                <h2 className="text-2xl font-display font-bold text-primary italic">{isLogin ? "Aceder ao Painel" : "Iniciar Matrícula"}</h2>
+                <h2 className="text-2xl font-display font-bold text-primary italic">{isLogin ? "Acessar o Painel" : "Iniciar Matrícula"}</h2>
               </div>
               <form onSubmit={handleAuth} className="space-y-4">
                 
@@ -265,14 +320,14 @@ const Index = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Palavra-passe</Label>
+                  <Label>Senha</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input type="password" minLength={6} placeholder="••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
                   </div>
                 </div>
                 <Button type="submit" className="w-full h-12 mt-2" variant="hero" disabled={loading}>
-                  {loading ? "A processar..." : (isLogin ? "Entrar na Plataforma" : "Criar Conta de Teste")}
+                  {loading ? "Processando..." : (isLogin ? "Entrar na Plataforma" : "Criar Conta de Teste")}
                 </Button>
               </form>
               <button onClick={() => setIsLogin(!isLogin)} className="w-full mt-4 text-sm text-accent font-bold hover:underline">
