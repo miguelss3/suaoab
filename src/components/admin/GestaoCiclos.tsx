@@ -1,8 +1,8 @@
 // src/components/admin/GestaoCiclos.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { CalendarDays, Save, AlertTriangle, Clock, Target } from "lucide-react";
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { CalendarDays, Save, AlertTriangle, Clock, Target, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,16 +11,29 @@ import { toast } from "sonner";
 const GestaoCiclos = () => {
   const [exame, setExame] = useState("");
   const [dataProva, setDataProva] = useState("");
+  const [vagasTotais, setVagasTotais] = useState<number | string>(50); // Novo estado
+  const [alunosAtivos, setAlunosAtivos] = useState(0); // Novo estado
   const [loading, setLoading] = useState(false);
 
   // Vai buscar os dados atuais ao Firebase
   useEffect(() => {
     const fetchCiclo = async () => {
-      const docRef = doc(db, "configuracoes", "ciclo_atual");
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setExame(docSnap.data().exame || "");
-        setDataProva(docSnap.data().data_prova || "");
+      try {
+        // 1. Busca configurações de exame e vagas
+        const docRef = doc(db, "configuracoes", "ciclo_atual");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setExame(docSnap.data().exame || "");
+          setDataProva(docSnap.data().data_prova || "");
+          if (docSnap.data().vagas_totais) setVagasTotais(docSnap.data().vagas_totais);
+        }
+
+        // 2. Conta alunos Premium para o Gatilho de Escassez
+        const qPremium = query(collection(db, "alunos"), where("status", "==", "Premium"));
+        const snapPremium = await getDocs(qPremium);
+        setAlunosAtivos(snapPremium.size);
+      } catch (error) {
+        console.error("Erro ao carregar dados do ciclo", error);
       }
     };
     fetchCiclo();
@@ -31,6 +44,12 @@ const GestaoCiclos = () => {
       toast.error("Preencha o número do exame e a data da prova.");
       return;
     }
+    
+    if (Number(vagasTotais) < alunosAtivos) {
+      toast.error(`Você não pode ter menos vagas do que os ${alunosAtivos} alunos Premium atuais.`);
+      return;
+    }
+
     setLoading(true);
     try {
       // O Motor calcula a data de expiração automaticamente (Prova + 5 dias)
@@ -41,8 +60,10 @@ const GestaoCiclos = () => {
         exame,
         data_prova: dataProva,
         data_expiracao: dataExp.toISOString().split('T')[0],
+        vagas_totais: Number(vagasTotais), // Salva as vagas no banco
         atualizado_em: new Date()
-      });
+      }, { merge: true }); // Merge garante que não apaga outros campos
+      
       toast.success("Ciclo atualizado! O relógio do sistema foi ajustado.");
     } catch (error) {
       toast.error("Erro ao guardar as configurações no banco de dados.");
@@ -68,11 +89,13 @@ const GestaoCiclos = () => {
           </div>
           <div>
             <h2 className="text-2xl font-display font-bold text-primary italic">Motor de Ciclos e Prazos</h2>
-            <p className="text-sm text-muted-foreground">Defina o ciclo atual para automatizar a expiração de acessos (Repescagem).</p>
+            <p className="text-sm text-muted-foreground">Defina o ciclo atual para automatizar a expiração e o limite de vagas.</p>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
+          
+          {/* BLOCO 1: BARREIRA TEMPORAL */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-sm font-bold flex items-center gap-2">
@@ -96,6 +119,35 @@ const GestaoCiclos = () => {
                 onChange={(e) => setDataProva(e.target.value)} 
                 className="h-12 text-lg"
               />
+            </div>
+          </div>
+
+          {/* BLOCO 2: GATILHO DE ESCASSEZ */}
+          <div className="pt-6 border-t border-border">
+            <h3 className="text-lg font-bold text-primary flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-accent"/> Gatilho de Escassez (Vagas no Site)
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6 items-end">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold">Total de Vagas da Turma</Label>
+                <Input 
+                  type="number" 
+                  min={alunosAtivos}
+                  value={vagasTotais} 
+                  onChange={(e) => setVagasTotais(e.target.value)} 
+                  className="h-12 text-lg font-bold"
+                />
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1 bg-background border border-border p-3 rounded-lg text-center shadow-inner">
+                  <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Matriculados</p>
+                  <p className="text-2xl font-display font-black text-primary">{alunosAtivos}</p>
+                </div>
+                <div className="flex-1 bg-accent/10 border border-accent/20 p-3 rounded-lg text-center">
+                  <p className="text-[10px] text-accent uppercase font-black tracking-widest mb-1">Visível no Site</p>
+                  <p className="text-2xl font-display font-black text-accent">{Math.max(0, Number(vagasTotais) - alunosAtivos)}</p>
+                </div>
+              </div>
             </div>
           </div>
 
