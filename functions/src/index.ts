@@ -16,24 +16,23 @@ export const hotmartWebhook = functions.https.onRequest(async (req, res) => {
     
     // Verifica se o evento é de COMPRA APROVADA
     if (dados.event === "PURCHASE_APPROVED") {
-      // Navega no objeto (JSON) que a Hotmart envia para pegar o e-mail
       const emailDoAluno = dados.data?.buyer?.email;
 
       if (emailDoAluno) {
-        // Procura o aluno no banco de dados
+        // Procura o aluno que acabou de se cadastrar no site
         const alunosRef = admin.firestore().collection("alunos");
         const snapshot = await alunosRef.where("email", "==", emailDoAluno).get();
 
         if (!snapshot.empty) {
           const batch = admin.firestore().batch();
           snapshot.docs.forEach((doc) => {
-            // Atualiza o status
+            // Encontrou o aluno Lead! Agora destranca o acesso mudando para Premium
             batch.update(doc.ref, { status: "Premium" });
           });
           await batch.commit();
           console.log(`Sucesso: Aluno ${emailDoAluno} atualizado para Premium!`);
         } else {
-          console.log(`Aviso: E-mail ${emailDoAluno} não encontrado.`);
+          console.log(`Aviso: E-mail ${emailDoAluno} não encontrado. Ele pode ter pulado a etapa de cadastro.`);
         }
       }
     }

@@ -115,12 +115,6 @@ const Index = () => {
     }
   };
 
-  // FUNÇÃO: REDIRECIONAR PARA A HOTMART (LINK ATUALIZADO)
-  const handleComprarHotmart = () => {
-    const linkHotmart = "https://pay.hotmart.com/Q104967483T";
-    window.open(linkHotmart, "_blank");
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-primary/95 backdrop-blur-md border-b border-primary/80">
@@ -155,7 +149,7 @@ const Index = () => {
               </motion.p>
               <motion.div variants={fadeUp} custom={3} className="flex flex-wrap gap-4">
                 <Button variant="hero" size="lg" className="h-14 px-10 text-base" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
-                  Teste Gratuito de 72h <ArrowRight className="ml-2 h-5 w-5" />
+                  Garantir Minha Vaga <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </motion.div>
             </motion.div>
@@ -282,9 +276,9 @@ const Index = () => {
               </p>
             </div>
 
-            {/* BOTÃO DA HOTMART ATIVADO AQUI */}
-            <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={handleComprarHotmart}>
-              Efetuar Compra
+            {/* BOTÃO ATUALIZADO PARA ABRIR O CADASTRO */}
+            <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
+              Garantir Minha Vaga
             </Button>
             
             <p className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-6">
@@ -298,7 +292,7 @@ const Index = () => {
         <div className="container text-center space-y-8">
           <h2 className="text-3xl font-display font-bold text-primary-foreground">Acesse agora e veja na prática.</h2>
           <Button variant="accent" size="lg" className="h-14 px-10" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
-            <Clock className="mr-2 h-5 w-5" /> Criar conta de teste (72h grátis)
+            <Clock className="mr-2 h-5 w-5" /> Iniciar Matrícula
           </Button>
         </div>
       </section>
@@ -384,11 +378,11 @@ const Index = () => {
                 </div>
 
                 <Button type="submit" className="w-full h-12 mt-2" variant="hero" disabled={loading}>
-                  {loading ? "Processando..." : (isLogin ? "Entrar na Plataforma" : "Criar Conta de Teste")}
+                  {loading ? "Processando..." : (isLogin ? "Entrar na Plataforma" : "Avançar para o Painel")}
                 </Button>
               </form>
               <button onClick={() => setIsLogin(!isLogin)} className="w-full mt-4 text-sm text-accent font-bold hover:underline">
-                {isLogin ? "Não tem conta? Faça o teste grátis" : "Já é aluno? Faça login"}
+                {isLogin ? "Não tem conta? Inicie sua matrícula" : "Já é aluno? Faça login"}
               </button>
             </motion.div>
           </div>
