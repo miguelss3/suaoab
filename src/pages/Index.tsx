@@ -1,19 +1,15 @@
 // src/pages/Index.tsx
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { 
-  Target, Scale, BarChart3, CheckCircle2, ArrowRight, 
-  Shield, Clock, X, Mail, Lock, User, Phone, Star, BookOpen 
-} from "lucide-react";
-import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { doc, setDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { toast } from "sonner";
+import { Target, Scale, BarChart3, CheckCircle2, ArrowRight, Shield, Clock, Star } from "lucide-react";
+import { db } from "@/lib/firebase";
+import { doc, collection, query, where, getDocs, getDoc } from "firebase/firestore";
 import heroBg from "@/assets/hero-bg.jpg";
+
+// IMPORTANDO O MOTOR DE CADASTRO QUE CRIAMOS
+import { AuthModal } from "@/components/index/AuthModal";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -29,118 +25,36 @@ const features = [
 const checkItems = ["Aulas Direto ao Ponto", "Metas Diárias no seu Painel", "Comunicação Direta com o Mentor", "Simulados com Cronômetro"];
 
 const Index = () => {
-  const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  
-  const [nome, setNome] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [materia, setMateria] = useState(""); 
-  const [loading, setLoading] = useState(false);
+  const [vagasRestantes, setVagasRestantes] = useState<number>(12); // Padrão visual inicial
 
-  const handleResetPassword = async () => {
-    if (!email) {
-      toast.error("Por favor, digite seu e-mail no campo acima para recuperar a senha.");
-      return;
-    }
-    // Validação de E-mail para recuperação
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email.trim())) {
-      toast.error("Digite um formato de e-mail válido para recuperação.");
-      return;
-    }
-    try {
-      await sendPasswordResetEmail(auth, email.trim());
-      toast.success("E-mail de recuperação enviado! Verifique sua caixa de entrada (e o spam).");
-    } catch (error: any) {
-      toast.error("Erro ao enviar e-mail. Verifique se o endereço está correto e se você já possui cadastro.");
-    }
-  };
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    // --- 1. VALIDAÇÃO RIGOROSA DO E-MAIL ---
-    const emailLimpo = email.trim();
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(emailLimpo)) {
-      toast.error("O E-mail inserido é inválido. Certifique-se de incluir o '@' e um domínio válido (ex: .com).");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      if (isLogin) {
-        const userCredential = await signInWithEmailAndPassword(auth, emailLimpo, password);
-        const user = userCredential.user;
-        toast.success("Acesso autorizado!");
-
-        if (user.email === "miguelss3@yahoo.com.br") { 
-          navigate("/painel");
-        } else {
-          navigate("/aluno");
-        }
-      } else {
-        // --- 2. VALIDAÇÃO RIGOROSA DO CADASTRO DE ALUNO NOVO ---
-        if (!materia) {
-          toast.error("Por favor, selecione a disciplina da 2ª Fase.");
-          setLoading(false);
-          return;
+  // --- MOTOR DE ESCASSEZ (Busca vagas e alunos Premium) ---
+  useEffect(() => {
+    const calcularVagas = async () => {
+      try {
+        const configSnap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
+        let limiteVagas = 50; 
+        if (configSnap.exists() && configSnap.data().vagas_totais) {
+          limiteVagas = Number(configSnap.data().vagas_totais);
         }
 
-        // Validação do WhatsApp (garantir que tem DDD e números suficientes)
-        const whatsLimpo = whatsapp.replace(/\D/g, ''); // Remove tudo que não for número
-        if (whatsLimpo.length < 10) {
-          toast.error("O número de WhatsApp está muito curto. Não se esqueça de incluir o DDD.");
-          setLoading(false);
-          return;
-        }
+        const qPremium = query(collection(db, "alunos"), where("status", "==", "Premium"));
+        const snapPremium = await getDocs(qPremium);
+        const totalPremium = snapPremium.size;
 
-        let novaMatricula = "2026100"; 
-        const qMatricula = query(collection(db, "alunos"), orderBy("matricula", "desc"), limit(1));
-        const snapMatricula = await getDocs(qMatricula);
-        
-        if (!snapMatricula.empty) {
-          const ultima = snapMatricula.docs[0].data().matricula;
-          if (ultima && !isNaN(Number(ultima))) {
-            novaMatricula = (Number(ultima) + 1).toString();
-          }
-        }
-
-        const userCredential = await createUserWithEmailAndPassword(auth, emailLimpo, password);
-        await setDoc(doc(db, "alunos", userCredential.user.uid), {
-          nome: nome,
-          whatsapp: whatsapp, // Salvamos como ele digitou, mas já validamos que tem números suficientes
-          email: emailLimpo,
-          materia: materia, 
-          matricula: novaMatricula, 
-          status: "Lead",
-          progresso: 0,
-          data_cadastro: new Date(),
-          metas: [{ 
-            atividade: "Meta 0: Boas-Vindas e Ambientação", 
-            orientacoes: "Parabéns por chegar à 2ª Fase! Você está a um passo da sua aprovação e fez a escolha certa ao procurar uma mentoria direcionada. Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural na Sala de Aula Virtual.", 
-            link: "",
-            status: "liberada", 
-            concluida: false 
-          }]
-        });
-        toast.success(`Matrícula nº ${novaMatricula} criada com sucesso!`);
-        navigate("/aluno");
+        const restantes = limiteVagas - totalPremium;
+        setVagasRestantes(restantes > 0 ? restantes : 0);
+      } catch (error) {
+        console.error("Erro ao calcular vagas:", error);
       }
-      setShowAuthModal(false);
-    } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        toast.error("Este e-mail já está cadastrado. Por favor, faça login.");
-      } else {
-        toast.error("Erro na autenticação. Verifique os dados inseridos.");
-      }
-    } finally {
-      setLoading(false);
-    }
+    };
+    calcularVagas();
+  }, []);
+
+  const openAuth = (login: boolean) => {
+    setIsLogin(login);
+    setShowAuthModal(true);
   };
 
   return (
@@ -151,7 +65,7 @@ const Index = () => {
             SUA<span className="text-accent">OAB</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="accent" onClick={() => { setIsLogin(true); setShowAuthModal(true); }}>
+            <Button variant="accent" onClick={() => openAuth(true)}>
               Área do Aluno
             </Button>
           </div>
@@ -166,9 +80,18 @@ const Index = () => {
         <div className="container relative z-10 py-20">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div initial="hidden" animate="visible" className="space-y-8">
-              <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 rounded-full bg-accent/10 border border-accent/30 px-4 py-2 text-sm text-accent font-medium">
-                ⚠️ Restam apenas <span className="text-destructive font-bold">12 vagas</span> para correção artesanal
-              </motion.div>
+              
+              {/* ETIQUETA COM VAGAS DINÂMICAS */}
+              {vagasRestantes > 0 ? (
+                <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 rounded-full bg-accent/10 border border-accent/30 px-4 py-2 text-sm text-accent font-medium">
+                  ⚠️ Restam apenas <span className="text-destructive font-bold">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span> para correção artesanal
+                </motion.div>
+              ) : (
+                <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 rounded-full bg-destructive/10 border border-destructive/30 px-4 py-2 text-sm text-destructive font-bold">
+                  ⚠️ Vagas esgotadas. Entre na lista de espera.
+                </motion.div>
+              )}
+
               <motion.h1 variants={fadeUp} custom={1} className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-primary-foreground leading-[1.1] tracking-tight">
                 A única preparação para a 2ª Fase <span className="text-gradient-accent italic">desenhada para você.</span>
               </motion.h1>
@@ -176,7 +99,7 @@ const Index = () => {
                 Esqueça os cursos de massa. Tenha um cronograma inteligente, um Dossiê de evolução e a correção cirúrgica das suas peças.
               </motion.p>
               <motion.div variants={fadeUp} custom={3} className="flex flex-wrap gap-4">
-                <Button variant="hero" size="lg" className="h-14 px-10 text-base" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
+                <Button variant="hero" size="lg" className="h-14 px-10 text-base" onClick={() => openAuth(false)}>
                   Garantir Minha Vaga <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </motion.div>
@@ -304,7 +227,7 @@ const Index = () => {
               </p>
             </div>
 
-            <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
+            <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={() => openAuth(false)}>
               Garantir Minha Vaga
             </Button>
             
@@ -318,7 +241,7 @@ const Index = () => {
       <section className="bg-hero py-24">
         <div className="container text-center space-y-8">
           <h2 className="text-3xl font-display font-bold text-primary-foreground">Acesse agora e veja na prática.</h2>
-          <Button variant="accent" size="lg" className="h-14 px-10" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
+          <Button variant="accent" size="lg" className="h-14 px-10" onClick={() => openAuth(false)}>
             <Clock className="mr-2 h-5 w-5" /> Iniciar Matrícula
           </Button>
         </div>
@@ -330,91 +253,14 @@ const Index = () => {
         </div>
       </footer>
 
-      <AnimatePresence>
-        {showAuthModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-primary/60 backdrop-blur-sm">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-card border border-border w-full max-w-md p-8 rounded-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
-              <button onClick={() => setShowAuthModal(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X /></button>
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-display font-bold text-primary italic">{isLogin ? "Acessar o Painel" : "Iniciar Matrícula"}</h2>
-              </div>
-              <form onSubmit={handleAuth} className="space-y-4">
-                
-                {!isLogin && (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Nome Completo</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input type="text" className="pl-10 uppercase" placeholder="DIGITE SEU NOME" value={nome} onChange={(e) => setNome(e.target.value.toUpperCase())} required />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>WhatsApp (com DDD)</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input type="tel" className="pl-10" placeholder="(11) 99999-9999" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} required />
-                      </div>
-                    </div>
+      {/* COMPONENTE MODULAR DE CADASTRO SENDO CHAMADO AQUI */}
+      <AuthModal 
+        showAuthModal={showAuthModal} 
+        setShowAuthModal={setShowAuthModal} 
+        isLogin={isLogin} 
+        setIsLogin={setIsLogin} 
+      />
 
-                    <div className="space-y-2">
-                      <Label className="text-accent font-bold">Disciplina da 2ª Fase</Label>
-                      <div className="relative">
-                        <BookOpen className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <select 
-                          className="w-full h-10 border border-input rounded-md pl-10 pr-3 bg-background text-sm focus:ring-2 focus:ring-accent" 
-                          value={materia} 
-                          onChange={(e) => setMateria(e.target.value)} 
-                          required
-                        >
-                          <option value="">Selecione sua matéria...</option>
-                          <option value="DADM">Direito Administrativo</option>
-                          <option value="DPEN">Direito Penal</option>
-                          <option value="DTRI">Direito Tributário</option>
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="space-y-2">
-                  <Label>E-mail</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input type="email" className="pl-10" placeholder="exemplo@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label>Senha</Label>
-                    {isLogin && (
-                      <button 
-                        type="button" 
-                        onClick={handleResetPassword} 
-                        className="text-[10px] text-accent font-bold hover:underline"
-                      >
-                        Esqueceu a senha?
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input type="password" minLength={6} placeholder="••••••" className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full h-12 mt-2" variant="hero" disabled={loading}>
-                  {loading ? "Processando..." : (isLogin ? "Entrar na Plataforma" : "Avançar para o Painel")}
-                </Button>
-              </form>
-              <button onClick={() => setIsLogin(!isLogin)} className="w-full mt-4 text-sm text-accent font-bold hover:underline">
-                {isLogin ? "Não tem conta? Inicie sua matrícula" : "Já é aluno? Faça login"}
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
