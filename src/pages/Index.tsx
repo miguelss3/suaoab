@@ -40,14 +40,19 @@ const Index = () => {
   const [materia, setMateria] = useState(""); 
   const [loading, setLoading] = useState(false);
 
-  // FUNÇÃO: RECUPERAÇÃO DE SENHA
   const handleResetPassword = async () => {
     if (!email) {
       toast.error("Por favor, digite seu e-mail no campo acima para recuperar a senha.");
       return;
     }
+    // Validação de E-mail para recuperação
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email.trim())) {
+      toast.error("Digite um formato de e-mail válido para recuperação.");
+      return;
+    }
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email.trim());
       toast.success("E-mail de recuperação enviado! Verifique sua caixa de entrada (e o spam).");
     } catch (error: any) {
       toast.error("Erro ao enviar e-mail. Verifique se o endereço está correto e se você já possui cadastro.");
@@ -57,9 +62,19 @@ const Index = () => {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
+    // --- 1. VALIDAÇÃO RIGOROSA DO E-MAIL ---
+    const emailLimpo = email.trim();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(emailLimpo)) {
+      toast.error("O E-mail inserido é inválido. Certifique-se de incluir o '@' e um domínio válido (ex: .com).");
+      setLoading(false);
+      return;
+    }
+
     try {
       if (isLogin) {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, emailLimpo, password);
         const user = userCredential.user;
         toast.success("Acesso autorizado!");
 
@@ -69,8 +84,17 @@ const Index = () => {
           navigate("/aluno");
         }
       } else {
+        // --- 2. VALIDAÇÃO RIGOROSA DO CADASTRO DE ALUNO NOVO ---
         if (!materia) {
           toast.error("Por favor, selecione a disciplina da 2ª Fase.");
+          setLoading(false);
+          return;
+        }
+
+        // Validação do WhatsApp (garantir que tem DDD e números suficientes)
+        const whatsLimpo = whatsapp.replace(/\D/g, ''); // Remove tudo que não for número
+        if (whatsLimpo.length < 10) {
+          toast.error("O número de WhatsApp está muito curto. Não se esqueça de incluir o DDD.");
           setLoading(false);
           return;
         }
@@ -86,11 +110,11 @@ const Index = () => {
           }
         }
 
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, emailLimpo, password);
         await setDoc(doc(db, "alunos", userCredential.user.uid), {
           nome: nome,
-          whatsapp: whatsapp,
-          email: email,
+          whatsapp: whatsapp, // Salvamos como ele digitou, mas já validamos que tem números suficientes
+          email: emailLimpo,
           materia: materia, 
           matricula: novaMatricula, 
           status: "Lead",
@@ -109,7 +133,11 @@ const Index = () => {
       }
       setShowAuthModal(false);
     } catch (error: any) {
-      toast.error("Erro: Verifique os dados inseridos.");
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error("Este e-mail já está cadastrado. Por favor, faça login.");
+      } else {
+        toast.error("Erro na autenticação. Verifique os dados inseridos.");
+      }
     } finally {
       setLoading(false);
     }
@@ -276,7 +304,6 @@ const Index = () => {
               </p>
             </div>
 
-            {/* BOTÃO ATUALIZADO PARA ABRIR O CADASTRO */}
             <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={() => { setIsLogin(false); setShowAuthModal(true); }}>
               Garantir Minha Vaga
             </Button>
@@ -323,7 +350,7 @@ const Index = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>WhatsApp</Label>
+                      <Label>WhatsApp (com DDD)</Label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input type="tel" className="pl-10" placeholder="(11) 99999-9999" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} required />
