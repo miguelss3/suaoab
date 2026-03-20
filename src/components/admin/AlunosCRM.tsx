@@ -10,16 +10,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import DossieAluno from "./DossieAluno"; // Importando o nosso novo Motor!
 
+type MetaStatus = "bloqueada" | "liberada" | "concluida" | "pulada";
+
+interface Meta {
+  atividade: string;
+  orientacoes: string;
+  link?: string;
+  arquivo_url?: string;
+  arquivo_nome?: string;
+  status: MetaStatus;
+  concluida: boolean;
+  data_sugerida?: string;
+  arquivo_file?: File | null;
+}
+
+interface AlunoCRM {
+  id: string;
+  nome: string;
+  email?: string;
+  materia: string;
+  matricula?: string;
+  status?: string;
+  data_cadastro?: Date | { toDate: () => Date } | string;
+  data_expiracao?: Date | { toDate: () => Date } | string;
+  metas?: Meta[];
+}
+
 const AlunosCRM = () => {
-  const [alunos, setAlunos] = useState<any[]>([]);
+  const [alunos, setAlunos] = useState<AlunoCRM[]>([]);
   const [busca, setBusca] = useState("");
-  const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
+  const [alunoSelecionado, setAlunoSelecionado] = useState<AlunoCRM | null>(null);
   const [modalConfirmacao, setModalConfirmacao] = useState({ isOpen: false, titulo: "", mensagem: "", acao: () => {} });
 
   useEffect(() => {
     const qAlunos = query(collection(db, "alunos"), orderBy("data_cadastro", "desc"));
     const unsub = onSnapshot(qAlunos, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AlunoCRM, 'id'>) })) as AlunoCRM[];
       setAlunos(data);
       if (alunoSelecionado) {
         const atualizado = data.find(a => a.id === alunoSelecionado.id);
@@ -27,9 +53,9 @@ const AlunosCRM = () => {
       }
     });
     return () => unsub();
-  }, [alunoSelecionado?.id]);
+  }, [alunoSelecionado]);
 
-  const calcularProgresso = (metas: any[]) => {
+  const calcularProgresso = (metas: Meta[] | undefined) => {
     if (!metas || metas.length === 0) return 0;
     const concluidas = metas.filter(m => m.status === "concluida" || m.concluida === true).length;
     return Math.round((concluidas / metas.length) * 100);
@@ -67,9 +93,34 @@ const AlunosCRM = () => {
     });
   };
 
-  const calcularExpiracaoLead = (aluno: any) => {
-    let d = aluno.data_expiracao?.toDate ? aluno.data_expiracao.toDate() : new Date(aluno.data_expiracao || aluno.data_cadastro);
-    if (!aluno.data_expiracao) d.setDate(d.getDate() + 3); 
+  const calcularExpiracaoLead = (aluno: AlunoCRM) => {
+    let d: Date;
+
+    if (aluno.data_expiracao) {
+      if (typeof aluno.data_expiracao === "string") {
+        d = new Date(aluno.data_expiracao);
+      } else if (aluno.data_expiracao instanceof Date) {
+        d = aluno.data_expiracao;
+      } else {
+        d = aluno.data_expiracao.toDate();
+      }
+    } else if (aluno.data_cadastro) {
+      if (typeof aluno.data_cadastro === "string") {
+        d = new Date(aluno.data_cadastro);
+      } else if (aluno.data_cadastro instanceof Date) {
+        d = aluno.data_cadastro;
+      } else {
+        d = aluno.data_cadastro.toDate();
+      }
+    } else {
+      d = new Date();
+    }
+
+    if (!aluno.data_expiracao) {
+      d = new Date(d.getTime());
+      d.setDate(d.getDate() + 3);
+    }
+
     const diffHoras = Math.ceil((d.getTime() - new Date().getTime()) / (1000 * 60 * 60));
     return diffHoras <= 0 ? { texto: "EXPIRADO", expirado: true } : { texto: `${diffHoras}h restantes`, expirado: false };
   };
@@ -131,7 +182,7 @@ const AlunosCRM = () => {
               })}
             </tbody>
           </table>
-        </Tabs.Content>
+        </TabsContent>
 
         <TabsContent value="inativos" className="p-0">
            <table className="w-full text-sm">
