@@ -61,11 +61,13 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-primary/95 backdrop-blur-md border-b border-primary/80">
         <div className="container flex items-center justify-between h-16">
-          <Link to="/" className="font-display text-2xl font-bold text-primary-foreground tracking-tight">
+          {/* AJUSTE AQUI: Mudei ml-6 para ml-10 (move mais para a direita) */}
+          <Link to="/" className="ml-10 font-display text-3xl md:text-4xl font-bold text-primary-foreground tracking-tight transition-transform hover:scale-105">
             SUA<span className="text-accent">OAB</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="accent" onClick={() => openAuth(true)}>
+            {/* AJUSTE AQUI: Adicionei h-11 (mais alto) e px-8 (mais largo) */}
+            <Button variant="accent" onClick={() => openAuth(true)} className="h-11 px-8">
               Área do Aluno
             </Button>
           </div>
