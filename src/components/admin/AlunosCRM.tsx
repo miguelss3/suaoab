@@ -19,6 +19,14 @@ const AlunosCRM = () => {
   const [busca, setBusca] = useState("");
   const [alunoSelecionado, setAlunoSelecionado] = useState<any>(null);
   
+  // NOVO ESTADO: O nosso escudo contra bloqueios do navegador
+  const [modalConfirmacao, setModalConfirmacao] = useState({
+    isOpen: false,
+    titulo: "",
+    mensagem: "",
+    acao: () => {}
+  });
+  
   // Estados - Meta Manual
   const [novaMetaTitulo, setNovaMetaTitulo] = useState("");
   const [novaMetaDescricao, setNovaMetaDescricao] = useState("");
@@ -44,7 +52,7 @@ const AlunosCRM = () => {
   const [dataProva, setDataProva] = useState("");
   const [globalDataProva, setGlobalDataProva] = useState(""); 
   const [isApplyingRota, setIsApplyingRota] = useState(false);
-  const [qtdMetasPersonalizadas, setQtdMetasPersonalizadas] = useState("10"); // NOVO: Controle de quantidade
+  const [qtdMetasPersonalizadas, setQtdMetasPersonalizadas] = useState("10"); 
 
   useEffect(() => {
     const qAlunos = query(collection(db, "alunos"), orderBy("data_cadastro", "desc"));
@@ -79,12 +87,28 @@ const AlunosCRM = () => {
     return Math.round((concluidas / metas.length) * 100);
   };
 
-  const handleMudarStatus = async (id: string, novoStatus: string) => {
-    if (novoStatus === "inativo" && !window.confirm("Desativar este aluno bloqueará o seu acesso à plataforma. Deseja continuar?")) return;
-    try {
-      await updateDoc(doc(db, "alunos", id), { status: novoStatus });
-      toast.success(`Status alterado para ${novoStatus.toUpperCase()}!`);
-    } catch (e) { toast.error("Erro ao atualizar status."); }
+  // NOVA FUNÇÃO: Atualizada para usar o nosso Modal ao invés do window.confirm
+  const handleMudarStatus = (id: string, novoStatus: string) => {
+    const executarMudanca = async () => {
+      try {
+        await updateDoc(doc(db, "alunos", id), { status: novoStatus });
+        toast.success(`Status alterado para ${novoStatus.toUpperCase()}!`);
+      } catch (e) { toast.error("Erro ao atualizar status."); }
+    };
+
+    if (novoStatus === "inativo") {
+      setModalConfirmacao({
+        isOpen: true,
+        titulo: "Desativar Aluno?",
+        mensagem: "Desativar este aluno bloqueará imediatamente o seu acesso à plataforma. Tem a certeza que deseja continuar?",
+        acao: () => {
+          setModalConfirmacao(prev => ({ ...prev, isOpen: false }));
+          executarMudanca();
+        }
+      });
+    } else {
+      executarMudanca();
+    }
   };
 
   const handleAdicionarMeta = async () => {
@@ -157,7 +181,6 @@ const AlunosCRM = () => {
     } catch (e) { toast.error("Erro ao atualizar a meta."); } finally { setIsEditingMeta(false); }
   };
 
-  // --- O CÉREBRO DA ROTA COM OS 10 TEMPLATES HUMANIZADOS E MATEMÁTICA DE DISTRIBUIÇÃO ---
   const calcularRotaPreview = () => {
     const alvo = tipoDataRota === "oficial" ? globalDataProva : dataProva;
 
@@ -180,7 +203,6 @@ const AlunosCRM = () => {
       idx === 0 || m.status === 'concluida' || m.status === 'pulada'
     );
 
-    // AS 10 NOVAS FRASES
     const ciclosMentor = [
       { titulo: "Identificação de Peça e Esqueleto Estrutural", texto: "O primeiro passo para o sucesso é não errar a peça! Leia os enunciados propostos e treine apenas a identificação da medida cabível e o rascunho do esqueleto. Estruture os tópicos no rascunho antes de começar a escrever definitivamente." },
       { titulo: "Leitura Dirigida e Expansão de Marcações", texto: "Vamos reforçar a base teórica. Dedique esta sessão à leitura atenta da doutrina indicada e aproveite para enriquecer as marcações do seu Vade Mecum com as remissões permitidas pelo edital. Um Vade Mecum bem marcado é metade da prova!" },
@@ -195,7 +217,7 @@ const AlunosCRM = () => {
     ];
 
     const metasGeradas = [];
-    const intervaloMs = diffTime / qtdMetasNovas; // Distribuição matemática perfeita no tempo
+    const intervaloMs = diffTime / qtdMetasNovas;
 
     for (let i = 0; i < qtdMetasNovas; i++) {
       let metaDate = new Date(hoje.getTime() + (intervaloMs * (i + 1)));
@@ -269,11 +291,20 @@ const AlunosCRM = () => {
     await updateDoc(doc(db, "alunos", alunoSelecionado.id), { metas: novasMetas });
   };
 
-  const handleExcluirMeta = async (index: number) => {
-    if (!window.confirm("Apagar meta?")) return;
-    const novasMetas = [...alunoSelecionado.metas];
-    novasMetas.splice(index, 1);
-    await updateDoc(doc(db, "alunos", alunoSelecionado.id), { metas: novasMetas });
+  // NOVA FUNÇÃO: Atualizada para usar o nosso Modal ao invés do window.confirm
+  const handleExcluirMeta = (index: number) => {
+    setModalConfirmacao({
+      isOpen: true,
+      titulo: "Apagar Meta?",
+      mensagem: "Tem a certeza que deseja apagar esta meta? O aluno deixará de ter acesso a este conteúdo e esta ação não pode ser desfeita.",
+      acao: async () => {
+        setModalConfirmacao(prev => ({ ...prev, isOpen: false })); // Fecha o modal primeiro
+        const novasMetas = [...alunoSelecionado.metas];
+        novasMetas.splice(index, 1);
+        await updateDoc(doc(db, "alunos", alunoSelecionado.id), { metas: novasMetas });
+        toast.success("Meta apagada com sucesso!");
+      }
+    });
   };
 
   const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos') => {
@@ -318,7 +349,7 @@ const AlunosCRM = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
         <h3 className="font-display font-bold text-primary italic">Dossiês Acadêmicos</h3>
         <div className="relative w-64">
@@ -418,7 +449,7 @@ const AlunosCRM = () => {
 
       {/* MODAL DO DOSSIÊ DO ALUNO */}
       {alunoSelecionado && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-primary/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-primary/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-card border border-border w-full max-w-5xl max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
              <div className="p-6 border-b bg-muted/10 flex justify-between items-center">
                 <div>
@@ -540,7 +571,7 @@ const AlunosCRM = () => {
 
       {/* MODAL DE EDIÇÃO DE META COM DATA CORRIGIDA */}
       {metaEditandoIdx !== null && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
+        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6 border-b pb-4">
               <h3 className="text-xl font-bold text-primary flex items-center gap-2"><Pencil className="h-5 w-5 text-accent"/> Editar Meta</h3>
@@ -589,9 +620,8 @@ const AlunosCRM = () => {
       )}
 
       {/* --- NOVOS MODAIS DA ROTA ADAPTATIVA COM CONTROLE DE QUANTIDADE --- */}
-      
       {showRotaModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
+        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
             <button onClick={() => setShowRotaModal(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
               <X className="h-5 w-5"/>
@@ -649,7 +679,7 @@ const AlunosCRM = () => {
       )}
 
       {showPreviewModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in slide-in-from-bottom-4">
+        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in slide-in-from-bottom-4">
           <div className="bg-card border border-border w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
              <div className="p-6 border-b bg-muted/10 flex justify-between items-center">
                <div>
@@ -696,7 +726,7 @@ const AlunosCRM = () => {
                                 <Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo Final</Label>
                                 <Input 
                                   type="date" 
-                                  value={m.data_sugerida ? m.data_sugerida.split('T')[0] : ''} 
+                                  value={m.data_sugerida ? m.data_sugerida.split('T') : ''} 
                                   onChange={(e) => {
                                     const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : "";
                                     handleEditPreviewMeta(i, 'data_sugerida', val);
@@ -750,6 +780,38 @@ const AlunosCRM = () => {
           </div>
         </div>
       )}
+
+      {/* --- NOVO MODAL: ESCUDO DE CONFIRMAÇÃO SEGURO CONTRA BLOQUEIOS --- */}
+      {modalConfirmacao.isOpen && (
+        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
+          <div className="bg-card border border-border w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center">
+            <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-destructive" />
+            </div>
+            <h3 className="text-xl font-display font-bold text-primary mb-2">{modalConfirmacao.titulo}</h3>
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              {modalConfirmacao.mensagem}
+            </p>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                className="flex-1" 
+                onClick={() => setModalConfirmacao({ ...modalConfirmacao, isOpen: false })}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="destructive" 
+                className="flex-1 font-bold" 
+                onClick={modalConfirmacao.acao}
+              >
+                Sim, Confirmar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
