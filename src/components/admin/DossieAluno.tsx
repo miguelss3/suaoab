@@ -5,7 +5,7 @@ import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   ChevronLeft, Plus, Trash2, Unlock, Lock, 
-  Link as LinkIcon, FileText, UploadCloud, Wand2, Calendar, Pencil, X, AlertCircle 
+  Link as LinkIcon, FileText, UploadCloud, Wand2, Calendar, Pencil, X, AlertCircle, CalendarClock, Save
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,10 @@ interface Aluno {
   id: string;
   nome: string;
   materia: string;
+  status?: string;
   metas?: Meta[];
+  data_cadastro?: any;
+  data_expiracao?: any;
 }
 
 type TipoDataRota = "oficial" | "personalizada";
@@ -63,15 +66,21 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   const [tipoDataRota, setTipoDataRota] = useState<TipoDataRota>("oficial");
   const [dataProva, setDataProva] = useState("");
   const [globalDataProva, setGlobalDataProva] = useState(""); 
+  const [globalDataExpiracao, setGlobalDataExpiracao] = useState(""); 
   const [isApplyingRota, setIsApplyingRota] = useState(false);
   const [qtdMetasPersonalizadas, setQtdMetasPersonalizadas] = useState("10"); 
+
+  // Estados - Controle de Data de Corte (Degustação Customizada)
+  const [editDataExpiracao, setEditDataExpiracao] = useState(false);
+  const [novaDataExpiracao, setNovaDataExpiracao] = useState("");
 
   useEffect(() => {
     const fetchConfig = async () => {
       try {
         const snap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
-        if (snap.exists() && snap.data().data_prova) {
-          setGlobalDataProva(snap.data().data_prova);
+        if (snap.exists()) {
+          if (snap.data().data_prova) setGlobalDataProva(snap.data().data_prova);
+          if (snap.data().data_expiracao) setGlobalDataExpiracao(snap.data().data_expiracao);
         }
       } catch (error) { console.error("Erro ao buscar ciclo atual", error); }
     };
@@ -84,11 +93,69 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
     return Math.round((concluidas / metas.length) * 100);
   };
 
-  const verificarAtraso = (dataIso: string, status: string) => {
+  const verificarAtraso = (dataIso: string | undefined, status: string) => {
     if (!dataIso || status === 'concluida' || status === 'pulada') return false;
     const hoje = new Date(); hoje.setHours(0,0,0,0);
     const prazo = new Date(dataIso); prazo.setHours(0,0,0,0);
     return prazo < hoje;
+  };
+
+  // --- FUNÇÕES DE CONTROLE DA DATA DE EXPIRAÇÃO ---
+  const getDisplayDataCorte = () => {
+    if (aluno.data_expiracao) {
+      const d = typeof aluno.data_expiracao === 'string' ? new Date(aluno.data_expiracao) : aluno.data_expiracao.toDate();
+      return d.toLocaleDateString('pt-BR');
+    }
+    
+    const isPremium = aluno.status === 'Premium' || aluno.status === 'premium';
+    
+    if (isPremium) {
+      if (globalDataExpiracao) {
+        const d = new Date(globalDataExpiracao + "T12:00:00");
+        return d.toLocaleDateString('pt-BR') + " (Ciclo)";
+      }
+      return "Sem limite";
+    }
+
+    if (aluno.data_cadastro) {
+      const d = typeof aluno.data_cadastro === 'string' ? new Date(aluno.data_cadastro) : aluno.data_cadastro.toDate();
+      d.setHours(d.getHours() + 72);
+      return d.toLocaleDateString('pt-BR') + " (72h)";
+    }
+    return "Padrão (72h)";
+  };
+
+  const handleAbrirEdicaoData = () => {
+    if (aluno.data_expiracao) {
+      const d = typeof aluno.data_expiracao === 'string' ? new Date(aluno.data_expiracao) : aluno.data_expiracao.toDate();
+      setNovaDataExpiracao(d.toISOString().split('T')); // Corrigido
+    } else {
+      const isPremium = aluno.status === 'Premium' || aluno.status === 'premium';
+      if (isPremium && globalDataExpiracao) {
+        setNovaDataExpiracao(globalDataExpiracao);
+      } else if (!isPremium && aluno.data_cadastro) {
+        const d = typeof aluno.data_cadastro === 'string' ? new Date(aluno.data_cadastro) : aluno.data_cadastro.toDate();
+        d.setHours(d.getHours() + 72);
+        setNovaDataExpiracao(d.toISOString().split('T')); // Corrigido
+      } else {
+        setNovaDataExpiracao(new Date().toISOString().split('T')); // Corrigido
+      }
+    }
+    setEditDataExpiracao(true);
+  };
+
+  const handleSalvarDataExpiracao = async () => {
+    try {
+      const d = new Date(novaDataExpiracao + "T23:59:59");
+      await updateDoc(doc(db, "alunos", aluno.id), {
+        data_expiracao: d.toISOString()
+      });
+      toast.success("Data de corte atualizada. O sistema obedecerá a este novo prazo!");
+      setEditDataExpiracao(false);
+      aluno.data_expiracao = d.toISOString(); // Atualiza a UI imediatamente
+    } catch(e) {
+      toast.error("Erro ao atualizar a data.");
+    }
   };
 
   const handleAdicionarMeta = async () => {
@@ -120,7 +187,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
     setEditMetaDescricao(meta.orientacoes || "");
     setEditMetaLink(meta.link || ""); 
     setEditMetaArquivo(null);
-    setEditMetaPrazo(meta.data_sugerida ? String(meta.data_sugerida).split('T')[0] : "");
+    setEditMetaPrazo(meta.data_sugerida ? String(meta.data_sugerida).split('T') : ""); // Corrigido
   };
 
   async function handleSalvarEdicao() {
@@ -128,8 +195,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
         if (!editMetaTitulo || !editMetaDescricao) return toast.error("O título e orientações não podem ficar vazios.");
         setIsEditingMeta(true);
         try {
-            let arquivoUrl = aluno.metas[metaEditandoIdx].arquivo_url || "";
-            let arquivoNome = aluno.metas[metaEditandoIdx].arquivo_nome || "";
+            let arquivoUrl = aluno.metas![metaEditandoIdx].arquivo_url || "";
+            let arquivoNome = aluno.metas![metaEditandoIdx].arquivo_nome || "";
             if (editMetaArquivo) {
                 const safeName = editMetaArquivo.name.replace(/[^a-zA-Z0-9.]/g, "_");
                 const fileRef = ref(storage, `materiais_alunos/${aluno.materia}/metas_anexos/${Date.now()}_${safeName}`);
@@ -137,7 +204,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                 arquivoUrl = await getDownloadURL(snapshot.ref);
                 arquivoNome = editMetaArquivo.name;
             }
-            const novasMetas = [...aluno.metas];
+            const novasMetas = [...(aluno.metas || [])];
             novasMetas[metaEditandoIdx] = {
                 ...novasMetas[metaEditandoIdx], atividade: editMetaTitulo, orientacoes: editMetaDescricao, link: editMetaLink,
                 arquivo_url: arquivoUrl, arquivo_nome: arquivoNome,
@@ -225,7 +292,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   };
 
   const handleToggleLiberarMeta = async (index: number, statusAtual: string) => {
-    const novasMetas = [...aluno.metas];
+    const novasMetas = [...(aluno.metas || [])];
     novasMetas[index].status = statusAtual === "bloqueada" ? "liberada" : "bloqueada";
     if (novasMetas[index].status === "bloqueada") novasMetas[index].concluida = false;
     await updateDoc(doc(db, "alunos", aluno.id), { metas: novasMetas });
@@ -237,7 +304,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
       mensagem: "Tem a certeza que deseja apagar esta meta? Esta ação não pode ser desfeita.",
       acao: async () => {
         setModalConfirmacao(prev => ({ ...prev, isOpen: false })); 
-        const novasMetas = [...aluno.metas]; novasMetas.splice(index, 1);
+        const novasMetas = [...(aluno.metas || [])]; novasMetas.splice(index, 1);
         await updateDoc(doc(db, "alunos", aluno.id), { metas: novasMetas });
         toast.success("Meta apagada com sucesso!");
       }
@@ -246,19 +313,39 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
 
   return (
     <>
-      {/* JANELA PRINCIPAL DO DOSSIÊ */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/80 backdrop-blur-sm animate-in fade-in">
         <div className="bg-card border border-border w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-          <div className="p-6 border-b bg-muted/10 flex justify-between items-center">
+          
+          <div className="p-6 border-b bg-muted/10 flex justify-between items-start md:items-center flex-col md:flex-row gap-4">
             <div>
               <h2 className="text-2xl font-display font-bold text-primary italic">{aluno.nome}</h2>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Disciplina: {aluno.materia}</p>
+              <div className="flex flex-wrap items-center gap-3 mt-2">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Disciplina: {aluno.materia}</p>
+                <div className="h-4 w-px bg-border hidden sm:block"></div>
+                <div className="flex items-center gap-2 bg-background border border-border px-2 py-1 rounded-md">
+                  <CalendarClock className="h-4 w-4 text-accent" />
+                  {editDataExpiracao ? (
+                    <div className="flex items-center gap-1">
+                      <Input type="date" className="h-7 text-xs px-2 py-0 w-[130px]" value={novaDataExpiracao} onChange={e => setNovaDataExpiracao(e.target.value)} />
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-success hover:bg-success/10 hover:text-success" onClick={handleSalvarDataExpiracao}><Save className="h-4 w-4"/></Button>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setEditDataExpiracao(false)}><X className="h-4 w-4"/></Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground mt-0.5">Corte:</span>
+                      <span className="text-xs font-black text-primary">
+                        {getDisplayDataCorte()}
+                      </span>
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-accent" onClick={handleAbrirEdicaoData}><Pencil className="h-3 w-3" /></Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={() => setShowRotaModal(true)} variant="hero" className="font-bold shadow-md shadow-accent/20">
-                <Wand2 className="h-4 w-4 mr-2" /> Gerar Rota
-              </Button>
-              <Button onClick={onClose} variant="outline"><ChevronLeft className="h-4 w-4 mr-2" /> FECHAR</Button>
+            
+            <div className="flex gap-2 w-full md:w-auto">
+              <Button onClick={() => setShowRotaModal(true)} variant="hero" className="flex-1 md:flex-none font-bold shadow-md shadow-accent/20"><Wand2 className="h-4 w-4 mr-2" /> Gerar Rota</Button>
+              <Button onClick={onClose} variant="outline" className="flex-1 md:flex-none"><ChevronLeft className="h-4 w-4 mr-2" /> FECHAR</Button>
             </div>
           </div>
           
@@ -267,9 +354,9 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
               <div className="lg:col-span-2 bg-muted/10 p-6 rounded-xl border border-border flex flex-col justify-center">
                 <div className="flex justify-between items-end mb-3">
                   <h3 className="font-bold text-primary">Evolução</h3>
-                  <span className="text-3xl font-black text-primary">{calcularProgresso(aluno.metas)}%</span>
+                  <span className="text-3xl font-black text-primary">{calcularProgresso(aluno.metas || [])}%</span>
                 </div>
-                <Progress value={calcularProgresso(aluno.metas)} className="h-4" />
+                <Progress value={calcularProgresso(aluno.metas || [])} className="h-4" />
               </div>
 
               <div className="lg:col-span-3 bg-muted/10 p-5 rounded-xl border border-border">
@@ -298,7 +385,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                 </div>
                 <div className="flex gap-3 items-center">
                   <div className="flex-1 relative">
-                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setNovaMetaArquivo(e.target.files?.[0] || null)} />
+                    {/* Corrigido */}
+                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setNovaMetaArquivo(e.target.files && e.target.files.length > 0 ? e.target.files : null)} />
                     <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${novaMetaArquivo ? 'bg-success/10 border-success/30 text-success font-bold' : 'bg-background text-muted-foreground'}`}>
                       <UploadCloud className="h-4 w-4 mr-2"/> <span className="truncate">{novaMetaArquivo ? novaMetaArquivo.name : "Anexar PDF (Opcional)"}</span>
                     </div>
@@ -311,12 +399,12 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
             <div className="space-y-3">
               {(() => {
                 let metaCounter = 1;
-                  return (aluno.metas || []).map((m: Meta, idx: number) => {
+                return (aluno.metas || []).map((m: Meta, idx: number) => {
                   const estaAtrasada = verificarAtraso(m.data_sugerida, m.status);
                   const isBoasVindas = m.atividade?.includes("Boas-Vindas");
                   const currentMetaNum = isBoasVindas ? 0 : metaCounter++;
-                  type StyleType = { bg: string; border: string; text: string; badge: string; lockClass: string; icon: ReactNode | null };
-                  let style: StyleType = { bg: "bg-background", border: "border-border", text: "text-primary", badge: "PENDENTE", lockClass: "text-success", icon: null };
+                  
+                  let style: any = { bg: "bg-background", border: "border-border", text: "text-primary", badge: "PENDENTE", lockClass: "text-success", icon: null };
                   
                   if (m.status === 'concluida') { style = { bg: "bg-green-500/5", border: "border-green-500/20", text: "text-green-600 line-through", badge: "CONCLUÍDA", lockClass: "text-muted-foreground", icon: null }; } 
                   else if (m.status === 'pulada') { style = { bg: "bg-yellow-500/10", border: "border-yellow-500/40", text: "text-yellow-600", badge: "PULADA", lockClass: "text-muted-foreground", icon: null }; } 
@@ -356,7 +444,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
           </div>
         </div>
 
-        {/* MODAL DE EDIÇÃO DE META */}
+        {/* MODAIS */}
         {metaEditandoIdx !== null && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
             <div className="bg-card border border-border w-full max-w-2xl rounded-2xl shadow-2xl p-6">
@@ -374,7 +462,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                 <div className="space-y-2 bg-muted/10 p-4 rounded-lg border border-border">
                   <Label className="block mb-2 text-xs">Anexo (Opcional)</Label>
                   <div className="relative w-full">
-                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setEditMetaArquivo(e.target.files?.[0] || null)} />
+                    {/* Corrigido */}
+                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setEditMetaArquivo(e.target.files && e.target.files.length > 0 ? e.target.files : null)} />
                     <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${editMetaArquivo ? 'bg-success/10 text-success' : 'bg-background text-muted-foreground'}`}>
                       <UploadCloud className="h-4 w-4 mr-2"/> <span className="truncate">{editMetaArquivo ? editMetaArquivo.name : "Substituir anexo existente"}</span>
                     </div>
@@ -389,7 +478,6 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
           </div>
         )}
 
-        {/* ROTA ADAPTATIVA - CONFIG */}
         {showRotaModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
             <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
@@ -420,7 +508,6 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
           </div>
         )}
 
-        {/* ROTA ADAPTATIVA - PREVIEW */}
         {showPreviewModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in slide-in-from-bottom-4">
             <div className="bg-card border border-border w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
@@ -447,6 +534,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                               <div className="grid md:grid-cols-[1fr_150px] gap-4">
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Título</Label><Input value={m.atividade} onChange={(e) => handleEditPreviewMeta(i, 'atividade', e.target.value)} className="font-bold text-primary" /></div>
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo</Label>
+                                  {/* Corrigido */}
                                   <Input type="date" value={m.data_sugerida ? String(m.data_sugerida).split('T') : ''} onChange={(e) => { const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : ""; handleEditPreviewMeta(i, 'data_sugerida', val); }} />
                                 </div>
                               </div>
@@ -454,7 +542,9 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                               <div className="grid md:grid-cols-2 gap-4 mt-2 p-3 bg-muted/10 rounded-lg border border-dashed border-border">
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Link</Label><Input value={m.link || ""} onChange={(e) => handleEditPreviewMeta(i, 'link', e.target.value)} className="h-9 text-xs" /></div>
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo</Label>
-                                  <div className="relative w-full"><input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleEditPreviewMeta(i, 'arquivo_file', e.target.files?.[0] || null)} />
+                                  <div className="relative w-full">
+                                    {/* Corrigido */}
+                                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleEditPreviewMeta(i, 'arquivo_file', e.target.files && e.target.files.length > 0 ? e.target.files : null)} />
                                     <div className={`h-9 border rounded-md flex items-center px-3 text-xs ${m.arquivo_file || m.arquivo_url ? 'bg-success/10 border-success/30 text-success font-bold' : 'bg-background border-input text-muted-foreground'}`}><UploadCloud className="h-4 w-4 mr-2"/><span className="truncate">{m.arquivo_file ? m.arquivo_file.name : (m.arquivo_nome || "Anexar PDF")}</span></div>
                                   </div>
                                 </div>
@@ -472,7 +562,6 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
           </div>
         )}
 
-        {/* CONFIRMAÇÃO DE EXCLUSÃO */}
         {modalConfirmacao.isOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
             <div className="bg-card border border-border w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center">

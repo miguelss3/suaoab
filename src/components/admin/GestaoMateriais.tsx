@@ -1,7 +1,8 @@
 // src/components/admin/GestaoMateriais.tsx
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase"; // <-- storage adicionado
 import { collection, query, onSnapshot, doc, deleteDoc, orderBy } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage"; // <-- imports de exclusão
 import { Trash2, ExternalLink, Filter, BookOpen, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -20,8 +21,21 @@ const GestaoMateriais = () => {
 
   const excluir = async (id: string) => {
     if (confirm("Atenção: Deseja apagar este material permanentemente da área de todos os alunos?")) {
-      await deleteDoc(doc(db, "materiais_publicados", id));
-      toast.success("Material removido com sucesso.");
+      try {
+        const material = materiais.find(m => m.id === id);
+        
+        // 1. Vai ao Storage e destrói o PDF físico
+        if (material?.url_pdf) {
+          const fileRef = ref(storage, material.url_pdf);
+          await deleteObject(fileRef).catch(e => console.log("Ficheiro já não existia no storage.", e));
+        }
+        
+        // 2. Apaga o registo no banco de dados
+        await deleteDoc(doc(db, "materiais_publicados", id));
+        toast.success("Material e ficheiro PDF removidos com sucesso.");
+      } catch (e) {
+        toast.error("Erro ao excluir material.");
+      }
     }
   };
 
@@ -49,7 +63,6 @@ const GestaoMateriais = () => {
               <div className={`p-2 rounded-lg ${m.tipo === 'Simulado' ? 'bg-orange-500/10 text-orange-600' : 'bg-blue-500/10 text-blue-600'}`}>
                 {m.tipo === 'Simulado' ? <Timer className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
               </div>
-              {/* Botão de Excluir agora visível permanentemente */}
               <Button variant="ghost" size="sm" className="bg-destructive/10 text-destructive hover:bg-destructive/20" onClick={() => excluir(m.id)}>
                 <Trash2 className="h-4 w-4"/>
               </Button>

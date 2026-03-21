@@ -1,0 +1,276 @@
+// src/components/admin/GestaoAulas.tsx
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import { collection, query, onSnapshot, doc, deleteDoc, addDoc, updateDoc, serverTimestamp, orderBy } from "firebase/firestore";
+import { Trash2, PlayCircle, Plus, LayoutList, Youtube, Pencil, Filter, X, Save, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+
+const GestaoAulas = () => {
+  const [aulas, setAulas] = useState<any[]>([]);
+  const [filtroMateria, setFiltroMateria] = useState("");
+  
+  // Campos do formulário
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [materia, setMateria] = useState("");
+  const [youtubeInput, setYoutubeInput] = useState("");
+  const [desc, setDesc] = useState("");
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  // Busca as aulas no banco de dados
+  useEffect(() => {
+    const q = query(collection(db, "aulas_globais"), orderBy("data_publicacao", "desc"));
+    return onSnapshot(q, (snap) => {
+      setAulas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+  }, []);
+
+  // --- EXTRATOR DE FORÇA BRUTA (100% à prova de falhas) ---
+  const extrairYoutubeId = (urlOuId: string) => {
+    if (!urlOuId) return "";
+    let str = String(urlOuId).trim();
+
+    // Se o professor já colou apenas os 11 caracteres limpos
+    if (str.length === 11 && !str.includes("/") && !str.includes("?")) return str;
+
+    // Tática de Força Bruta 1: Formato "youtu.be/"
+    if (str.includes("youtu.be/")) {
+        const partes = str.split("youtu.be/");
+        if (partes.length > 1) return partes[1].substring(0, 11);
+    }
+
+    // Tática de Força Bruta 2: Formato "watch?v="
+    if (str.includes("v=")) {
+        const partes = str.split("v=");
+        if (partes.length > 1) return partes[1].substring(0, 11);
+    }
+
+    // Tática de Força Bruta 3: Formato "live/"
+    if (str.includes("live/")) {
+        const partes = str.split("live/");
+        if (partes.length > 1) return partes[1].substring(0, 11);
+    }
+
+    // Regex de segurança caso seja um formato super obscuro
+    const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|live\/|shorts\/))([\w-]{11})/);
+    if (match && match[1]) return match[1];
+
+    return str; // Retorna o que estava se nada funcionou
+  };
+
+  const limparFormulario = () => {
+    setEditandoId(null);
+    setTitulo("");
+    setMateria("");
+    setYoutubeInput("");
+    setDesc("");
+  };
+
+  const handleSalvarAula = async () => {
+    if (!titulo || !materia || !youtubeInput) return toast.error("Preencha Título, Matéria e o Link/ID do YouTube.");
+    
+    setIsPublishing(true);
+    try {
+      const youtubeIdFinal = extrairYoutubeId(youtubeInput);
+      
+      const dadosAula = {
+        titulo,
+        materia,
+        desc: desc || "",
+        youtubeId: String(youtubeIdFinal) // Garante que é sempre texto simples
+      };
+
+      if (editandoId) {
+        await updateDoc(doc(db, "aulas_globais", editandoId), dadosAula);
+        toast.success("Aula atualizada com sucesso!");
+      } else {
+        await addDoc(collection(db, "aulas_globais"), {
+          ...dadosAula,
+          data_publicacao: serverTimestamp()
+        });
+        toast.success("Nova videoaula publicada para os alunos!");
+      }
+      
+      limparFormulario();
+    } catch (e) {
+      toast.error("Erro ao salvar a aula.");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleEditar = (aula: any) => {
+    setEditandoId(aula.id);
+    setTitulo(aula.titulo || "");
+    setMateria(aula.materia || "");
+    setDesc(aula.desc || "");
+    
+    // Tratamento para limpar se o BD tiver guardado array por engano antes
+    let idRecuperado = aula.youtubeId;
+    if (Array.isArray(idRecuperado) || typeof idRecuperado === "object") {
+      idRecuperado = idRecuperado || idRecuperado || "";
+    }
+    
+    setYoutubeInput(String(idRecuperado));
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+  };
+
+  const handleExcluir = async (id: string) => {
+    if (window.confirm("Atenção: Tem certeza que deseja apagar esta aula? Ela sumirá imediatamente da plataforma dos alunos.")) {
+      try {
+        await deleteDoc(doc(db, "aulas_globais", id));
+        toast.success("Aula removida do sistema!");
+        if (editandoId === id) limparFormulario();
+      } catch (error) {
+        toast.error("Erro ao excluir aula.");
+      }
+    }
+  };
+
+  const aulasFiltradas = aulas.filter(a => filtroMateria ? a.materia === filtroMateria : true);
+
+  return (
+    <div className="space-y-6">
+      
+      {/* PAINEL DE CRIAÇÃO / EDIÇÃO */}
+      <div className={`p-6 rounded-xl border shadow-sm transition-colors ${editandoId ? 'bg-accent/5 border-accent' : 'bg-card border-border'}`}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className={`text-lg font-display font-bold flex items-center gap-2 ${editandoId ? 'text-accent' : 'text-primary'}`}>
+            {editandoId ? <Pencil className="h-5 w-5" /> : <PlayCircle className="h-5 w-5 text-accent"/>} 
+            {editandoId ? "Modo de Edição de Aula" : "Adicionar Nova Aula no Acervo"}
+          </h3>
+          {editandoId && (
+            <Button variant="ghost" size="sm" onClick={limparFormulario} className="text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4 mr-2"/> Cancelar Edição
+            </Button>
+          )}
+        </div>
+        
+        <div className="grid md:grid-cols-3 gap-6 mb-4">
+          <div className="space-y-2">
+            <Label className="text-xs uppercase font-black text-muted-foreground">Disciplina</Label>
+            <select className="w-full h-10 border rounded-md px-3 bg-background text-sm" value={materia} onChange={e => setMateria(e.target.value)}>
+              <option value="">Selecione...</option>
+              <option value="DADM">DADM</option>
+              <option value="DPEN">DPEN</option>
+              <option value="DTRI">DTRI</option>
+            </select>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label className="text-xs uppercase font-black text-muted-foreground">Título da Aula</Label>
+            <Input placeholder="Ex: Resposta à Acusação (Completo)" value={titulo} onChange={e => setTitulo(e.target.value)} />
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6 items-start">
+          <div className="space-y-2 md:col-span-2">
+            <Label className="text-xs uppercase font-black text-muted-foreground">Descrição / Dicas (Opcional)</Label>
+            <Textarea 
+              placeholder="Digite o resumo da aula, base legal, artigos importantes..." 
+              className="min-h-[100px]"
+              value={desc} 
+              onChange={e => setDesc(e.target.value)} 
+            />
+          </div>
+
+          <div className="space-y-2 flex flex-col h-full justify-between">
+            <div className="space-y-2">
+              <Label className="text-xs uppercase font-black text-muted-foreground flex items-center gap-1">
+                <Youtube className="h-4 w-4 text-destructive" /> Link ou ID do YouTube
+              </Label>
+              <Input placeholder="Cole o link ou apenas o código" value={youtubeInput} onChange={e => setYoutubeInput(e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">O sistema extrai o ID automaticamente.</p>
+            </div>
+            
+            <Button variant={editandoId ? "accent" : "hero"} className="w-full mt-auto h-12" onClick={handleSalvarAula} disabled={isPublishing}>
+              {isPublishing ? "A gravar..." : (editandoId ? <><Save className="h-4 w-4 mr-2"/> Salvar Alterações</> : <><Plus className="h-4 w-4 mr-2"/> Publicar Aula</>)}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* LISTAGEM E FILTRO */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+        <div className="p-4 bg-muted/10 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <LayoutList className="h-5 w-5 text-primary"/>
+            <h3 className="font-bold text-primary">Acervo de Aulas Globais</h3>
+            <span className="text-xs font-black bg-primary/10 text-primary px-2 py-1 rounded ml-2">{aulasFiltradas.length} VÍDEOS</span>
+          </div>
+          
+          <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 w-full sm:w-auto">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <select 
+              className="bg-transparent border-none text-sm outline-none w-full sm:w-auto font-bold text-primary cursor-pointer"
+              value={filtroMateria}
+              onChange={(e) => setFiltroMateria(e.target.value)}
+            >
+              <option value="">Todas as Matérias</option>
+              <option value="DADM">DADM</option>
+              <option value="DPEN">DPEN</option>
+              <option value="DTRI">DTRI</option>
+            </select>
+          </div>
+        </div>
+        
+        <table className="w-full text-sm text-left">
+          <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground border-b border-border">
+            <tr>
+              <th className="px-6 py-4">Data/Hora</th>
+              <th className="px-6 py-4">Disciplina</th>
+              <th className="px-6 py-4">Título & ID YouTube</th>
+              <th className="px-6 py-4 text-right">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {aulasFiltradas.map((aula) => {
+              const idParaMostrar = String(aula.youtubeId);
+              // Verifica se o ID extraído parece defeituoso (maior que 11 caracteres)
+              const idSuspeito = idParaMostrar.length !== 11;
+
+              return (
+                <tr key={aula.id} className={`border-b border-border hover:bg-muted/5 transition-colors ${idSuspeito ? 'bg-destructive/5' : ''}`}>
+                  <td className="px-6 py-4 text-xs text-muted-foreground">
+                    {aula.data_publicacao?.toDate?.().toLocaleString('pt-BR') || "Recente"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="font-black text-[10px] uppercase bg-accent/20 text-accent px-2 py-1 rounded tracking-widest">
+                      {aula.materia}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-primary mb-1">{aula.titulo}</div>
+                    <div className={`text-[10px] flex items-center gap-1 font-bold ${idSuspeito ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      {idSuspeito ? <AlertTriangle className="h-3 w-3" /> : <Youtube className="h-3 w-3" />} 
+                      ID: {idParaMostrar}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" className="border hover:bg-accent/10 hover:text-accent" onClick={() => handleEditar(aula)} title="Editar Aula">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/30" onClick={() => handleExcluir(aula.id)} title="Excluir Aula">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {aulasFiltradas.length === 0 && (
+              <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground italic">Nenhuma aula encontrada para este filtro.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+export default GestaoAulas;

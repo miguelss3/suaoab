@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import DossieAluno from "./DossieAluno"; // Importando o nosso novo Motor!
+import DossieAluno from "./DossieAluno"; 
 
 type MetaStatus = "bloqueada" | "liberada" | "concluida" | "pulada";
 
@@ -125,6 +125,28 @@ const AlunosCRM = () => {
     return diffHoras <= 0 ? { texto: "EXPIRADO", expirado: true } : { texto: `${diffHoras}h restantes`, expirado: false };
   };
 
+  useEffect(() => {
+    const varrerExpirados = async () => {
+      const alunosEmTeste = alunos.filter(a => a.status !== "premium" && a.status !== "inativo");
+      
+      for (const aluno of alunosEmTeste) {
+        const expiracao = calcularExpiracaoLead(aluno);
+        if (expiracao.expirado) {
+          try {
+            await updateDoc(doc(db, "alunos", aluno.id), { status: "inativo" });
+            console.log(`[AUTOMAÇÃO] Aluno ${aluno.nome} foi inativado por expiração.`);
+          } catch (e) {
+            console.error("Erro ao inativar aluno", e);
+          }
+        }
+      }
+    };
+
+    if (alunos.length > 0) {
+      varrerExpirados();
+    }
+  }, [alunos]);
+
   return (
     <div className="space-y-6 relative">
       <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
@@ -190,7 +212,11 @@ const AlunosCRM = () => {
             <tbody>
               {filtrarAlunos('inativos').map(aluno => (
                   <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors opacity-60 grayscale">
-                    <td className="px-6 py-4"><div className="font-bold text-primary">{aluno.nome}</div></td>
+                    <td className="px-6 py-4">
+                      {/* CIRURGIA DO EMAIL NOS INATIVOS */}
+                      <div className="font-bold text-primary">{aluno.nome}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{aluno.email}</div>
+                    </td>
                     <td className="px-6 py-4 font-bold">{aluno.materia}</td>
                     <td className="px-6 py-4 text-right space-x-2"><Button variant="outline" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar</Button></td>
                   </tr>
@@ -200,7 +226,6 @@ const AlunosCRM = () => {
         </TabsContent>
       </Tabs>
 
-      {/* AQUI ESTÁ O NOSSO NOVO MOTOR DO DOSSIÊ! Ele só aparece quando um aluno é clicado */}
       {alunoSelecionado && (
         <DossieAluno 
           aluno={alunoSelecionado} 
@@ -208,9 +233,8 @@ const AlunosCRM = () => {
         />
       )}
 
-      {/* ESCUDO DE CONFIRMAÇÃO (DESATIVAR ALUNO) */}
       {modalConfirmacao.isOpen && (
-        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center">
             <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-8 h-8 text-destructive" /></div>
             <h3 className="text-xl font-display font-bold text-primary mb-2">{modalConfirmacao.titulo}</h3>

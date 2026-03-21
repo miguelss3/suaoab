@@ -57,7 +57,7 @@ const Aula = () => {
       
       setAulas(lista);
       if (lista.length > 0 && !aulaAtiva) {
-        setAulaAtiva(lista[0]); // Carrega o primeiro vídeo automaticamente
+        setAulaAtiva(lista); // Carrega o primeiro vídeo automaticamente
       }
     });
 
@@ -129,12 +129,18 @@ const Aula = () => {
                   
                   {/* Informações da Aula e Botão de Conclusão */}
                   <div className="p-6 md:p-8 bg-card flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div>
+                    <div className="flex-1 w-full min-w-0">
                       <span className="bg-accent/20 text-accent font-black px-3 py-1 rounded-full text-[10px] uppercase tracking-widest mb-3 inline-block">
                         {aulaAtiva.materia}
                       </span>
-                      <h2 className="text-2xl font-display font-bold text-primary mb-2">{aulaAtiva.titulo}</h2>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{aulaAtiva.desc || "Sem descrição adicional para esta aula."}</p>
+                      <h2 className="text-2xl font-display font-bold text-primary mb-4">{aulaAtiva.titulo}</h2>
+                      
+                      {/* CIRURGIA AQUI: Controle de altura e barra de rolagem */}
+                      <div className="max-h-[160px] overflow-y-auto custom-scrollbar pr-4">
+                        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {aulaAtiva.desc || "Sem descrição adicional para esta aula."}
+                        </p>
+                      </div>
                     </div>
                     
                     {/* BOTÃO DE CHECK (ISOLADO DO PROGRESSO GERAL) */}

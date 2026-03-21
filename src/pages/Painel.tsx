@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays } from "lucide-react";
+import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, PlayCircle } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
@@ -14,7 +14,8 @@ import BancoQuestoes from "@/components/admin/BancoQuestoes";
 import MotorGerador from "@/components/admin/MotorGerador";
 import GestaoMateriais from "@/components/admin/GestaoMateriais";
 import GestaoPecas from "@/components/admin/GestaoPecas";
-import GestaoCiclos from "@/components/admin/GestaoCiclos"; // <-- O Novo Motor de Ciclos
+import GestaoCiclos from "@/components/admin/GestaoCiclos"; 
+import GestaoAulas from "@/components/admin/GestaoAulas"; // <-- O Novo Motor de Aulas
 
 const Painel = () => {
   const navigate = useNavigate();
@@ -25,9 +26,9 @@ const Painel = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user || user.email !== "miguelss3@yahoo.com.br") {
         navigate("/");
-        return;
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, [navigate]);
@@ -37,39 +38,47 @@ const Painel = () => {
     navigate("/");
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-accent rounded-full"></div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-background text-primary font-bold">Autenticando...</div>;
 
   return (
-    <div className="min-h-screen bg-muted/20 pb-20">
-      <header className="bg-primary text-primary-foreground shadow-md sticky top-0 z-40">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Cog className="h-6 w-6 text-accent" />
-            <h1 className="text-xl font-display font-bold tracking-tight">Sala de Comando</h1>
+    <div className="min-h-screen bg-muted/20">
+      <header className="bg-primary text-primary-foreground py-4 px-6 flex justify-between items-center shadow-lg sticky top-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="bg-accent text-accent-foreground p-2 rounded-lg"><PenTool className="h-6 w-6" /></div>
+          <div>
+            <h1 className="text-xl font-display font-bold italic tracking-tight">Sala de Comando</h1>
+            <p className="text-[10px] text-primary-foreground/70 uppercase tracking-widest font-black">Professor Miguel</p>
           </div>
-          <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" /> Sair
-          </Button>
         </div>
+        <Button variant="secondary" size="sm" onClick={handleLogout} className="font-bold">
+          <LogOut className="h-4 w-4 mr-2" /> Encerrar Turno
+        </Button>
       </header>
 
-      <main className="container mx-auto px-4 mt-8">
+      <main className="container py-8 max-w-7xl">
         <Tabs defaultValue="crm" className="w-full">
-          <TabsList className="w-full flex flex-wrap h-auto gap-2 bg-transparent p-0 mb-6">
+          
+          {/* MENU DE NAVEGAÇÃO SUPERIOR */}
+          <TabsList className="w-full flex flex-wrap h-auto gap-2 bg-transparent mb-8 justify-start p-0">
             <TabsTrigger value="crm" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <Users className="h-4 w-4"/> Alunos (CRM)
+              <Users className="h-4 w-4"/> Alunos CRM
             </TabsTrigger>
             
             <TabsTrigger value="correcoes" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <FileText className="h-4 w-4"/> Correções
+              <FileText className="h-4 w-4"/> Fila de Correção
             </TabsTrigger>
 
-            <TabsTrigger value="questoes" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <PenTool className="h-4 w-4"/> Banco
+            {/* A NOVA ABA AQUI */}
+            <TabsTrigger value="aulas" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
+              <PlayCircle className="h-4 w-4"/> Videoaulas
             </TabsTrigger>
-
+            
             <TabsTrigger value="pecas" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <Scale className="h-4 w-4"/> Matriz de Peças
+              <Scale className="h-4 w-4"/> Laboratório de Peças
+            </TabsTrigger>
+            
+            <TabsTrigger value="questoes" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
+              <PenTool className="h-4 w-4"/> Banco de Questões
             </TabsTrigger>
             
             <TabsTrigger value="motor" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
@@ -80,7 +89,6 @@ const Painel = () => {
               <BookOpen className="h-4 w-4"/> Publicados
             </TabsTrigger>
 
-            {/* A NOVA ABA AQUI */}
             <TabsTrigger value="ciclos" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <CalendarDays className="h-4 w-4"/> Ciclos e Prazos
             </TabsTrigger>
@@ -89,13 +97,13 @@ const Painel = () => {
           {/* CONTEÚDO DAS ABAS */}
           <TabsContent value="crm"><AlunosCRM /></TabsContent>
           <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>
+          <TabsContent value="aulas"><GestaoAulas /></TabsContent> {/* <-- O Novo Conteúdo */}
           <TabsContent value="questoes"><BancoQuestoes /></TabsContent>
           <TabsContent value="pecas"><GestaoPecas /></TabsContent>
           <TabsContent value="motor"><MotorGerador /></TabsContent>
           <TabsContent value="materiais"><GestaoMateriais /></TabsContent>
-          
-          {/* CONTEÚDO DA NOVA ABA AQUI */}
           <TabsContent value="ciclos"><GestaoCiclos /></TabsContent>
+
         </Tabs>
       </main>
     </div>

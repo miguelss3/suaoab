@@ -10,7 +10,6 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where, getDoc } from "firebase/firestore";
 import { toast } from "sonner"; 
 
-// --- NOSSOS COMPONENTES MODULARES ---
 import { GestorMetas } from "@/components/aluno/GestorMetas";
 import { TelaBloqueio, BannerDegustacao } from "@/components/aluno/TelasDegustacao";
 import { GestorPecas } from "@/components/aluno/GestorPecas";
@@ -27,7 +26,7 @@ const Aluno = () => {
   const [progresso, setProgresso] = useState(0);
   const [loading, setLoading] = useState(true);
   
-  const [modalPreparacao, setModalPreparacao] = useState<any>(null); // Gatilho do Simulado
+  const [modalPreparacao, setModalPreparacao] = useState<any>(null);
   const [isExpirado, setIsExpirado] = useState(false);
   const [dataCorteVisual, setDataCorteVisual] = useState("");
 
@@ -65,7 +64,6 @@ const Aluno = () => {
           setLoading(false);
         });
         
-        // Busca Histórico de Peças
         const qHist = query(collection(db, "historico_pecas"), where("aluno_id", "==", user.uid));
         onSnapshot(qHist, (snap) => {
           const hist: any[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -82,7 +80,6 @@ const Aluno = () => {
     const materiaAluno = perfilAluno?.materia || perfilAluno?.curso;
     if (!materiaAluno) return;
     
-    // Busca Materiais Publicados
     const qMateriais = query(collection(db, "materiais_publicados"), where("materia", "==", materiaAluno));
     const unsubMateriais = onSnapshot(qMateriais, (snap) => {
       let docs: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -91,7 +88,6 @@ const Aluno = () => {
       setSimulados(docs.filter((d: any) => d.tipo === "Simulado"));
     });
 
-    // Busca Laboratório
     const unsubLab = onSnapshot(doc(db, "disciplinas", materiaAluno), (docSnap) => {
       if (docSnap.exists()) setLaboratorio(docSnap.data().pecas || []); 
       else setLaboratorio([]);
@@ -105,38 +101,43 @@ const Aluno = () => {
     navigate("/");
   };
 
-  // --- LÓGICA DE DEGUSTAÇÃO (72 HORAS REAIS) ---
-  const HORAS_DEGUSTACAO = 72; 
+  // --- LÓGICA DE DEGUSTAÇÃO: RESPEITA A NOVA DATA DO DOSSIÊ ---
   let isDegustacaoExpirada = false;
   let tempoRestanteTexto = "";
 
-  if (perfilAluno?.status === "Lead" && perfilAluno?.data_cadastro) {
-    const dataCad = perfilAluno.data_cadastro.toDate ? perfilAluno.data_cadastro.toDate() : new Date(perfilAluno.data_cadastro);
-    const diffHoras = (new Date().getTime() - dataCad.getTime()) / (1000 * 60 * 60);
+  if (perfilAluno?.status === "Lead" || perfilAluno?.status === "inativo") {
+    let dataCorte: Date;
     
-    if (diffHoras >= HORAS_DEGUSTACAO) {
+    if (perfilAluno?.data_expiracao) {
+      dataCorte = perfilAluno.data_expiracao.toDate ? perfilAluno.data_expiracao.toDate() : new Date(perfilAluno.data_expiracao);
+    } else if (perfilAluno?.data_cadastro) {
+      dataCorte = perfilAluno.data_cadastro.toDate ? perfilAluno.data_cadastro.toDate() : new Date(perfilAluno.data_cadastro);
+      dataCorte.setHours(dataCorte.getHours() + 72); // Padrão 72h
+    } else {
+      dataCorte = new Date();
+    }
+
+    const diffMs = dataCorte.getTime() - new Date().getTime();
+    
+    if (diffMs <= 0 || perfilAluno?.status === "inativo") {
       isDegustacaoExpirada = true;
     } else {
-      const horasFaltando = HORAS_DEGUSTACAO - diffHoras;
-      const diasFaltando = Math.floor(horasFaltando / 24);
-      const horasRestantes = Math.floor(horasFaltando % 24);
+      const diffHoras = diffMs / (1000 * 60 * 60);
+      const diasFaltando = Math.floor(diffHoras / 24);
+      const horasRestantes = Math.floor(diffHoras % 24);
       if (diasFaltando > 0) tempoRestanteTexto = `${diasFaltando} ${diasFaltando === 1 ? 'dia' : 'dias'} e ${horasRestantes}h`;
-      else tempoRestanteTexto = `${Math.floor(horasFaltando)} horas`;
+      else tempoRestanteTexto = `${Math.floor(diffHoras)} horas`;
     }
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-display text-primary italic">Carregando Dossiê...</div>;
 
-  // =======================================================================
-  // 1. TELA DE BLOQUEIO (FIM DA DEGUSTAÇÃO)
-  // =======================================================================
-  if (perfilAluno?.status === "Lead" && isDegustacaoExpirada) {
+  // 1. TELA DE BLOQUEIO (FIM DA DEGUSTAÇÃO OU ALUNO INATIVO)
+  if (perfilAluno?.status === "inativo" || (perfilAluno?.status === "Lead" && isDegustacaoExpirada)) {
     return <TelaBloqueio perfilAluno={perfilAluno} handleLogout={handleLogout} />;
   }
 
-  // =======================================================================
   // 2. PAINEL PRINCIPAL
-  // =======================================================================
   return (
     <div className="min-h-screen bg-background text-foreground font-body relative pb-24">
       <header className="bg-primary border-b-4 border-accent py-4 sticky top-0 z-40">
@@ -159,7 +160,6 @@ const Aluno = () => {
           )}
         </div>
 
-        {/* BANNER DE AVISO PARA LEAD EM DEGUSTAÇÃO COM DADOS DO ALUNO INJETADOS NO LINK HOTMART */}
         {perfilAluno?.status === "Lead" && !isDegustacaoExpirada && (
           <BannerDegustacao tempoRestanteTexto={tempoRestanteTexto} perfilAluno={perfilAluno} />
         )}
@@ -196,10 +196,7 @@ const Aluno = () => {
 
                 <TabsContent value="metas" className="bg-card p-6 rounded-xl border border-border">
                   <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Clock className="h-5 w-5 text-accent" /> Minhas Metas</h3>
-                  
-                  {/* COMPONENTE DE METAS MODULARIZADO */}
                   <GestorMetas perfilAluno={perfilAluno} setPerfilAluno={setPerfilAluno} metas={metas} setMetas={setMetas} />
-                  
                 </TabsContent>
 
                 <TabsContent value="laboratorio" className="bg-card p-6 rounded-xl border border-border">
@@ -245,18 +242,13 @@ const Aluno = () => {
                 <h3 className="text-lg font-bold text-primary mb-4 italic">Videoaulas</h3>
                 <Button asChild className="w-full h-12" variant="hero"><Link to="/aula">▶ Acessar Sala</Link></Button>
               </div>
-
-              {/* COMPONENTE DE PEÇAS MODULARIZADO */}
               <GestorPecas perfilAluno={perfilAluno} historico={historico} />
-              
             </div>
           </div>
         )}
       </main>
 
-      {/* COMPONENTE DE SIMULADOS MODULARIZADO */}
       <GestorSimulados modalPreparacao={modalPreparacao} setModalPreparacao={setModalPreparacao} />
-
     </div>
   );
 };

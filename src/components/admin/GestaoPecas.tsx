@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db, storage } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"; // <-- deleteObject adicionado
 import { Scale, Plus, Trash2, FileText, UploadCloud, FileSignature, Pencil, X, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,10 +111,20 @@ const GestaoPecas = () => {
   const handleExcluirPeca = async (index: number) => {
     if (!window.confirm("Deseja apagar esta peça da base de dados?")) return;
     try {
+      const peca = pecas[index];
+      
+      // Destrói o PDF físico no Storage
+      if (peca?.url_pdf) {
+        const fileRef = ref(storage, peca.url_pdf);
+        await deleteObject(fileRef).catch(e => console.log("Ignorado: Ficheiro não encontrado no storage."));
+      }
+
       const novaLista = [...pecas];
       novaLista.splice(index, 1);
       await updateDoc(doc(db, "disciplinas", materia), { pecas: novaLista });
-      toast.success("Peça removida.");
+      toast.success("Peça e PDF apagados com sucesso.");
+      
+      if (pecaEditandoIdx === index) setPecaEditandoIdx(null);
     } catch (e) { toast.error("Erro ao remover peça."); }
   };
 
@@ -215,7 +225,7 @@ const GestaoPecas = () => {
 
       {/* MODAL DE EDIÇÃO */}
       {pecaEditandoIdx !== null && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
+        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6 border-b pb-4">
               <h3 className="text-xl font-bold text-primary flex items-center gap-2"><Pencil className="h-5 w-5 text-accent"/> Editar Peça</h3>

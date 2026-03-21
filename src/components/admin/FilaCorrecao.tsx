@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { db, storage } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, orderBy, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { FileText, CheckCircle, MessageSquare, UploadCloud, Mic, Trash2, DownloadCloud } from "lucide-react";
+import { FileText, CheckCircle, MessageSquare, UploadCloud, Mic, Trash2, DownloadCloud, AlertCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,25 @@ const FilaCorrecao = () => {
       setPecas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
   }, []);
+
+  // --- MOTOR DE SLA: Calcula 5 dias úteis ---
+  const calcularDataLimite = (dataEnvioInfo: any) => {
+    if (!dataEnvioInfo || !dataEnvioInfo.toDate) return null;
+    
+    const dataLimite = dataEnvioInfo.toDate();
+    let diasUteisAdicionados = 0;
+
+    // Adiciona 5 dias, pulando fim de semana (0 = Domingo, 6 = Sábado)
+    while (diasUteisAdicionados < 5) {
+      dataLimite.setDate(dataLimite.getDate() + 1);
+      if (dataLimite.getDay() !== 0 && dataLimite.getDay() !== 6) {
+        diasUteisAdicionados++;
+      }
+    }
+    // Define o fim do dia limite para as 23:59:59
+    dataLimite.setHours(23, 59, 59, 999);
+    return dataLimite;
+  };
 
   // --- Função para Eliminar Remessa ---
   const handleExcluirRemessa = async (id: string) => {
@@ -79,19 +98,26 @@ const FilaCorrecao = () => {
       <table className="w-full text-sm text-left">
         <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground border-b border-border">
           <tr>
-            <th className="px-6 py-4">Data/Hora</th>
+            <th className="px-6 py-4">Data de Envio</th>
             <th className="px-6 py-4">Aluno</th>
             <th className="px-6 py-4">Ficheiros (Original / Corrigido)</th>
-            <th className="px-6 py-4">Status</th>
+            <th className="px-6 py-4">Status & Prazo</th>
             <th className="px-6 py-4 text-right">Ação</th>
           </tr>
         </thead>
         <tbody>
           {pecas.map(p => {
             const isPendente = p.status !== "Corrigido";
+            const dataEnvioFormatada = p.data_envio?.toDate?.().toLocaleString('pt-BR');
+            
+            // Lógica de Prazo
+            const dataLimite = calcularDataLimite(p.data_envio);
+            const hoje = new Date();
+            const estaAtrasado = isPendente && dataLimite && hoje > dataLimite;
+
             return (
               <tr key={p.id} className={`border-b border-border hover:bg-muted/5 transition-colors ${isPendente ? 'bg-accent/5' : ''}`}>
-                <td className="px-6 py-4 text-xs text-muted-foreground">{p.data_envio?.toDate?.().toLocaleString('pt-BR')}</td>
+                <td className="px-6 py-4 text-xs text-muted-foreground">{dataEnvioFormatada}</td>
                 <td className="px-6 py-4 font-bold text-primary">{p.aluno_nome}</td>
                 
                 {/* COLUNA DE FICHEIROS DUPLA */}
@@ -108,9 +134,25 @@ const FilaCorrecao = () => {
                 </td>
 
                 <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${isPendente ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>
-                    {p.status || "Pendente"}
-                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <span className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider w-max ${isPendente ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>
+                      {p.status || "Pendente"}
+                    </span>
+                    
+                    {/* EXIBIÇÃO DA DATA LIMITE (SLA) */}
+                    {isPendente && dataLimite && (
+                      <span className={`text-[10px] font-bold flex items-center gap-1 ${estaAtrasado ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {estaAtrasado ? <AlertCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                        Limite: {dataLimite.toLocaleDateString('pt-BR')}
+                      </span>
+                    )}
+
+                    {!isPendente && p.data_correcao && (
+                      <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" /> Devolvida
+                      </span>
+                    )}
+                  </div>
                 </td>
                 
                 <td className="px-6 py-4 text-right">
@@ -134,9 +176,9 @@ const FilaCorrecao = () => {
         </tbody>
       </table>
 
-      {/* MODAL DE RESPOSTA E UPLOAD (Mantido igual) */}
+      {/* MODAL DE RESPOSTA E UPLOAD */}
       {pecaParaCorrigir && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-primary/90 backdrop-blur-md animate-in fade-in">
+        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-primary/90 backdrop-blur-md animate-in fade-in">
           <div className="bg-card border-2 border-accent/50 w-full max-w-lg rounded-2xl p-6 shadow-2xl flex flex-col">
             
             <div className="border-b border-border pb-4 mb-4">
@@ -160,11 +202,11 @@ const FilaCorrecao = () => {
               <div className="bg-muted/10 p-4 rounded-xl border border-border space-y-3">
                 <Label className="font-bold text-primary block">Anexar Peça Escaneada (Rasurada)</Label>
                 <div className="relative w-full">
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     accept=".pdf, image/*"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                    onChange={e => setArquivoCorrigido(e.target.files?.[0] || null)} 
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={e => setArquivoCorrigido(e.target.files?.[0] || null)}
                   />
                   <div className={`h-12 border-2 border-dashed rounded-lg flex items-center px-4 text-sm transition-colors ${arquivoCorrigido ? 'bg-success/10 border-success/40 text-success font-bold' : 'bg-background border-border text-muted-foreground hover:border-accent'}`}>
                     <UploadCloud className="h-5 w-5 mr-3"/>

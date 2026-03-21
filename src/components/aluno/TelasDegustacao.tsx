@@ -51,7 +51,7 @@ export const TelaBloqueio = ({ perfilAluno, handleLogout }: any) => {
 
         <div className="space-y-3">
           <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground leading-tight">
-            Olá, <span className="text-accent">{perfilAluno?.nome?.split(" ")[0] || "Aluno"}</span>!
+            Olá, <span className="text-accent">{perfilAluno?.nome?.split(" ") || "Aluno"}</span>!
           </h1>
           <p className="text-muted-foreground text-lg max-w-lg mx-auto leading-relaxed">
             O seu período de <strong className="text-foreground">Degustação Gratuita</strong> chegou ao fim.
@@ -98,25 +98,28 @@ export const TelaBloqueio = ({ perfilAluno, handleLogout }: any) => {
 
 export const BannerDegustacao = ({ tempoRestanteTexto, perfilAluno }: any) => {
   const linkCheckout = gerarLinkHotmart(perfilAluno);
+  
+  // Deteta se a string contém "hora" ou "minuto", indicando menos de 1 dia.
+  const isAcabando = tempoRestanteTexto.includes("hora") || tempoRestanteTexto.includes("minuto");
 
   return (
-    <div className="bg-yellow-500/10 border border-yellow-500/50 p-5 rounded-2xl mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4">
+    <div className={`${isAcabando ? 'bg-destructive/10 border-destructive/50' : 'bg-yellow-500/10 border-yellow-500/50'} border p-5 rounded-2xl mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4`}>
       <div className="flex gap-4 items-center">
-        <div className="bg-yellow-500/20 p-3 rounded-full hidden sm:block">
-          <AlertOctagon className="w-6 h-6 text-yellow-600" />
+        <div className={`${isAcabando ? 'bg-destructive/20 text-destructive' : 'bg-yellow-500/20 text-yellow-600'} p-3 rounded-full hidden sm:block`}>
+          <AlertOctagon className={`w-6 h-6 ${isAcabando ? 'text-destructive' : 'text-yellow-600'}`} />
         </div>
         <div>
-          <h4 className="font-bold text-yellow-700 dark:text-yellow-500 text-lg flex items-center gap-2">
-            Você está no período de Degustação
+          <h4 className={`font-bold ${isAcabando ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-500'} text-lg flex items-center gap-2`}>
+            {isAcabando ? "⚠️ Atenção: Seu período de testes está acabando!" : "Você está no período de Degustação"}
           </h4>
-          <p className="text-sm text-yellow-600/80 dark:text-yellow-400 mt-1">
+          <p className={`text-sm ${isAcabando ? 'text-destructive/80' : 'text-yellow-600/80 dark:text-yellow-400'} mt-1`}>
             Seu acesso gratuito expira em <strong className="font-black">{tempoRestanteTexto}</strong>. 
             Garanta sua vaga definitiva.
           </p>
         </div>
       </div>
       
-      <Button asChild variant="hero" className="w-full sm:w-auto shadow-lg whitespace-nowrap">
+      <Button asChild variant={isAcabando ? "destructive" : "hero"} className="w-full sm:w-auto shadow-lg whitespace-nowrap">
         <a href={linkCheckout} target="_blank" rel="noopener noreferrer">
           Garantir Vaga Premium
         </a>
