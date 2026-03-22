@@ -45,7 +45,6 @@ const Index = () => {
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
 
-  // Estados dos dois carrosséis
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const [currentBottomIndex, setCurrentBottomIndex] = useState(0);
 
@@ -82,7 +81,6 @@ const Index = () => {
     carregarConfiguracoes();
   }, []);
 
-  // Temporizador Carrossel Hero (Incentivos) - 10 Segundos
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentHeroIndex((prev) => (prev + 1) % heroCarouselImages.length);
@@ -90,7 +88,6 @@ const Index = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Temporizador Carrossel Baixo (Dashboards) - 12 Segundos
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentBottomIndex((prev) => (prev + 1) % bottomCarouselImages.length);
@@ -125,21 +122,21 @@ const Index = () => {
           <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/80 to-primary/60" />
         </div>
         
-        <div className="container px-4 relative z-10 py-16 sm:py-24 flex flex-col items-center w-full">
+        <div className="container px-4 relative z-10 py-12 sm:py-24 flex flex-col items-center w-full">
           
           <motion.div initial="hidden" animate="visible" className="w-full max-w-5xl flex flex-col items-center text-center space-y-6 sm:space-y-8">
             
-            <motion.div variants={fadeUp} custom={0} className="w-full max-w-4xl mx-auto mb-2">
-              <p className="text-primary-foreground/90 text-sm sm:text-lg leading-relaxed text-justify border-l-2 border-accent pl-4 sm:pl-6 italic">
+            <motion.div variants={fadeUp} custom={0} className="w-full max-w-4xl mx-auto mb-2 px-2 sm:px-0">
+              <p className="text-primary-foreground/90 text-sm sm:text-lg leading-relaxed text-justify border-l-2 border-accent pl-4 italic">
                 Olá, futuro colega de profissão! Respira fundo. Eu sei que a pressão da prova parece gigantesca agora, mas você não está sozinho nessa. Desenhei esta mentoria para ser o seu porto seguro: um acompanhamento artesanal, lado a lado, onde pego literalmente na sua mão. O nosso foco é total na <strong className="text-accent font-black">2ª Fase em Direito Tributário, Administrativo e Penal</strong>. Chega de ansiedade e de se sentir perdido com cursos de massa. Vamos blindar a sua peça, corrigir os mínimos detalhes e comemorar juntos quando o seu nome sair na lista de aprovados. Vai dar certo!
               </p>
             </motion.div>
 
             {vagasRestantes > 0 ? (
-              <motion.div variants={fadeUp} custom={1} className="inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 rounded-2xl sm:rounded-full bg-accent/10 border-2 sm:border border-accent/30 p-4 sm:px-8 sm:py-3 text-accent font-medium shadow-2xl sm:shadow-lg w-full sm:w-auto mx-auto">
-                <span className="text-sm lg:text-lg font-bold">⚠️ Restam apenas</span>
-                <span className="text-4xl sm:text-xl lg:text-3xl text-destructive font-black bg-destructive/10 sm:bg-destructive/10 sm:border sm:border-destructive/30 px-6 py-2 sm:px-5 sm:py-1.5 rounded-xl sm:rounded-lg uppercase tracking-wider my-1 sm:my-0 shadow-lg">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span>
-                <span className="text-sm lg:text-lg font-bold">para correção artesanal</span>
+              <motion.div variants={fadeUp} custom={1} className="inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 rounded-2xl sm:rounded-full bg-destructive/5 border-2 border-destructive/20 p-4 sm:px-8 sm:py-3 text-accent font-medium shadow-2xl sm:shadow-lg w-full sm:w-auto mx-auto">
+                <span className="text-sm lg:text-lg font-bold text-primary-foreground/70">⚠️ Restam apenas</span>
+                <span className="text-4xl sm:text-xl lg:text-3xl text-destructive font-black bg-destructive/10 sm:bg-transparent px-6 py-2 sm:px-0 rounded-xl uppercase tracking-wider my-1 sm:my-0">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span>
+                <span className="text-sm lg:text-lg font-bold text-primary-foreground/70">para correção artesanal</span>
               </motion.div>
             ) : (
               <motion.div variants={fadeUp} custom={1} className="inline-flex items-center justify-center gap-2 rounded-full bg-destructive/10 border border-destructive/30 px-6 py-3 sm:px-6 sm:py-3 text-sm lg:text-lg text-destructive font-bold mx-auto shadow-lg">
@@ -147,29 +144,29 @@ const Index = () => {
               </motion.div>
             )}
 
-            <motion.h1 variants={fadeUp} custom={2} className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-display font-bold text-primary-foreground leading-[1.1] tracking-tight w-full">
+            <motion.h1 variants={fadeUp} custom={2} className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-display font-bold text-primary-foreground leading-[1.1] tracking-tight w-full px-2">
               A única preparação para a 2ª Fase <span className="text-gradient-accent italic block sm:inline mt-2 sm:mt-0">desenhada para você.</span>
             </motion.h1>
             
-            <motion.p variants={fadeUp} custom={3} className="text-base sm:text-xl text-primary-foreground/80 max-w-2xl mx-auto font-body leading-relaxed text-justify sm:text-center px-2 sm:px-0">
+            <motion.p variants={fadeUp} custom={3} className="text-base sm:text-xl text-primary-foreground/80 max-w-2xl mx-auto font-body leading-relaxed text-justify sm:text-center px-4 sm:px-0">
               Esqueça os cursos de massa. Tenha um cronograma inteligente, um Dossiê de evolução e a correção cirúrgica das suas peças.
             </motion.p>
             
-            <motion.div variants={fadeUp} custom={4} className="flex justify-center w-full px-2 sm:px-0 mt-4 sm:mt-8">
+            <motion.div variants={fadeUp} custom={4} className="flex justify-center w-full px-4 sm:px-0 mt-4 sm:mt-8">
               <Button variant="hero" size="lg" className="h-14 sm:h-16 w-full sm:w-auto px-12 text-base sm:text-lg shadow-2xl shadow-accent/20" onClick={() => openAuth(false)}>
                 Garantir Minha Vaga <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6" />
               </Button>
             </motion.div>
           </motion.div>
 
-          {/* NOVO CARROSSEL DO TOPO (INCENTIVO E EMOÇÃO) - Tamanho Reduzido */}
-          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8 }} className="hidden lg:flex relative z-10 w-full max-w-4xl h-[450px] xl:h-[550px] items-center justify-center mx-auto mt-20">
+          {/* AJUSTE MOBILE: Altura aumentada para h-[350px] para imagens de incentivo maiores */}
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8 }} className="flex relative z-10 w-full max-w-4xl h-[350px] sm:h-[450px] xl:h-[550px] items-center justify-center mx-auto mt-12 sm:mt-20 px-4">
               <AnimatePresence mode="wait">
                 <motion.img 
                   key={heroCarouselImages[currentHeroIndex]} 
                   src={heroCarouselImages[currentHeroIndex]} 
-                  alt="Sua OAB Apresentação" 
-                  className="max-w-full max-h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl" 
+                  alt="Incentivo SUA OAB" 
+                  className="max-w-full max-h-full object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-2xl" 
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 1.02 }}
@@ -183,10 +180,10 @@ const Index = () => {
 
       <section className="py-24 bg-card">
         <div className="container px-6">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             
-            {/* CARROSSEL DE BAIXO (DASHBOARDS) - MAIOR NO PC */}
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="hidden lg:flex relative z-10 w-full h-[600px] xl:h-[650px] items-center justify-center">
+            {/* AJUSTE MOBILE: Altura aumentada de h-[350px] para h-[480px] para dashboards ficarem legíveis */}
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} className="flex relative z-10 w-full h-[480px] sm:h-[550px] xl:h-[650px] items-center justify-center order-2 lg:order-1 mt-10 lg:mt-0">
                 <AnimatePresence mode="wait">
                   <motion.img 
                     key={bottomCarouselImages[currentBottomIndex]} 
@@ -201,19 +198,14 @@ const Index = () => {
                 </AnimatePresence>
             </motion.div>
 
-            {/* IMAGEM ESTÁTICA PARA MOBILE (Mantém o Mobile Blindado) */}
-            <motion.div initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="lg:hidden">
-              <img src="https://raw.githubusercontent.com/miguelss3/suaoab/1e51d36ef11cad6211acac11ae3a56022757ccdd/CARTEIRA-DAORDEM-696x464.png" alt="Carteira da OAB" className="rounded-2xl shadow-elevated w-full max-w-md mx-auto" />
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="space-y-6">
-              <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground leading-tight">
+            <motion.div initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="space-y-6 order-1 lg:order-2">
+              <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground leading-tight text-center lg:text-left">
                 A sua "vermelhinha" está mais perto do que você imagina.
               </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed text-justify sm:text-left">
+              <p className="text-muted-foreground text-lg leading-relaxed text-justify sm:text-center lg:text-left">
                 O maior erro na 2ª fase é estudar de forma genérica. A banca não perdoa erros de estrutura de peça e falta de direcionamento.
               </p>
-              <ul className="space-y-4">
+              <ul className="space-y-4 max-w-md mx-auto lg:mx-0">
                 {checkItems.map((item) => (
                   <li key={item} className="flex items-center gap-3 text-foreground font-medium">
                     <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" /> {item}
@@ -225,9 +217,9 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="py-24 bg-background border-t border-border">
+      <section className="py-20 bg-background border-t border-border">
         <div className="container px-6">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">Por dentro da sua Área de Estudos</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Ferramentas pensadas para quem leva a aprovação a sério.</p>
           </div>
@@ -249,16 +241,16 @@ const Index = () => {
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-display font-bold text-primary italic mb-4">Aprovados que seguiram o método</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Histórias reais de quem já esteve exatamente onde você está hoje e conquistou a tão sonhada carteira vermelha.</p>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Histórias reais de quem já esteve exatamente onde você está hoje.</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-              <div className="flex text-accent mb-4">
+            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center sm:text-left">
+              <div className="flex justify-center sm:justify-start text-accent mb-4">
                 <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
               </div>
               <p className="text-foreground/80 italic mb-6">"Eu trabalhava o dia todo e não sabia como organizar o tempo. O cronograma adaptativo foi a minha salvação. As correções pareciam que o professor estava do meu lado ensinando."</p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center sm:justify-start gap-3">
                 <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">M</div>
                 <div>
                   <h4 className="font-bold text-foreground text-sm">Mariana Costa</h4>
@@ -267,12 +259,12 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-              <div className="flex text-accent mb-4">
+            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center sm:text-left">
+              <div className="flex justify-center sm:justify-start text-accent mb-4">
                 <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
               </div>
               <p className="text-foreground/80 italic mb-6">"Fazer os simulados com a mesma formatação gráfica da prova real tirou o meu nervosismo. Quando abri o caderno da FGV, senti que era apenas mais um PDF da plataforma."</p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center sm:justify-start gap-3">
                 <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">R</div>
                 <div>
                   <h4 className="font-bold text-foreground text-sm">Rafael Oliveira</h4>
@@ -281,12 +273,12 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm">
-              <div className="flex text-accent mb-4">
+            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center sm:text-left">
+              <div className="flex justify-center sm:justify-start text-accent mb-4">
                 <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
               </div>
               <p className="text-foreground/80 italic mb-6">"A objetividade é o ponto forte. Nada de doutrinas infinitas. Fui direto para a resolução de peças e no dia da prova sabia exatamente a estrutura que o examinador queria ver."</p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center sm:justify-start gap-3">
                 <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">L</div>
                 <div>
                   <h4 className="font-bold text-foreground text-sm">Larissa Mendes</h4>
@@ -301,38 +293,23 @@ const Index = () => {
       <section className="py-24 bg-background border-t border-border">
         <div className="container px-4 sm:px-6">
           <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto items-stretch">
-            
-            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-card rounded-3xl p-8 sm:p-10 md:p-12 shadow-elevated border-2 border-accent/30 text-center flex flex-col h-full">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg whitespace-nowrap">
-                🔥 OFERTA PRINCIPAL
-              </div>
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} className="relative bg-card rounded-3xl p-8 sm:p-12 shadow-elevated border-2 border-accent/30 text-center flex flex-col h-full">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg whitespace-nowrap">🔥 OFERTA PRINCIPAL</div>
               <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mt-4 mb-2">Turma Regular 2ª Fase</h2>
-              <p className="text-muted-foreground text-base sm:text-lg mb-8 flex-1">Plataforma Completa + Aulas + Correção de Peças + Cronograma Inteligente.</p>
-              
+              <p className="text-muted-foreground text-base sm:text-lg mb-8 flex-1">Plataforma Completa + Correção de Peças + Cronograma Inteligente.</p>
               <div className="mb-8">
                 <p className="text-muted-foreground line-through text-xl">De R$ {precoOriginal},00</p>
-                <p className="text-4xl md:text-5xl lg:text-6xl font-display font-black text-foreground mt-2">
-                  R$ {precoAtual}<span className="text-lg font-normal text-muted-foreground">,00 à vista ou 12x</span>
-                </p>
+                <p className="text-4xl md:text-5xl lg:text-6xl font-display font-black text-foreground mt-2">R$ {precoAtual}<span className="text-lg font-normal text-muted-foreground">,00 à vista ou 12x</span></p>
               </div>
-
-              <Button variant="hero" size="lg" className="w-full h-16 text-lg mt-auto" onClick={() => openAuth(false)}>
-                Garantir Minha Vaga
-              </Button>
-              
-              <p className="text-xs sm:text-sm text-muted-foreground flex items-center justify-center gap-2 mt-6">
-                <Shield className="h-4 w-4" /> Compra 100% Segura | 7 Dias de Garantia
-              </p>
+              <Button variant="hero" size="lg" className="w-full h-16 text-lg mt-auto" onClick={() => openAuth(false)}>Garantir Minha Vaga</Button>
+              <p className="text-xs text-muted-foreground mt-6"><Shield className="h-4 w-4 inline mr-1" /> Compra 100% Segura | 7 Dias de Garantia</p>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-muted/30 rounded-3xl p-8 sm:p-10 md:p-12 border-2 border-border text-center flex flex-col h-full mt-10 md:mt-0">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg whitespace-nowrap flex items-center gap-2">
-                <LifeBuoy className="h-4 w-4" /> VAI FAZER REPESCAGEM?
-              </div>
+            {/* BLOCO DE REPESCAGEM RECUPERADO E COMPLETO */}
+            <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} className="relative bg-muted/30 rounded-3xl p-8 sm:p-12 border-2 border-border text-center flex flex-col h-full mt-10 md:mt-0">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap"><LifeBuoy className="h-4 w-4" /> VAI FAZER REPESCAGEM?</div>
               <h2 className="text-2xl md:text-3xl font-display font-bold text-primary mt-4 mb-2">Desconto de 50%</h2>
-              <p className="text-muted-foreground text-base sm:text-lg mb-6 flex-1 text-justify sm:text-center">
-                Você não precisa pagar o valor integral. Alunos de repescagem têm direito a uma condição especial mediante comprovação no nosso atendimento.
-              </p>
+              <p className="text-muted-foreground text-base sm:text-lg mb-6 flex-1 text-justify sm:text-center">Você não precisa pagar o valor integral. Alunos de repescagem têm direito a uma condição especial mediante comprovação no nosso atendimento.</p>
               
               <div className="mb-8 bg-background p-5 rounded-xl border border-border text-left">
                 <p className="text-sm text-foreground font-bold mb-3 border-b border-border pb-2">Passo a passo:</p>
@@ -344,26 +321,17 @@ const Index = () => {
               </div>
 
               <Button variant="outline" className="w-full h-16 text-lg border-accent text-accent hover:bg-accent/10 mt-auto" asChild>
-                <a 
-                  href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá Professor! Fiquei de repescagem no último exame e gostaria de enviar meu comprovante para receber o link com 50% de desconto na SuaOAB.")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Validar no WhatsApp
-                </a>
+                <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá Professor! Fiquei de repescagem no último exame e gostaria de enviar meu comprovante para receber o link com 50% de desconto na SuaOAB.")}`} target="_blank" rel="noreferrer">Validar no WhatsApp</a>
               </Button>
             </motion.div>
-
           </div>
         </div>
       </section>
 
-      <section className="bg-hero py-24">
+      <section className="bg-hero py-20">
         <div className="container px-6 text-center space-y-8">
           <h2 className="text-3xl font-display font-bold text-primary-foreground">Acesse agora e veja na prática.</h2>
-          <Button variant="accent" size="lg" className="h-14 w-full sm:w-auto px-10" onClick={() => openAuth(false)}>
-            <Clock className="mr-2 h-5 w-5" /> Iniciar Matrícula
-          </Button>
+          <Button variant="accent" size="lg" className="h-14 w-full sm:w-auto px-10" onClick={() => openAuth(false)}><Clock className="mr-2 h-5 w-5" /> Iniciar Matrícula</Button>
         </div>
       </section>
 
@@ -373,26 +341,12 @@ const Index = () => {
         </div>
       </footer>
 
-      <a 
-        href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} 
-        target="_blank" 
-        rel="noreferrer"
-        className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl"
-        title="Falar com o Professor no WhatsApp"
-      >
-        <img 
-          src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" 
-          alt="WhatsApp Contato" 
-          className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
-        />
+      {/* BOTÃO WHATSAPP */}
+      <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} target="_blank" rel="noreferrer" className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl">
+        <img src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" alt="WhatsApp" className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
       </a>
 
-      <AuthModal 
-        showAuthModal={showAuthModal} 
-        setShowAuthModal={setShowAuthModal} 
-        isLogin={isLogin} 
-        setIsLogin={setIsLogin} 
-      />
+      <AuthModal showAuthModal={showAuthModal} setShowAuthModal={setShowAuthModal} isLogin={isLogin} setIsLogin={setIsLogin} />
     </div>
   );
 };
