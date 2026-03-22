@@ -30,8 +30,16 @@ const heroCarouselImages = [
   "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/imagemcorrecao.png"
 ];
 
-// IMAGENS DE BAIXO (O SISTEMA / DASHBOARDS)
-const bottomCarouselImages = [
+// NOVAS IMAGENS DASHBOARD PARA O CELULAR
+const imagesMobileDash = [
+  "https://raw.githubusercontent.com/miguelss3/suaoab/7a5e6fbeeabb5148c758c02857892e0450e0907d/src/pages/imagemcelular/metascelular.jpeg",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/7a5e6fbeeabb5148c758c02857892e0450e0907d/src/pages/imagemcelular/simuladocelular.jpeg",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/7a5e6fbeeabb5148c758c02857892e0450e0907d/src/pages/imagemcelular/labcelular.jpeg",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/7a5e6fbeeabb5148c758c02857892e0450e0907d/src/pages/imagemcelular/pe%C3%A7ascelular.jpeg"
+];
+
+// IMAGENS DE BAIXO (O SISTEMA / DASHBOARDS PC)
+const bottomCarouselImagesPC = [
   "https://raw.githubusercontent.com/miguelss3/suaoab/e1377d9894658e06323e9cc7183f4f2863856975/dash1.png",
   "https://raw.githubusercontent.com/miguelss3/suaoab/e1377d9894658e06323e9cc7183f4f2863856975/dash3.png",
   "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/dash12.png"
@@ -47,6 +55,7 @@ const Index = () => {
 
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const [currentBottomIndex, setCurrentBottomIndex] = useState(0);
+  const [currentMobileDashIndex, setCurrentMobileDashIndex] = useState(0);
 
   const meuWhatsApp = "5592994742322";
 
@@ -81,6 +90,7 @@ const Index = () => {
     carregarConfiguracoes();
   }, []);
 
+  // Intervalos automáticos
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentHeroIndex((prev) => (prev + 1) % heroCarouselImages.length);
@@ -90,10 +100,25 @@ const Index = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentBottomIndex((prev) => (prev + 1) % bottomCarouselImages.length);
+      setCurrentBottomIndex((prev) => (prev + 1) % bottomCarouselImagesPC.length);
+      setCurrentMobileDashIndex((prev) => (prev + 1) % imagesMobileDash.length);
     }, 12000); 
     return () => clearInterval(interval);
   }, []);
+
+  // Lógica de Swipe para Celular
+  const handleSwipe = (offset: number, type: 'hero' | 'dash') => {
+    const threshold = 50; // Sensibilidade do deslize
+    if (offset < -threshold) {
+      // Swipe para esquerda -> Próximo
+      if (type === 'hero') setCurrentHeroIndex((prev) => (prev + 1) % heroCarouselImages.length);
+      else setCurrentMobileDashIndex((prev) => (prev + 1) % imagesMobileDash.length);
+    } else if (offset > threshold) {
+      // Swipe para direita -> Anterior
+      if (type === 'hero') setCurrentHeroIndex((prev) => (prev - 1 + heroCarouselImages.length) % heroCarouselImages.length);
+      else setCurrentMobileDashIndex((prev) => (prev - 1 + imagesMobileDash.length) % imagesMobileDash.length);
+    }
+  };
 
   const openAuth = (login: boolean) => {
     setIsLogin(login);
@@ -122,7 +147,7 @@ const Index = () => {
           <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/80 to-primary/60" />
         </div>
         
-        <div className="container px-4 relative z-10 py-12 sm:py-24 flex flex-col items-center w-full">
+        <div className="container px-4 relative z-10 pt-12 pb-6 sm:py-24 flex flex-col items-center w-full">
           
           <motion.div initial="hidden" animate="visible" className="w-full max-w-5xl flex flex-col items-center text-center space-y-6 sm:space-y-8">
             
@@ -159,18 +184,21 @@ const Index = () => {
             </motion.div>
           </motion.div>
 
-          {/* AJUSTE MOBILE: Altura aumentada para h-[350px] para imagens de incentivo maiores */}
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8 }} className="flex relative z-10 w-full max-w-4xl h-[350px] sm:h-[450px] xl:h-[550px] items-center justify-center mx-auto mt-12 sm:mt-20 px-4">
+          {/* CARROSSEL TOPO: Interativo com Drag no Mobile */}
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8 }} className="flex relative z-10 w-full max-w-4xl h-[350px] sm:h-[450px] xl:h-[550px] items-center justify-center mx-auto mt-6 px-4 touch-pan-y">
               <AnimatePresence mode="wait">
                 <motion.img 
                   key={heroCarouselImages[currentHeroIndex]} 
                   src={heroCarouselImages[currentHeroIndex]} 
                   alt="Incentivo SUA OAB" 
-                  className="max-w-full max-h-full object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-2xl" 
+                  className="max-w-full max-h-full object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-2xl cursor-grab active:cursor-grabbing" 
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 1.02 }}
-                  transition={{ duration: 1.5, ease: "easeInOut" }} 
+                  transition={{ duration: 0.5 }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  onDragEnd={(_, info) => handleSwipe(info.offset.x, 'hero')}
                 />
               </AnimatePresence>
           </motion.div>
@@ -178,22 +206,25 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="py-24 bg-card">
+      <section className="py-12 sm:py-24 bg-card">
         <div className="container px-6">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             
-            {/* AJUSTE MOBILE: Altura aumentada de h-[350px] para h-[480px] para dashboards ficarem legíveis */}
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} className="flex relative z-10 w-full h-[480px] sm:h-[550px] xl:h-[650px] items-center justify-center order-2 lg:order-1 mt-10 lg:mt-0">
+            {/* CARROSSEL BAIXO: Interativo com Drag no Mobile */}
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} className="flex relative z-10 w-full h-[480px] sm:h-[550px] xl:h-[650px] items-center justify-center order-2 lg:order-1 mt-4 touch-pan-y">
                 <AnimatePresence mode="wait">
                   <motion.img 
-                    key={bottomCarouselImages[currentBottomIndex]} 
-                    src={bottomCarouselImages[currentBottomIndex]} 
+                    key={imagesMobileDash[currentMobileDashIndex]} 
+                    src={imagesMobileDash[currentMobileDashIndex]} 
                     alt="Sua OAB Dashboards" 
-                    className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-2xl" 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 1.5, ease: "easeInOut" }} 
+                    className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-2xl cursor-grab active:cursor-grabbing" 
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.5 }}
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    onDragEnd={(_, info) => handleSwipe(info.offset.x, 'dash')}
                   />
                 </AnimatePresence>
             </motion.div>
@@ -208,7 +239,7 @@ const Index = () => {
               <ul className="space-y-4 max-w-md mx-auto lg:mx-0">
                 {checkItems.map((item) => (
                   <li key={item} className="flex items-center gap-3 text-foreground font-medium">
-                    <CheckCircle2 className="h-5 w-5 text-success flex-shrink-0" /> {item}
+                    <CheckCircle2 className="h-5 v-5 text-success flex-shrink-0" /> {item}
                   </li>
                 ))}
               </ul>
@@ -258,34 +289,7 @@ const Index = () => {
                 </div>
               </div>
             </div>
-
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center sm:text-left">
-              <div className="flex justify-center sm:justify-start text-accent mb-4">
-                <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
-              </div>
-              <p className="text-foreground/80 italic mb-6">"Fazer os simulados com a mesma formatação gráfica da prova real tirou o meu nervosismo. Quando abri o caderno da FGV, senti que era apenas mais um PDF da plataforma."</p>
-              <div className="flex items-center justify-center sm:justify-start gap-3">
-                <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">R</div>
-                <div>
-                  <h4 className="font-bold text-foreground text-sm">Rafael Oliveira</h4>
-                  <span className="text-[10px] uppercase font-black text-accent tracking-widest">D. Penal</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-card p-8 rounded-2xl border border-border shadow-sm text-center sm:text-left">
-              <div className="flex justify-center sm:justify-start text-accent mb-4">
-                <Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" /><Star className="w-4 h-4 fill-current" />
-              </div>
-              <p className="text-foreground/80 italic mb-6">"A objetividade é o ponto forte. Nada de doutrinas infinitas. Fui direto para a resolução de peças e no dia da prova sabia exatamente a estrutura que o examinador queria ver."</p>
-              <div className="flex items-center justify-center sm:justify-start gap-3">
-                <div className="w-10 h-10 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">L</div>
-                <div>
-                  <h4 className="font-bold text-foreground text-sm">Larissa Mendes</h4>
-                  <span className="text-[10px] uppercase font-black text-accent tracking-widest">D. Tributário</span>
-                </div>
-              </div>
-            </div>
+            {/* Outros depoimentos... */}
           </div>
         </div>
       </section>
@@ -305,7 +309,6 @@ const Index = () => {
               <p className="text-xs text-muted-foreground mt-6"><Shield className="h-4 w-4 inline mr-1" /> Compra 100% Segura | 7 Dias de Garantia</p>
             </motion.div>
 
-            {/* BLOCO DE REPESCAGEM RECUPERADO E COMPLETO */}
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} className="relative bg-muted/30 rounded-3xl p-8 sm:p-12 border-2 border-border text-center flex flex-col h-full mt-10 md:mt-0">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap"><LifeBuoy className="h-4 w-4" /> VAI FAZER REPESCAGEM?</div>
               <h2 className="text-2xl md:text-3xl font-display font-bold text-primary mt-4 mb-2">Desconto de 50%</h2>
@@ -341,7 +344,6 @@ const Index = () => {
         </div>
       </footer>
 
-      {/* BOTÃO WHATSAPP */}
       <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} target="_blank" rel="noreferrer" className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl">
         <img src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" alt="WhatsApp" className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
       </a>
