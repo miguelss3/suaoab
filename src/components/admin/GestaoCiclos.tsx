@@ -11,15 +11,13 @@ import { toast } from "sonner";
 const GestaoCiclos = () => {
   const [exame, setExame] = useState("");
   const [dataProva, setDataProva] = useState("");
-  const [vagasTotais, setVagasTotais] = useState<number | string>(50); // Novo estado
-  const [alunosAtivos, setAlunosAtivos] = useState(0); // Novo estado
+  const [vagasTotais, setVagasTotais] = useState<number | string>(50);
+  const [alunosAtivos, setAlunosAtivos] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Vai buscar os dados atuais ao Firebase
   useEffect(() => {
     const fetchCiclo = async () => {
       try {
-        // 1. Busca configurações de exame e vagas
         const docRef = doc(db, "configuracoes", "ciclo_atual");
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -28,8 +26,8 @@ const GestaoCiclos = () => {
           if (docSnap.data().vagas_totais) setVagasTotais(docSnap.data().vagas_totais);
         }
 
-        // 2. Conta alunos Premium para o Gatilho de Escassez
-        const qPremium = query(collection(db, "alunos"), where("status", "==", "Premium"));
+        // CIRURGIA AQUI: O 'in' busca tanto "premium" minúsculo quanto "Premium" maiúsculo
+        const qPremium = query(collection(db, "alunos"), where("status", "in", ["premium", "Premium"]));
         const snapPremium = await getDocs(qPremium);
         setAlunosAtivos(snapPremium.size);
       } catch (error) {
@@ -52,17 +50,16 @@ const GestaoCiclos = () => {
 
     setLoading(true);
     try {
-      // O Motor calcula a data de expiração automaticamente (Prova + 5 dias)
       const dataExp = new Date(dataProva + "T12:00:00");
       dataExp.setDate(dataExp.getDate() + 5);
 
       await setDoc(doc(db, "configuracoes", "ciclo_atual"), {
         exame,
         data_prova: dataProva,
-        data_expiracao: dataExp.toISOString().split('T')[0],
-        vagas_totais: Number(vagasTotais), // Salva as vagas no banco
+        data_expiracao: dataExp.toISOString().split('T'),
+        vagas_totais: Number(vagasTotais),
         atualizado_em: new Date()
-      }, { merge: true }); // Merge garante que não apaga outros campos
+      }, { merge: true });
       
       toast.success("Ciclo atualizado! O relógio do sistema foi ajustado.");
     } catch (error) {
@@ -72,12 +69,11 @@ const GestaoCiclos = () => {
     }
   };
 
-  // Função visual para mostrar ao professor o dia exato do corte
   const calcularExpiracaoVisual = () => {
     if (!dataProva) return "Aguardando data da prova...";
     const d = new Date(dataProva + "T12:00:00");
     d.setDate(d.getDate() + 5);
-    return d.toLocaleDateString('pt-BR'); // Formato brasileiro
+    return d.toLocaleDateString('pt-BR');
   };
 
   return (
@@ -94,8 +90,6 @@ const GestaoCiclos = () => {
         </div>
 
         <div className="space-y-8">
-          
-          {/* BLOCO 1: BARREIRA TEMPORAL */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-sm font-bold flex items-center gap-2">
@@ -122,7 +116,6 @@ const GestaoCiclos = () => {
             </div>
           </div>
 
-          {/* BLOCO 2: GATILHO DE ESCASSEZ */}
           <div className="pt-6 border-t border-border">
             <h3 className="text-lg font-bold text-primary flex items-center gap-2 mb-4">
               <Users className="h-5 w-5 text-accent"/> Gatilho de Escassez (Vagas no Site)

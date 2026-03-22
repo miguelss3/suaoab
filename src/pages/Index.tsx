@@ -8,7 +8,6 @@ import { db } from "@/lib/firebase";
 import { doc, collection, query, where, getDocs, getDoc } from "firebase/firestore";
 import heroBg from "@/assets/hero-bg.jpg";
 
-// IMPORTANDO O MOTOR DE CADASTRO QUE CRIAMOS
 import { AuthModal } from "@/components/index/AuthModal";
 
 const fadeUp = {
@@ -27,9 +26,9 @@ const checkItems = ["Aulas Direto ao Ponto", "Metas Diárias no seu Painel", "Co
 const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const [vagasRestantes, setVagasRestantes] = useState<number>(12); // Padrão visual inicial
+  const [vagasRestantes, setVagasRestantes] = useState<number>(12);
 
-  // --- MOTOR DE ESCASSEZ (Busca vagas e alunos Premium) ---
+  // --- MOTOR DE ESCASSEZ CORRIGIDO (Maiúsculas e Minúsculas) ---
   useEffect(() => {
     const calcularVagas = async () => {
       try {
@@ -39,7 +38,8 @@ const Index = () => {
           limiteVagas = Number(configSnap.data().vagas_totais);
         }
 
-        const qPremium = query(collection(db, "alunos"), where("status", "==", "Premium"));
+        // CIRURGIA AQUI: O 'in' busca tanto "premium" minúsculo quanto "Premium" maiúsculo
+        const qPremium = query(collection(db, "alunos"), where("status", "in", ["premium", "Premium"]));
         const snapPremium = await getDocs(qPremium);
         const totalPremium = snapPremium.size;
 
@@ -61,12 +61,10 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-primary/95 backdrop-blur-md border-b border-primary/80">
         <div className="container flex items-center justify-between h-16">
-          {/* AJUSTE AQUI: Mudei ml-6 para ml-10 (move mais para a direita) */}
           <Link to="/" className="ml-10 font-display text-3xl md:text-4xl font-bold text-primary-foreground tracking-tight transition-transform hover:scale-105">
             SUA<span className="text-accent">OAB</span>
           </Link>
           <div className="flex items-center gap-3">
-            {/* AJUSTE AQUI: Adicionei h-11 (mais alto) e px-8 (mais largo) */}
             <Button variant="accent" onClick={() => openAuth(true)} className="h-11 px-8">
               Área do Aluno
             </Button>
@@ -255,7 +253,6 @@ const Index = () => {
         </div>
       </footer>
 
-      {/* COMPONENTE MODULAR DE CADASTRO SENDO CHAMADO AQUI */}
       <AuthModal 
         showAuthModal={showAuthModal} 
         setShowAuthModal={setShowAuthModal} 
