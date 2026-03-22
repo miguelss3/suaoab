@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { CalendarDays, Save, AlertTriangle, Clock, Target, Users, Tag } from "lucide-react";
+import { CalendarDays, Save, AlertTriangle, Clock, Target, Users, Tag, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,9 +14,9 @@ const GestaoCiclos = () => {
   const [vagasTotais, setVagasTotais] = useState<number | string>(50);
   const [alunosAtivos, setAlunosAtivos] = useState(0);
   
-  // Novos estados para a Precificação
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
+  const [linkRepescagem, setLinkRepescagem] = useState(""); // NOVO ESTADO
   
   const [loading, setLoading] = useState(false);
 
@@ -29,15 +29,21 @@ const GestaoCiclos = () => {
           setExame(docSnap.data().exame || "");
           setDataProva(docSnap.data().data_prova || "");
           if (docSnap.data().vagas_totais) setVagasTotais(docSnap.data().vagas_totais);
-          
-          // Carrega os preços salvos
           if (docSnap.data().preco_original) setPrecoOriginal(docSnap.data().preco_original);
           if (docSnap.data().preco_atual) setPrecoAtual(docSnap.data().preco_atual);
+          if (docSnap.data().link_repescagem) setLinkRepescagem(docSnap.data().link_repescagem);
         }
 
         const qPremium = query(collection(db, "alunos"), where("status", "in", ["premium", "Premium"]));
         const snapPremium = await getDocs(qPremium);
-        setAlunosAtivos(snapPremium.size);
+        
+        const ativosReais = snapPremium.docs.filter(doc => 
+          doc.id !== "admin_sandbox_uid" && 
+          doc.data().email !== "miguelss3@yahoo.com.br" &&
+          doc.data().email !== "sandbox@suaoab.com.br"
+        ).length;
+
+        setAlunosAtivos(ativosReais);
       } catch (error) {
         console.error("Erro ao carregar dados do ciclo", error);
       }
@@ -66,8 +72,9 @@ const GestaoCiclos = () => {
         data_prova: dataProva,
         data_expiracao: dataExp.toISOString().split('T'),
         vagas_totais: Number(vagasTotais),
-        preco_original: precoOriginal, // Salva o preço original
-        preco_atual: precoAtual,       // Salva o preço com desconto
+        preco_original: precoOriginal,
+        preco_atual: precoAtual,
+        link_repescagem: linkRepescagem, // Salva o link no banco      
         atualizado_em: new Date()
       }, { merge: true });
       
@@ -89,8 +96,6 @@ const GestaoCiclos = () => {
   return (
     <div className="space-y-6">
       <div className="bg-card p-8 rounded-xl border border-border shadow-sm max-w-3xl mx-auto">
-        
-        {/* CABEÇALHO */}
         <div className="flex items-center gap-3 mb-6 border-b border-border pb-4">
           <div className="p-3 bg-accent/10 rounded-lg text-accent">
             <Target className="h-6 w-6" />
@@ -102,8 +107,6 @@ const GestaoCiclos = () => {
         </div>
 
         <div className="space-y-8">
-          
-          {/* BLOCO 1: DATAS E EXAMES */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-sm font-bold flex items-center gap-2">
@@ -120,12 +123,11 @@ const GestaoCiclos = () => {
             </div>
           </div>
 
-          {/* BLOCO 2: PRECIFICAÇÃO (NOVO) */}
           <div className="pt-6 border-t border-border">
             <h3 className="text-lg font-bold text-primary flex items-center gap-2 mb-4">
-              <Tag className="h-5 w-5 text-accent"/> Estratégia de Precificação (Página de Vendas)
+              <Tag className="h-5 w-5 text-accent"/> Estratégia de Precificação & Repescagem
             </h3>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-6 mb-4">
               <div className="space-y-2">
                 <Label className="text-sm font-bold text-muted-foreground">Preço Original (R$)</Label>
                 <div className="relative">
@@ -141,9 +143,22 @@ const GestaoCiclos = () => {
                 </div>
               </div>
             </div>
+
+            {/* CAMPO DE LINK DE REPESCAGEM PARA O PROFESSOR */}
+            <div className="space-y-2 bg-muted/20 p-4 rounded-xl border border-border">
+              <Label className="text-sm font-bold flex items-center gap-2">
+                <LinkIcon className="h-4 w-4 text-muted-foreground" /> Link Oculto (Hotmart) - Repescagem 50% OFF
+              </Label>
+              <Input 
+                placeholder="https://pay.hotmart.com/..." 
+                value={linkRepescagem} 
+                onChange={(e) => setLinkRepescagem(e.target.value)} 
+                className="font-mono text-sm h-10" 
+              />
+              <p className="text-xs text-muted-foreground mt-1">Este link não aparece no site. Você o copiará daqui para mandar ao aluno no WhatsApp após validar o comprovante dele.</p>
+            </div>
           </div>
 
-          {/* BLOCO 3: VAGAS E ESCASSEZ */}
           <div className="pt-6 border-t border-border">
             <h3 className="text-lg font-bold text-primary flex items-center gap-2 mb-4">
               <Users className="h-5 w-5 text-accent"/> Gatilho de Escassez (Vagas no Site)
@@ -166,7 +181,6 @@ const GestaoCiclos = () => {
             </div>
           </div>
 
-          {/* ALERTA DE EXPIRAÇÃO */}
           <div className="bg-muted/30 p-5 rounded-lg border border-border flex items-start gap-4">
             <AlertTriangle className="h-6 w-6 text-accent shrink-0 mt-0.5" />
             <div>

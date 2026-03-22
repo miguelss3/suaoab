@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Target, Scale, BarChart3, CheckCircle2, ArrowRight, Shield, Clock, Star } from "lucide-react";
+import { Target, Scale, BarChart3, CheckCircle2, ArrowRight, Shield, Clock, Star, LifeBuoy } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, collection, query, where, getDocs, getDoc } from "firebase/firestore";
 import heroBg from "@/assets/hero-bg.jpg";
@@ -28,9 +28,11 @@ const Index = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [vagasRestantes, setVagasRestantes] = useState<number>(12);
   
-  // Novos Estados para a Precificação Dinâmica
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
+
+  // O seu número oficial
+  const meuWhatsApp = "5592994742322";
 
   useEffect(() => {
     const carregarConfiguracoes = async () => {
@@ -47,7 +49,12 @@ const Index = () => {
 
         const qPremium = query(collection(db, "alunos"), where("status", "in", ["premium", "Premium"]));
         const snapPremium = await getDocs(qPremium);
-        const totalPremium = snapPremium.size;
+        
+        const totalPremium = snapPremium.docs.filter(doc => 
+          doc.id !== "admin_sandbox_uid" && 
+          doc.data().email !== "miguelss3@yahoo.com.br" &&
+          doc.data().email !== "sandbox@suaoab.com.br"
+        ).length;
 
         const restantes = limiteVagas - totalPremium;
         setVagasRestantes(restantes > 0 ? restantes : 0);
@@ -64,7 +71,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative pb-10">
       <header className="sticky top-0 z-50 bg-primary/95 backdrop-blur-md border-b border-primary/80">
         <div className="container flex items-center justify-between h-16">
           <Link to="/" className="ml-10 font-display text-3xl md:text-4xl font-bold text-primary-foreground tracking-tight transition-transform hover:scale-105">
@@ -216,31 +223,66 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="py-24 bg-background">
-        <div className="container flex justify-center">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} className="relative max-w-2xl w-full bg-card rounded-3xl p-12 shadow-elevated border-2 border-accent/30 text-center">
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg">
-              🔥 OFERTA POR TEMPO LIMITADO
-            </div>
-            <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mt-4 mb-2">Garanta a sua Aprovação na 2ª Fase</h2>
-            <p className="text-muted-foreground text-lg mb-8">Plataforma Completa + Aulas + Correção de Peças + Cronograma Inteligente.</p>
+      {/* SECÇÃO DE VENDAS COM GRID LADO A LADO */}
+      <section className="py-24 bg-background border-t border-border">
+        <div className="container">
+          <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto items-stretch">
             
-            {/* O PREÇO AGORA VEM DIRETAMENTE DO BANCO DE DADOS */}
-            <div className="mb-8">
-              <p className="text-muted-foreground line-through text-xl">De R$ {precoOriginal},00</p>
-              <p className="text-5xl md:text-6xl font-display font-black text-foreground mt-2">
-                R$ {precoAtual}<span className="text-xl font-normal text-muted-foreground">,00 à vista ou até 12x</span>
-              </p>
-            </div>
+            {/* OFERTA PRINCIPAL */}
+            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-card rounded-3xl p-10 md:p-12 shadow-elevated border-2 border-accent/30 text-center flex flex-col h-full">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg whitespace-nowrap">
+                🔥 OFERTA PRINCIPAL
+              </div>
+              <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mt-4 mb-2">Turma Regular 2ª Fase</h2>
+              <p className="text-muted-foreground text-lg mb-8 flex-1">Plataforma Completa + Aulas + Correção de Peças + Cronograma Inteligente.</p>
+              
+              <div className="mb-8">
+                <p className="text-muted-foreground line-through text-xl">De R$ {precoOriginal},00</p>
+                <p className="text-4xl md:text-5xl lg:text-6xl font-display font-black text-foreground mt-2">
+                  R$ {precoAtual}<span className="text-lg font-normal text-muted-foreground">,00 à vista ou 12x</span>
+                </p>
+              </div>
 
-            <Button variant="hero" size="lg" className="w-full max-w-sm h-16 text-lg mx-auto" onClick={() => openAuth(false)}>
-              Garantir Minha Vaga
-            </Button>
-            
-            <p className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-6">
-              <Shield className="h-4 w-4" /> Compra 100% Segura | 7 Dias de Garantia
-            </p>
-          </motion.div>
+              <Button variant="hero" size="lg" className="w-full h-16 text-lg mt-auto" onClick={() => openAuth(false)}>
+                Garantir Minha Vaga
+              </Button>
+              
+              <p className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-6">
+                <Shield className="h-4 w-4" /> Compra 100% Segura | 7 Dias de Garantia
+              </p>
+            </motion.div>
+
+            {/* BANNER DE REPESCAGEM (LADO A LADO) */}
+            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-muted/30 rounded-3xl p-10 md:p-12 border-2 border-border text-center flex flex-col h-full">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg whitespace-nowrap flex items-center gap-2">
+                <LifeBuoy className="h-4 w-4" /> VAI FAZER REPESCAGEM?
+              </div>
+              <h2 className="text-2xl md:text-3xl font-display font-bold text-primary mt-4 mb-2">Desconto de 50%</h2>
+              <p className="text-muted-foreground text-lg mb-6 flex-1">
+                Você não precisa pagar o valor integral. Alunos de repescagem têm direito a uma condição especial mediante comprovação no nosso atendimento.
+              </p>
+              
+              <div className="mb-8 bg-background p-5 rounded-xl border border-border text-left">
+                <p className="text-sm text-foreground font-bold mb-3 border-b border-border pb-2">Passo a passo:</p>
+                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside font-medium">
+                  <li>Clique no botão abaixo</li>
+                  <li>Envie seu comprovante no WhatsApp</li>
+                  <li>Receba o link de pagamento com desconto</li>
+                </ol>
+              </div>
+
+              <Button variant="outline" className="w-full h-16 text-lg border-accent text-accent hover:bg-accent/10 mt-auto" asChild>
+                <a 
+                  href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá Professor! Fiquei de repescagem no último exame e gostaria de enviar meu comprovante para receber o link com 50% de desconto na SuaOAB.")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Validar no WhatsApp
+                </a>
+              </Button>
+            </motion.div>
+
+          </div>
         </div>
       </section>
 
@@ -258,6 +300,21 @@ const Index = () => {
           <p className="text-primary-foreground/50 text-sm">© 2026 SuaOAB. Todos os direitos reservados.</p>
         </div>
       </footer>
+
+      {/* BOTÃO FLUTUANTE DO WHATSAPP COM A SUA IMAGEM */}
+      <a 
+        href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} 
+        target="_blank" 
+        rel="noreferrer"
+        className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl"
+        title="Falar com o Professor no WhatsApp"
+      >
+        <img 
+          src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" 
+          alt="WhatsApp Contato" 
+          className="w-16 h-16 object-contain"
+        />
+      </a>
 
       <AuthModal 
         showAuthModal={showAuthModal} 
