@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, onSnapshot, collection, query, where, updateDoc, arrayUnion, arrayRemove, orderBy } from "firebase/firestore";
+import { doc, onSnapshot, collection, query, where, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { ChevronLeft, PlayCircle, CheckCircle2, LogOut, Clock, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -22,7 +22,6 @@ const Aula = () => {
         const unsubAluno = onSnapshot(doc(db, "alunos", user.uid), (docSnap) => {
           if (docSnap.exists()) {
             const dadosAluno: any = { id: docSnap.id, ...docSnap.data() };
-            // Garante que o array existe
             if (!dadosAluno.aulas_assistidas) dadosAluno.aulas_assistidas = [];
             setAluno(dadosAluno);
           }
@@ -40,31 +39,36 @@ const Aula = () => {
   useEffect(() => {
     if (!aluno?.materia) return;
 
+    // --- TRADUTOR DE SEGURANÇA PARA ALUNOS ANTIGOS ---
+    let materiaBusca = aluno.materia;
+    if (materiaBusca === "DTRIB") materiaBusca = "DTRI";
+
     const qAulas = query(
       collection(db, "aulas_globais"), 
-      where("materia", "==", aluno.materia)
-      // Nota: Se quiser ordenar, adicione orderBy("data_publicacao", "asc") e crie o índice no Firebase
+      where("materia", "==", materiaBusca)
     );
 
     const unsubAulas = onSnapshot(qAulas, (snap) => {
       const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Ordenação local por data caso não tenha o índice no Firestore
+      
       lista.sort((a: any, b: any) => {
         const timeA = a.data_publicacao?.toMillis ? a.data_publicacao.toMillis() : 0;
         const timeB = b.data_publicacao?.toMillis ? b.data_publicacao.toMillis() : 0;
-        return timeA - timeB; // Ordem cronológica (mais antigas primeiro)
+        return timeA - timeB; 
       });
       
       setAulas(lista);
+      
+      // --- CORREÇÃO DO CARREGAMENTO DO VÍDEO (lista) ---
       if (lista.length > 0 && !aulaAtiva) {
-        setAulaAtiva(lista); // Carrega o primeiro vídeo automaticamente
+        setAulaAtiva(lista); 
       }
     });
 
     return () => unsubAulas();
-  }, [aluno?.materia]);
+  }, [aluno?.materia, aulaAtiva]); // aulaAtiva adicionada na dependência para garantir a leitura correta
 
-  // 3. Função para Marcar/Desmarcar Aula (Não afeta o progresso geral)
+  // 3. Função para Marcar/Desmarcar Aula
   const toggleAulaAssistida = async (aulaId: string) => {
     if (!aluno) return;
     
@@ -94,7 +98,6 @@ const Aula = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-body pb-24 flex flex-col">
-      {/* CABEÇALHO */}
       <header className="bg-primary border-b-4 border-accent py-4 sticky top-0 z-40">
         <div className="container flex justify-between items-center">
           <div className="flex items-center gap-6">
@@ -107,16 +110,13 @@ const Aula = () => {
         </div>
       </header>
 
-      {/* ÁREA PRINCIPAL DA SALA DE AULA */}
       <main className="container py-8 flex-1">
         <div className="grid lg:grid-cols-3 gap-8 h-full">
           
-          {/* COLUNA ESQUERDA: PLAYER E INFORMAÇÕES (Ocupa 2/3) */}
           <div className="lg:col-span-2 flex flex-col gap-6">
             {aulaAtiva ? (
               <>
                 <div className="bg-card rounded-xl shadow-lg border border-border overflow-hidden flex flex-col">
-                  {/* Player de Vídeo Responsivo (16:9) */}
                   <div className="relative w-full aspect-video bg-black">
                     <iframe 
                       src={`https://www.youtube.com/embed/${aulaAtiva.youtubeId}?rel=0&modestbranding=1`} 
@@ -127,7 +127,6 @@ const Aula = () => {
                     ></iframe>
                   </div>
                   
-                  {/* Informações da Aula e Botão de Conclusão */}
                   <div className="p-6 md:p-8 bg-card flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex-1 w-full min-w-0">
                       <span className="bg-accent/20 text-accent font-black px-3 py-1 rounded-full text-[10px] uppercase tracking-widest mb-3 inline-block">
@@ -135,7 +134,6 @@ const Aula = () => {
                       </span>
                       <h2 className="text-2xl font-display font-bold text-primary mb-4">{aulaAtiva.titulo}</h2>
                       
-                      {/* CIRURGIA AQUI: Controle de altura e barra de rolagem */}
                       <div className="max-h-[160px] overflow-y-auto custom-scrollbar pr-4">
                         <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
                           {aulaAtiva.desc || "Sem descrição adicional para esta aula."}
@@ -143,7 +141,6 @@ const Aula = () => {
                       </div>
                     </div>
                     
-                    {/* BOTÃO DE CHECK (ISOLADO DO PROGRESSO GERAL) */}
                     <div className="shrink-0 w-full md:w-auto">
                       <Button 
                         onClick={() => toggleAulaAssistida(aulaAtiva.id)}
@@ -164,12 +161,11 @@ const Aula = () => {
               <div className="bg-card rounded-xl border-2 border-dashed border-border p-16 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
                 <Play className="h-16 w-16 text-muted-foreground opacity-20 mb-4" />
                 <h3 className="text-xl font-bold text-primary mb-2">Sala de Aula Vazia</h3>
-                <p className="text-muted-foreground">O professor ainda não publicou nenhuma videoaula para a sua disciplina de {aluno?.materia}.</p>
+                <p className="text-muted-foreground">O professor ainda não publicou nenhuma videoaula para a sua disciplina.</p>
               </div>
             )}
           </div>
 
-          {/* COLUNA DIREITA: PLAYLIST (Ocupa 1/3) */}
           <div className="bg-card rounded-xl shadow-sm border border-border flex flex-col h-[600px] lg:h-auto overflow-hidden">
             <div className="p-5 border-b border-border bg-muted/10 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-primary italic flex items-center gap-2">

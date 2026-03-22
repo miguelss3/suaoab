@@ -128,7 +128,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   const handleAbrirEdicaoData = () => {
     if (aluno.data_expiracao) {
       const d = typeof aluno.data_expiracao === 'string' ? new Date(aluno.data_expiracao) : aluno.data_expiracao.toDate();
-      setNovaDataExpiracao(d.toISOString().split('T')); // Corrigido
+      setNovaDataExpiracao(d.toISOString().split('T')[0]);
     } else {
       const isPremium = aluno.status === 'Premium' || aluno.status === 'premium';
       if (isPremium && globalDataExpiracao) {
@@ -136,9 +136,9 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
       } else if (!isPremium && aluno.data_cadastro) {
         const d = typeof aluno.data_cadastro === 'string' ? new Date(aluno.data_cadastro) : aluno.data_cadastro.toDate();
         d.setHours(d.getHours() + 72);
-        setNovaDataExpiracao(d.toISOString().split('T')); // Corrigido
+        setNovaDataExpiracao(d.toISOString().split('T')[0]);
       } else {
-        setNovaDataExpiracao(new Date().toISOString().split('T')); // Corrigido
+        setNovaDataExpiracao(new Date().toISOString().split('T')[0]);
       }
     }
     setEditDataExpiracao(true);
@@ -187,7 +187,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
     setEditMetaDescricao(meta.orientacoes || "");
     setEditMetaLink(meta.link || ""); 
     setEditMetaArquivo(null);
-    setEditMetaPrazo(meta.data_sugerida ? String(meta.data_sugerida).split('T') : ""); // Corrigido
+    setEditMetaPrazo(meta.data_sugerida ? String(meta.data_sugerida).split('T')[0] : "");
   };
 
   async function handleSalvarEdicao() {
@@ -386,7 +386,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                 <div className="flex gap-3 items-center">
                   <div className="flex-1 relative">
                     {/* Corrigido */}
-                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setNovaMetaArquivo(e.target.files && e.target.files.length > 0 ? e.target.files : null)} />
+                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setNovaMetaArquivo(e.target.files && e.target.files.length > 0 ? e.target.files[0] : null)} />
                     <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${novaMetaArquivo ? 'bg-success/10 border-success/30 text-success font-bold' : 'bg-background text-muted-foreground'}`}>
                       <UploadCloud className="h-4 w-4 mr-2"/> <span className="truncate">{novaMetaArquivo ? novaMetaArquivo.name : "Anexar PDF (Opcional)"}</span>
                     </div>
@@ -463,7 +463,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                   <Label className="block mb-2 text-xs">Anexo (Opcional)</Label>
                   <div className="relative w-full">
                     {/* Corrigido */}
-                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setEditMetaArquivo(e.target.files && e.target.files.length > 0 ? e.target.files : null)} />
+                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setEditMetaArquivo(e.target.files && e.target.files.length > 0 ? e.target.files[0] : null)} />
                     <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${editMetaArquivo ? 'bg-success/10 text-success' : 'bg-background text-muted-foreground'}`}>
                       <UploadCloud className="h-4 w-4 mr-2"/> <span className="truncate">{editMetaArquivo ? editMetaArquivo.name : "Substituir anexo existente"}</span>
                     </div>
@@ -535,7 +535,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Título</Label><Input value={m.atividade} onChange={(e) => handleEditPreviewMeta(i, 'atividade', e.target.value)} className="font-bold text-primary" /></div>
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo</Label>
                                   {/* Corrigido */}
-                                  <Input type="date" value={m.data_sugerida ? String(m.data_sugerida).split('T') : ''} onChange={(e) => { const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : ""; handleEditPreviewMeta(i, 'data_sugerida', val); }} />
+                                  <Input type="date" value={m.data_sugerida ? String(m.data_sugerida).split('T')[0] : ''} onChange={(e) => { const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : ""; handleEditPreviewMeta(i, 'data_sugerida', val); }} />
                                 </div>
                               </div>
                               <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label><textarea value={m.orientacoes} onChange={(e) => handleEditPreviewMeta(i, 'orientacoes', e.target.value)} className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed" /></div>
@@ -544,7 +544,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo</Label>
                                   <div className="relative w-full">
                                     {/* Corrigido */}
-                                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleEditPreviewMeta(i, 'arquivo_file', e.target.files && e.target.files.length > 0 ? e.target.files : null)} />
+                                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleEditPreviewMeta(i, 'arquivo_file', e.target.files && e.target.files.length > 0 ? e.target.files[0] : null)} />
                                     <div className={`h-9 border rounded-md flex items-center px-3 text-xs ${m.arquivo_file || m.arquivo_url ? 'bg-success/10 border-success/30 text-success font-bold' : 'bg-background border-input text-muted-foreground'}`}><UploadCloud className="h-4 w-4 mr-2"/><span className="truncate">{m.arquivo_file ? m.arquivo_file.name : (m.arquivo_nome || "Anexar PDF")}</span></div>
                                   </div>
                                 </div>

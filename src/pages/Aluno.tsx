@@ -77,8 +77,11 @@ const Aluno = () => {
   }, [navigate]);
 
   useEffect(() => {
-    const materiaAluno = perfilAluno?.materia || perfilAluno?.curso;
+    let materiaAluno = perfilAluno?.materia || perfilAluno?.curso;
     if (!materiaAluno) return;
+
+    // --- TRADUTOR DE SEGURANÇA PARA ALUNOS ANTIGOS ---
+    if (materiaAluno === "DTRIB") materiaAluno = "DTRI";
     
     const qMateriais = query(collection(db, "materiais_publicados"), where("materia", "==", materiaAluno));
     const unsubMateriais = onSnapshot(qMateriais, (snap) => {
@@ -101,7 +104,6 @@ const Aluno = () => {
     navigate("/");
   };
 
-  // --- LÓGICA DE DEGUSTAÇÃO: RESPEITA A NOVA DATA DO DOSSIÊ ---
   let isDegustacaoExpirada = false;
   let tempoRestanteTexto = "";
 
@@ -112,7 +114,7 @@ const Aluno = () => {
       dataCorte = perfilAluno.data_expiracao.toDate ? perfilAluno.data_expiracao.toDate() : new Date(perfilAluno.data_expiracao);
     } else if (perfilAluno?.data_cadastro) {
       dataCorte = perfilAluno.data_cadastro.toDate ? perfilAluno.data_cadastro.toDate() : new Date(perfilAluno.data_cadastro);
-      dataCorte.setHours(dataCorte.getHours() + 72); // Padrão 72h
+      dataCorte.setHours(dataCorte.getHours() + 72); 
     } else {
       dataCorte = new Date();
     }
@@ -132,12 +134,10 @@ const Aluno = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-display text-primary italic">Carregando Dossiê...</div>;
 
-  // 1. TELA DE BLOQUEIO (FIM DA DEGUSTAÇÃO OU ALUNO INATIVO)
   if (perfilAluno?.status === "inativo" || (perfilAluno?.status === "Lead" && isDegustacaoExpirada)) {
     return <TelaBloqueio perfilAluno={perfilAluno} handleLogout={handleLogout} />;
   }
 
-  // 2. PAINEL PRINCIPAL
   return (
     <div className="min-h-screen bg-background text-foreground font-body relative pb-24">
       <header className="bg-primary border-b-4 border-accent py-4 sticky top-0 z-40">
