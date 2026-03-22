@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, PlayCircle } from "lucide-react";
+import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, PlayCircle, Eye } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
@@ -15,7 +15,8 @@ import MotorGerador from "@/components/admin/MotorGerador";
 import GestaoMateriais from "@/components/admin/GestaoMateriais";
 import GestaoPecas from "@/components/admin/GestaoPecas";
 import GestaoCiclos from "@/components/admin/GestaoCiclos"; 
-import GestaoAulas from "@/components/admin/GestaoAulas"; // <-- O Novo Motor de Aulas
+import GestaoAulas from "@/components/admin/GestaoAulas"; 
+import VisaoAluno from "@/components/admin/VisaoAluno";
 
 const Painel = () => {
   const navigate = useNavigate();
@@ -56,10 +57,13 @@ const Painel = () => {
       </header>
 
       <main className="container py-8 max-w-7xl">
-        <Tabs defaultValue="crm" className="w-full">
+        <Tabs defaultValue="sandbox" className="w-full">
           
-          {/* MENU DE NAVEGAÇÃO SUPERIOR */}
           <TabsList className="w-full flex flex-wrap h-auto gap-2 bg-transparent mb-8 justify-start p-0">
+            <TabsTrigger value="sandbox" className="font-bold flex gap-2 border border-accent/30 bg-accent/5 text-accent data-[state=active]:bg-accent data-[state=active]:text-white transition-colors">
+              <Eye className="h-4 w-4"/> Visão do Aluno
+            </TabsTrigger>
+
             <TabsTrigger value="crm" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <Users className="h-4 w-4"/> Alunos CRM
             </TabsTrigger>
@@ -68,7 +72,6 @@ const Painel = () => {
               <FileText className="h-4 w-4"/> Fila de Correção
             </TabsTrigger>
 
-            {/* A NOVA ABA AQUI */}
             <TabsTrigger value="aulas" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <PlayCircle className="h-4 w-4"/> Videoaulas
             </TabsTrigger>
@@ -94,10 +97,10 @@ const Painel = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* CONTEÚDO DAS ABAS */}
+          <TabsContent value="sandbox"><VisaoAluno /></TabsContent>
           <TabsContent value="crm"><AlunosCRM /></TabsContent>
           <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>
-          <TabsContent value="aulas"><GestaoAulas /></TabsContent> {/* <-- O Novo Conteúdo */}
+          <TabsContent value="aulas"><GestaoAulas /></TabsContent>
           <TabsContent value="questoes"><BancoQuestoes /></TabsContent>
           <TabsContent value="pecas"><GestaoPecas /></TabsContent>
           <TabsContent value="motor"><MotorGerador /></TabsContent>

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db, storage } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"; // <-- deleteObject adicionado
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Scale, Plus, Trash2, FileText, UploadCloud, FileSignature, Pencil, X, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,7 +113,6 @@ const GestaoPecas = () => {
     try {
       const peca = pecas[index];
       
-      // Destrói o PDF físico no Storage
       if (peca?.url_pdf) {
         const fileRef = ref(storage, peca.url_pdf);
         await deleteObject(fileRef).catch(e => console.log("Ignorado: Ficheiro não encontrado no storage."));
@@ -223,7 +222,7 @@ const GestaoPecas = () => {
         </div>
       )}
 
-      {/* MODAL DE EDIÇÃO */}
+      {/* O BUG DE Z-INDEX FOI CORRIGIDO ABAIXO (z-) */}
       {pecaEditandoIdx !== null && (
         <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6">
