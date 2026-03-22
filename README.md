@@ -1,73 +1,56 @@
-# Welcome to your Lovable project
+# ⚖️ SuaOAB - Plataforma de Mentoria Estratégica
 
-## Project info
+A **SuaOAB** é uma plataforma educacional completa e de alta performance, desenvolvida sob medida para a preparação de candidatos à 2ª Fase do Exame da Ordem dos Advogados do Brasil (OAB). 
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+O sistema é dividido em dois grandes ecossistemas: o **Portal do Aluno** (focado em engajamento, organização e execução) e a **Sala de Comando** (um CRM poderoso para o mentor gerenciar alunos, corrigir peças e orquestrar conteúdos).
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## 🚀 Funcionalidades Principais
 
-**Use Lovable**
+### 🎓 Portal do Aluno
+* **Dashboard de Progresso:** Acompanhamento visual da evolução do aluno nas metas da disciplina.
+* **Cronograma de Metas (Rota Adaptativa):** Sistema que organiza o estudo diário com integração de PDFs, links e orientações.
+* **Sala de Aula Virtual:** Player de vídeo inteligente integrado ao YouTube com extração automática de IDs e layout responsivo.
+* **Laboratório de Peças & Simulados:** Área dedicada para download de esqueletos, cadernos de questões e envio de peças para correção.
+* **Sistema de Degustação Inteligente:** Controle de acesso temporário (Trial) com bloqueio automático após o vencimento do prazo (ex: 72h) e alertas visuais integrados ao checkout da Hotmart.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### ⚙️ Sala de Comando (Admin / Mentor)
+* **CRM de Alunos:** Gestão completa de leads e alunos Premium, com inativação automática de alunos expirados.
+* **Dossiê do Aluno:** Visão 360º de cada estudante, permitindo ajustes de prazos, liberação/bloqueio de metas e acompanhamento de progresso.
+* **Motor de Rota Adaptativa:** Algoritmo que calcula automaticamente um plano de estudos distribuindo metas entre a data atual e a data da prova.
+* **Fila de Correção com SLA:** Sistema de gestão de envios com cálculo automático de dias úteis para prazos de devolução.
+* **Gestor de Acervo Global:** CRUD completo para Videoaulas (com extrator de IDs em força bruta), Materiais em PDF, Simulados e Matrizes de Peças, com upload direto para a nuvem.
 
-Changes made via Lovable will be committed automatically to this repo.
+---
 
-**Use your preferred IDE**
+## 🛠️ Tecnologias e Arquitetura
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+O projeto foi construído utilizando um stack moderno, garantindo velocidade, escalabilidade e segurança:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+* **Frontend:** React (inicializado com Vite + SWC) e TypeScript.
+* **Estilização:** Tailwind CSS (com sistema de variáveis CSS para temas) e componentes UI inspirados no Radix/Shadcn.
+* **Backend as a Service (BaaS):** Firebase
+  * *Firestore:* Banco de dados NoSQL em tempo real.
+  * *Cloud Storage:* Armazenamento de arquivos (PDFs, imagens) com exclusão sincronizada.
+  * *Authentication:* Controle de acesso seguro.
+* **Ícones:** Lucide React.
+* **Roteamento:** React Router Dom.
+* **Notificações:** Sonner (Toasts).
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 💻 Como rodar o projeto localmente
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Para rodar este projeto na sua máquina para desenvolvimento e testes, siga os passos abaixo:
 
-# Step 3: Install the necessary dependencies.
-npm i
+### 1. Pré-requisitos
+Certifique-se de ter o [Node.js](https://nodejs.org/) instalado na sua máquina (versão 18 ou superior recomendada).
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+### 2. Instalação
+Clone o repositório e instale as dependências:
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```bash
+git clone [https://github.com/SEU_USUARIO/suaoab.git](https://github.com/SEU_USUARIO/suaoab.git)
+cd suaoab
+npm install
