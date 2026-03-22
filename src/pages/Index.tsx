@@ -1,7 +1,7 @@
 // src/pages/Index.tsx
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Target, Scale, BarChart3, CheckCircle2, ArrowRight, Shield, Clock, Star, LifeBuoy } from "lucide-react";
 import { db } from "@/lib/firebase";
@@ -23,6 +23,20 @@ const features = [
 
 const checkItems = ["Aulas Direto ao Ponto", "Metas Diárias no seu Painel", "Comunicação Direta com o Mentor", "Simulados com Cronômetro"];
 
+// IMAGENS DO TOPO (INCENTIVO E EMOÇÃO)
+const heroCarouselImages = [
+  "https://raw.githubusercontent.com/miguelss3/suaoab/1e51d36ef11cad6211acac11ae3a56022757ccdd/CARTEIRA-DAORDEM-696x464.png",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/8a53302fe24efc4cc5b67e65927b2c7028614709/oab%20carteira.png",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/imagemcorrecao.png"
+];
+
+// IMAGENS DE BAIXO (O SISTEMA / DASHBOARDS)
+const bottomCarouselImages = [
+  "https://raw.githubusercontent.com/miguelss3/suaoab/e1377d9894658e06323e9cc7183f4f2863856975/dash1.png",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/e1377d9894658e06323e9cc7183f4f2863856975/dash3.png",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/dash12.png"
+];
+
 const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
@@ -31,7 +45,10 @@ const Index = () => {
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
 
-  // O seu número oficial
+  // Estados dos dois carrosséis
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
+  const [currentBottomIndex, setCurrentBottomIndex] = useState(0);
+
   const meuWhatsApp = "5592994742322";
 
   useEffect(() => {
@@ -65,6 +82,22 @@ const Index = () => {
     carregarConfiguracoes();
   }, []);
 
+  // Temporizador Carrossel Hero (Incentivos) - 10 Segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentHeroIndex((prev) => (prev + 1) % heroCarouselImages.length);
+    }, 10000); 
+    return () => clearInterval(interval);
+  }, []);
+
+  // Temporizador Carrossel Baixo (Dashboards) - 12 Segundos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBottomIndex((prev) => (prev + 1) % bottomCarouselImages.length);
+    }, 12000); 
+    return () => clearInterval(interval);
+  }, []);
+
   const openAuth = (login: boolean) => {
     setIsLogin(login);
     setShowAuthModal(true);
@@ -72,70 +105,112 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background relative pb-10">
+      
       <header className="sticky top-0 z-50 bg-primary/95 backdrop-blur-md border-b border-primary/80">
-        <div className="container flex items-center justify-between h-16">
-          <Link to="/" className="ml-10 font-display text-3xl md:text-4xl font-bold text-primary-foreground tracking-tight transition-transform hover:scale-105">
+        <div className="container px-4 sm:px-6 flex items-center justify-between h-16 sm:h-20">
+          <Link to="/" className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-primary-foreground tracking-tight transition-transform hover:scale-105">
             SUA<span className="text-accent">OAB</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Button variant="accent" onClick={() => openAuth(true)} className="h-11 px-8">
+            <Button variant="accent" onClick={() => openAuth(true)} className="h-9 px-4 text-xs sm:text-sm sm:h-11 sm:px-8">
               Área do Aluno
             </Button>
           </div>
         </div>
       </header>
 
-      <section className="relative overflow-hidden bg-hero min-h-[85vh] flex items-center">
+      <section className="relative overflow-hidden bg-hero min-h-[85vh] flex flex-col items-center">
         <div className="absolute inset-0 z-0">
           <img src={heroBg} alt="" className="w-full h-full object-cover opacity-20 mix-blend-luminosity" />
           <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/80 to-primary/60" />
         </div>
-        <div className="container relative z-10 py-20">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <motion.div initial="hidden" animate="visible" className="space-y-8">
-              
-              {vagasRestantes > 0 ? (
-                <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 rounded-full bg-accent/10 border border-accent/30 px-4 py-2 text-sm text-accent font-medium">
-                  ⚠️ Restam apenas <span className="text-destructive font-bold">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span> para correção artesanal
-                </motion.div>
-              ) : (
-                <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 rounded-full bg-destructive/10 border border-destructive/30 px-4 py-2 text-sm text-destructive font-bold">
-                  ⚠️ Vagas esgotadas. Entre na lista de espera.
-                </motion.div>
-              )}
+        
+        <div className="container px-4 relative z-10 py-16 sm:py-24 flex flex-col items-center w-full">
+          
+          <motion.div initial="hidden" animate="visible" className="w-full max-w-5xl flex flex-col items-center text-center space-y-6 sm:space-y-8">
+            
+            <motion.div variants={fadeUp} custom={0} className="w-full max-w-4xl mx-auto mb-2">
+              <p className="text-primary-foreground/90 text-sm sm:text-lg leading-relaxed text-justify border-l-2 border-accent pl-4 sm:pl-6 italic">
+                Olá, futuro colega de profissão! Respira fundo. Eu sei que a pressão da prova parece gigantesca agora, mas você não está sozinho nessa. Desenhei esta mentoria para ser o seu porto seguro: um acompanhamento artesanal, lado a lado, onde pego literalmente na sua mão. O nosso foco é total na <strong className="text-accent font-black">2ª Fase em Direito Tributário, Administrativo e Penal</strong>. Chega de ansiedade e de se sentir perdido com cursos de massa. Vamos blindar a sua peça, corrigir os mínimos detalhes e comemorar juntos quando o seu nome sair na lista de aprovados. Vai dar certo!
+              </p>
+            </motion.div>
 
-              <motion.h1 variants={fadeUp} custom={1} className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-primary-foreground leading-[1.1] tracking-tight">
-                A única preparação para a 2ª Fase <span className="text-gradient-accent italic">desenhada para você.</span>
-              </motion.h1>
-              <motion.p variants={fadeUp} custom={2} className="text-lg text-primary-foreground/70 max-w-lg font-body leading-relaxed">
-                Esqueça os cursos de massa. Tenha um cronograma inteligente, um Dossiê de evolução e a correção cirúrgica das suas peças.
-              </motion.p>
-              <motion.div variants={fadeUp} custom={3} className="flex flex-wrap gap-4">
-                <Button variant="hero" size="lg" className="h-14 px-10 text-base" onClick={() => openAuth(false)}>
-                  Garantir Minha Vaga <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+            {vagasRestantes > 0 ? (
+              <motion.div variants={fadeUp} custom={1} className="inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 rounded-2xl sm:rounded-full bg-accent/10 border-2 sm:border border-accent/30 p-4 sm:px-8 sm:py-3 text-accent font-medium shadow-2xl sm:shadow-lg w-full sm:w-auto mx-auto">
+                <span className="text-sm lg:text-lg font-bold">⚠️ Restam apenas</span>
+                <span className="text-4xl sm:text-xl lg:text-3xl text-destructive font-black bg-destructive/10 sm:bg-destructive/10 sm:border sm:border-destructive/30 px-6 py-2 sm:px-5 sm:py-1.5 rounded-xl sm:rounded-lg uppercase tracking-wider my-1 sm:my-0 shadow-lg">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span>
+                <span className="text-sm lg:text-lg font-bold">para correção artesanal</span>
               </motion.div>
+            ) : (
+              <motion.div variants={fadeUp} custom={1} className="inline-flex items-center justify-center gap-2 rounded-full bg-destructive/10 border border-destructive/30 px-6 py-3 sm:px-6 sm:py-3 text-sm lg:text-lg text-destructive font-bold mx-auto shadow-lg">
+                ⚠️ Vagas esgotadas. Entre na lista de espera.
+              </motion.div>
+            )}
+
+            <motion.h1 variants={fadeUp} custom={2} className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-display font-bold text-primary-foreground leading-[1.1] tracking-tight w-full">
+              A única preparação para a 2ª Fase <span className="text-gradient-accent italic block sm:inline mt-2 sm:mt-0">desenhada para você.</span>
+            </motion.h1>
+            
+            <motion.p variants={fadeUp} custom={3} className="text-base sm:text-xl text-primary-foreground/80 max-w-2xl mx-auto font-body leading-relaxed text-justify sm:text-center px-2 sm:px-0">
+              Esqueça os cursos de massa. Tenha um cronograma inteligente, um Dossiê de evolução e a correção cirúrgica das suas peças.
+            </motion.p>
+            
+            <motion.div variants={fadeUp} custom={4} className="flex justify-center w-full px-2 sm:px-0 mt-4 sm:mt-8">
+              <Button variant="hero" size="lg" className="h-14 sm:h-16 w-full sm:w-auto px-12 text-base sm:text-lg shadow-2xl shadow-accent/20" onClick={() => openAuth(false)}>
+                Garantir Minha Vaga <ArrowRight className="ml-2 h-5 w-5 sm:h-6 sm:w-6" />
+              </Button>
             </motion.div>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="hidden lg:block">
-              <div className="relative rounded-2xl overflow-hidden border border-primary-foreground/10 shadow-elevated">
-                <img src="https://raw.githubusercontent.com/miguelss3/suaoab/1d2ac19e92e4a3522b3b5c2768cae22584c91ef9/painel%20(1).png" alt="Painel" className="w-full" />
-              </div>
-            </motion.div>
-          </div>
+          </motion.div>
+
+          {/* NOVO CARROSSEL DO TOPO (INCENTIVO E EMOÇÃO) - Tamanho Reduzido */}
+          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8 }} className="hidden lg:flex relative z-10 w-full max-w-4xl h-[450px] xl:h-[550px] items-center justify-center mx-auto mt-20">
+              <AnimatePresence mode="wait">
+                <motion.img 
+                  key={heroCarouselImages[currentHeroIndex]} 
+                  src={heroCarouselImages[currentHeroIndex]} 
+                  alt="Sua OAB Apresentação" 
+                  className="max-w-full max-h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl" 
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.02 }}
+                  transition={{ duration: 1.5, ease: "easeInOut" }} 
+                />
+              </AnimatePresence>
+          </motion.div>
+
         </div>
       </section>
 
       <section className="py-24 bg-card">
-        <div className="container">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <motion.div initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
+        <div className="container px-6">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            
+            {/* CARROSSEL DE BAIXO (DASHBOARDS) - MAIOR NO PC */}
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="hidden lg:flex relative z-10 w-full h-[600px] xl:h-[650px] items-center justify-center">
+                <AnimatePresence mode="wait">
+                  <motion.img 
+                    key={bottomCarouselImages[currentBottomIndex]} 
+                    src={bottomCarouselImages[currentBottomIndex]} 
+                    alt="Sua OAB Dashboards" 
+                    className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-2xl" 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 1.5, ease: "easeInOut" }} 
+                  />
+                </AnimatePresence>
+            </motion.div>
+
+            {/* IMAGEM ESTÁTICA PARA MOBILE (Mantém o Mobile Blindado) */}
+            <motion.div initial={{ opacity: 0, x: -40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="lg:hidden">
               <img src="https://raw.githubusercontent.com/miguelss3/suaoab/1e51d36ef11cad6211acac11ae3a56022757ccdd/CARTEIRA-DAORDEM-696x464.png" alt="Carteira da OAB" className="rounded-2xl shadow-elevated w-full max-w-md mx-auto" />
             </motion.div>
+
             <motion.div initial={{ opacity: 0, x: 40 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} className="space-y-6">
               <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground leading-tight">
                 A sua "vermelhinha" está mais perto do que você imagina.
               </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed">
+              <p className="text-muted-foreground text-lg leading-relaxed text-justify sm:text-left">
                 O maior erro na 2ª fase é estudar de forma genérica. A banca não perdoa erros de estrutura de peça e falta de direcionamento.
               </p>
               <ul className="space-y-4">
@@ -151,7 +226,7 @@ const Index = () => {
       </section>
 
       <section className="py-24 bg-background border-t border-border">
-        <div className="container">
+        <div className="container px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">Por dentro da sua Área de Estudos</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Ferramentas pensadas para quem leva a aprovação a sério.</p>
@@ -171,7 +246,7 @@ const Index = () => {
       </section>
 
       <section className="py-24 bg-muted/20 border-t border-border">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-display font-bold text-primary italic mb-4">Aprovados que seguiram o método</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Histórias reais de quem já esteve exatamente onde você está hoje e conquistou a tão sonhada carteira vermelha.</p>
@@ -223,18 +298,16 @@ const Index = () => {
         </div>
       </section>
 
-      {/* SECÇÃO DE VENDAS COM GRID LADO A LADO */}
       <section className="py-24 bg-background border-t border-border">
-        <div className="container">
+        <div className="container px-4 sm:px-6">
           <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto items-stretch">
             
-            {/* OFERTA PRINCIPAL */}
-            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-card rounded-3xl p-10 md:p-12 shadow-elevated border-2 border-accent/30 text-center flex flex-col h-full">
+            <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-card rounded-3xl p-8 sm:p-10 md:p-12 shadow-elevated border-2 border-accent/30 text-center flex flex-col h-full">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg whitespace-nowrap">
                 🔥 OFERTA PRINCIPAL
               </div>
               <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mt-4 mb-2">Turma Regular 2ª Fase</h2>
-              <p className="text-muted-foreground text-lg mb-8 flex-1">Plataforma Completa + Aulas + Correção de Peças + Cronograma Inteligente.</p>
+              <p className="text-muted-foreground text-base sm:text-lg mb-8 flex-1">Plataforma Completa + Aulas + Correção de Peças + Cronograma Inteligente.</p>
               
               <div className="mb-8">
                 <p className="text-muted-foreground line-through text-xl">De R$ {precoOriginal},00</p>
@@ -247,18 +320,17 @@ const Index = () => {
                 Garantir Minha Vaga
               </Button>
               
-              <p className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-6">
+              <p className="text-xs sm:text-sm text-muted-foreground flex items-center justify-center gap-2 mt-6">
                 <Shield className="h-4 w-4" /> Compra 100% Segura | 7 Dias de Garantia
               </p>
             </motion.div>
 
-            {/* BANNER DE REPESCAGEM (LADO A LADO) */}
-            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-muted/30 rounded-3xl p-10 md:p-12 border-2 border-border text-center flex flex-col h-full">
+            <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} className="relative bg-muted/30 rounded-3xl p-8 sm:p-10 md:p-12 border-2 border-border text-center flex flex-col h-full mt-10 md:mt-0">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg whitespace-nowrap flex items-center gap-2">
                 <LifeBuoy className="h-4 w-4" /> VAI FAZER REPESCAGEM?
               </div>
               <h2 className="text-2xl md:text-3xl font-display font-bold text-primary mt-4 mb-2">Desconto de 50%</h2>
-              <p className="text-muted-foreground text-lg mb-6 flex-1">
+              <p className="text-muted-foreground text-base sm:text-lg mb-6 flex-1 text-justify sm:text-center">
                 Você não precisa pagar o valor integral. Alunos de repescagem têm direito a uma condição especial mediante comprovação no nosso atendimento.
               </p>
               
@@ -287,9 +359,9 @@ const Index = () => {
       </section>
 
       <section className="bg-hero py-24">
-        <div className="container text-center space-y-8">
+        <div className="container px-6 text-center space-y-8">
           <h2 className="text-3xl font-display font-bold text-primary-foreground">Acesse agora e veja na prática.</h2>
-          <Button variant="accent" size="lg" className="h-14 px-10" onClick={() => openAuth(false)}>
+          <Button variant="accent" size="lg" className="h-14 w-full sm:w-auto px-10" onClick={() => openAuth(false)}>
             <Clock className="mr-2 h-5 w-5" /> Iniciar Matrícula
           </Button>
         </div>
@@ -301,7 +373,6 @@ const Index = () => {
         </div>
       </footer>
 
-      {/* BOTÃO FLUTUANTE DO WHATSAPP COM A SUA IMAGEM */}
       <a 
         href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} 
         target="_blank" 
@@ -312,7 +383,7 @@ const Index = () => {
         <img 
           src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" 
           alt="WhatsApp Contato" 
-          className="w-16 h-16 object-contain"
+          className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
         />
       </a>
 
