@@ -57,7 +57,7 @@ const GestaoAulas = () => {
 
     // Regex de segurança caso seja um formato super obscuro
     const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|live\/|shorts\/))([\w-]{11})/);
-    if (match && match[1]) return match[1];
+    if (match && match) return match;
 
     return str; // Retorna o que estava se nada funcionou
   };
@@ -218,56 +218,87 @@ const GestaoAulas = () => {
           </div>
         </div>
         
-        <table className="w-full text-sm text-left">
-          <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground border-b border-border">
-            <tr>
-              <th className="px-6 py-4">Data/Hora</th>
-              <th className="px-6 py-4">Disciplina</th>
-              <th className="px-6 py-4">Título & ID YouTube</th>
-              <th className="px-6 py-4 text-right">Ação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {aulasFiltradas.map((aula) => {
-              const idParaMostrar = String(aula.youtubeId);
-              // Verifica se o ID extraído parece defeituoso (maior que 11 caracteres)
-              const idSuspeito = idParaMostrar.length !== 11;
+        <div className="w-full">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground border-b border-border">
+              <tr>
+                <th className="hidden sm:table-cell px-6 py-4">Data/Hora</th>
+                <th className="hidden sm:table-cell px-6 py-4">Disciplina</th>
+                <th className="px-4 sm:px-6 py-4">Aula / Detalhes</th>
+                <th className="hidden sm:table-cell px-6 py-4 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {aulasFiltradas.map((aula) => {
+                const idParaMostrar = String(aula.youtubeId);
+                const idSuspeito = idParaMostrar.length !== 11;
 
-              return (
-                <tr key={aula.id} className={`border-b border-border hover:bg-muted/5 transition-colors ${idSuspeito ? 'bg-destructive/5' : ''}`}>
-                  <td className="px-6 py-4 text-xs text-muted-foreground">
-                    {aula.data_publicacao?.toDate?.().toLocaleString('pt-BR') || "Recente"}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="font-black text-[10px] uppercase bg-accent/20 text-accent px-2 py-1 rounded tracking-widest">
-                      {aula.materia}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-primary mb-1">{aula.titulo}</div>
-                    <div className={`text-[10px] flex items-center gap-1 font-bold ${idSuspeito ? 'text-destructive' : 'text-muted-foreground'}`}>
-                      {idSuspeito ? <AlertTriangle className="h-3 w-3" /> : <Youtube className="h-3 w-3" />} 
-                      ID: {idParaMostrar}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="ghost" className="border hover:bg-accent/10 hover:text-accent" onClick={() => handleEditar(aula)} title="Editar Aula">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/30" onClick={() => handleExcluir(aula.id)} title="Excluir Aula">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-            {aulasFiltradas.length === 0 && (
-              <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground italic">Nenhuma aula encontrada para este filtro.</td></tr>
-            )}
-          </tbody>
-        </table>
+                return (
+                  <tr key={aula.id} className={`border-b border-border hover:bg-muted/5 transition-colors ${idSuspeito ? 'bg-destructive/5' : ''}`}>
+                    
+                    {/* COLUNA 1: Data/Hora (Apenas PC) */}
+                    <td className="hidden sm:table-cell px-6 py-4 text-xs text-muted-foreground align-top">
+                      {aula.data_publicacao?.toDate?.().toLocaleString('pt-BR') || "Recente"}
+                    </td>
+                    
+                    {/* COLUNA 2: Disciplina (Apenas PC) */}
+                    <td className="hidden sm:table-cell px-6 py-4 align-top">
+                      <span className="font-black text-[10px] uppercase bg-accent/20 text-accent px-2 py-1 rounded tracking-widest">
+                        {aula.materia}
+                      </span>
+                    </td>
+                    
+                    {/* COLUNA 3: Detalhes da Aula (Mobile e PC) */}
+                    <td className="px-4 sm:px-6 py-4 align-top">
+                      <div className="font-bold text-primary mb-1 text-base sm:text-sm">{aula.titulo}</div>
+                      
+                      {/* INFO MOBILE: Disciplina e Data */}
+                      <div className="sm:hidden flex flex-wrap gap-2 items-center mt-2 mb-3">
+                        <span className="font-black text-[10px] uppercase bg-accent/20 text-accent px-2 py-1 rounded tracking-widest">
+                          {aula.materia}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {aula.data_publicacao?.toDate?.().toLocaleDateString('pt-BR') || "Recente"}
+                        </span>
+                      </div>
+
+                      {/* ID YouTube (Ambos) */}
+                      <div className={`text-[10px] flex items-center gap-1 font-bold ${idSuspeito ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {idSuspeito ? <AlertTriangle className="h-3 w-3" /> : <Youtube className="h-3 w-3" />} 
+                        ID: {idParaMostrar}
+                      </div>
+
+                      {/* BOTÕES DE AÇÃO MOBILE */}
+                      <div className="flex sm:hidden items-center gap-2 mt-4 w-full">
+                        <Button size="sm" variant="outline" className="h-9 flex-1 text-xs border-accent/30 text-accent hover:bg-accent/10" onClick={() => handleEditar(aula)}>
+                          <Pencil className="h-4 w-4 mr-1.5" /> Editar
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-9 px-4 text-destructive border border-destructive/20 bg-destructive/5 hover:bg-destructive/10" onClick={() => handleExcluir(aula.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                    
+                    {/* COLUNA 4: Ação (Apenas PC) */}
+                    <td className="hidden sm:table-cell px-6 py-4 text-right align-top">
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="ghost" className="border hover:bg-accent/10 hover:text-accent" onClick={() => handleEditar(aula)} title="Editar Aula">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/30" onClick={() => handleExcluir(aula.id)} title="Excluir Aula">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {aulasFiltradas.length === 0 && (
+                <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground italic">Nenhuma aula encontrada para este filtro.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

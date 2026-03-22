@@ -149,80 +149,157 @@ const AlunosCRM = () => {
 
   return (
     <div className="space-y-6 relative">
-      <div className="flex justify-between items-center bg-card p-4 rounded-xl border border-border">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-card p-4 rounded-xl border border-border">
         <h3 className="font-display font-bold text-primary italic">Dossiês Acadêmicos</h3>
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar aluno..." className="pl-9" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <Input placeholder="Buscar aluno..." className="pl-9 w-full" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
       </div>
 
       <Tabs defaultValue="premium" className="bg-card rounded-xl border border-border overflow-hidden">
-         <TabsList className="w-full justify-start rounded-none border-b bg-muted/10 h-12 px-6 gap-6">
-          <TabsTrigger value="premium" className="font-bold">Premium ({filtrarAlunos('premium').length})</TabsTrigger>
-          <TabsTrigger value="leads" className="font-bold">Em Teste ({filtrarAlunos('leads').length})</TabsTrigger>
-          <TabsTrigger value="inativos" className="font-bold text-muted-foreground">Inativos ({filtrarAlunos('inativos').length})</TabsTrigger>
+        <TabsList className="w-full justify-start rounded-none border-b bg-muted/10 h-auto sm:h-12 px-2 sm:px-6 gap-2 sm:gap-6 overflow-x-auto flex-nowrap py-2 sm:py-0 custom-scrollbar">
+          <TabsTrigger value="premium" className="font-bold whitespace-nowrap">Premium ({filtrarAlunos('premium').length})</TabsTrigger>
+          <TabsTrigger value="leads" className="font-bold whitespace-nowrap">Em Teste ({filtrarAlunos('leads').length})</TabsTrigger>
+          <TabsTrigger value="inativos" className="font-bold text-muted-foreground whitespace-nowrap">Inativos ({filtrarAlunos('inativos').length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="premium" className="p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground"><tr><th className="px-6 py-4 text-left">Aluno</th><th className="px-6 py-4 text-left">Matéria</th><th className="px-6 py-4 text-left">Progresso</th><th className="px-6 py-4 text-right">Ação</th></tr></thead>
-            <tbody>
-              {filtrarAlunos('premium').map(aluno => (
-                <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors">
-                  <td className="px-6 py-4"><div className="font-bold text-primary">{aluno.nome}</div><div className="text-[10px] text-muted-foreground">{aluno.email}</div><div className="text-[10px] font-black text-accent tracking-widest uppercase mt-0.5">Matrícula: {aluno.matricula || "S/N"}</div></td>
-                  <td className="px-6 py-4 font-bold">{aluno.materia}</td>
-                  <td className="px-6 py-4"><div className="flex items-center gap-2"><Progress value={calcularProgresso(aluno.metas)} className="h-1.5 w-12" /><span className="text-[10px] font-bold">{calcularProgresso(aluno.metas)}%</span></div></td>
-                  <td className="px-6 py-4 text-right space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
-                    <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")} title="Desativar Aluno"><Ban className="h-4 w-4"/></Button>
-                  </td>
+          <div className="w-full">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground">
+                <tr>
+                  <th className="px-4 sm:px-6 py-4 text-left">Aluno</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-left">Matéria</th>
+                  <th className="px-4 sm:px-6 py-4 text-left">Progresso</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-right">Ação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtrarAlunos('premium').map(aluno => (
+                  <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors">
+                    <td className="px-4 sm:px-6 py-4 align-top">
+                      <div className="font-bold text-primary">{aluno.nome}</div>
+                      <div className="text-[10px] text-muted-foreground">{aluno.email}</div>
+                      <div className="text-[10px] font-black text-accent tracking-widest uppercase mt-0.5 mb-2">Matrícula: {aluno.matricula || "S/N"}</div>
+                      
+                      {/* MOBILE: Matéria e Botões abaixo do nome */}
+                      <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-2">
+                        Matéria: {aluno.materia}
+                      </div>
+                      <div className="flex sm:hidden items-center gap-2 mt-2 w-full">
+                        <Button variant="outline" size="sm" className="h-8 text-xs flex-1" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
+                        <Button variant="ghost" size="sm" className="h-8 px-3 text-destructive border border-transparent hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")} title="Desativar Aluno"><Ban className="h-4 w-4"/></Button>
+                      </div>
+                    </td>
+                    
+                    <td className="hidden sm:table-cell px-6 py-4 font-bold align-top">{aluno.materia}</td>
+                    
+                    <td className="px-4 sm:px-6 py-4 align-top">
+                      <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                        <Progress value={calcularProgresso(aluno.metas)} className="h-1.5 w-12" />
+                        <span className="text-[10px] font-bold">{calcularProgresso(aluno.metas)}%</span>
+                      </div>
+                    </td>
+                    
+                    <td className="hidden sm:table-cell px-6 py-4 text-right space-x-2 align-top">
+                      <Button variant="outline" size="sm" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
+                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")} title="Desativar Aluno"><Ban className="h-4 w-4"/></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </TabsContent>
 
         <TabsContent value="leads" className="p-0">
-           <table className="w-full text-sm">
-            <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground"><tr><th className="px-6 py-4 text-left">Aluno</th><th className="px-6 py-4 text-left">Matéria</th><th className="px-6 py-4 text-left">Expira em</th><th className="px-6 py-4 text-right">Ação</th></tr></thead>
-            <tbody>
-              {filtrarAlunos('leads').map(aluno => {
-                const expiracao = calcularExpiracaoLead(aluno);
-                return (
-                  <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors">
-                    <td className="px-6 py-4"><div className="font-bold text-primary">{aluno.nome}</div><div className="text-[10px] text-muted-foreground">{aluno.email}</div></td>
-                    <td className="px-6 py-4 font-bold">{aluno.materia}</td>
-                    <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase flex items-center w-max gap-1 ${expiracao.expirado ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{expiracao.expirado && <AlertCircle className="h-3 w-3" />} {expiracao.texto}</span></td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <Button variant="accent" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Ativar</Button>
-                      <Button variant="outline" size="sm" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
-                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")}><Ban className="h-4 w-4"/></Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="w-full">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground">
+                <tr>
+                  <th className="px-4 sm:px-6 py-4 text-left">Aluno</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-left">Matéria</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-left">Expira em</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrarAlunos('leads').map(aluno => {
+                  const expiracao = calcularExpiracaoLead(aluno);
+                  return (
+                    <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors">
+                      <td className="px-4 sm:px-6 py-4 align-top">
+                        <div className="font-bold text-primary">{aluno.nome}</div>
+                        <div className="text-[10px] text-muted-foreground mb-2">{aluno.email}</div>
+                        
+                        {/* MOBILE: Matéria, Prazo e Botões abaixo do nome */}
+                        <div className="sm:hidden flex flex-col gap-1.5 mb-3">
+                          <span className="text-[10px] font-bold text-muted-foreground">Matéria: {aluno.materia}</span>
+                          <span className={`px-2 py-1 rounded text-[10px] font-black uppercase flex items-center w-max gap-1 ${expiracao.expirado ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{expiracao.expirado && <AlertCircle className="h-3 w-3" />} {expiracao.texto}</span>
+                        </div>
+                        <div className="flex sm:hidden items-center gap-2 mt-2 w-full">
+                          <Button variant="accent" size="sm" className="h-8 text-xs flex-1" onClick={() => handleMudarStatus(aluno.id, "premium")}>Ativar</Button>
+                          <Button variant="outline" size="sm" className="h-8 text-xs flex-1" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
+                          <Button variant="ghost" size="sm" className="h-8 px-3 text-destructive border border-transparent hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")}><Ban className="h-4 w-4"/></Button>
+                        </div>
+                      </td>
+                      
+                      <td className="hidden sm:table-cell px-6 py-4 font-bold align-top">{aluno.materia}</td>
+                      
+                      <td className="hidden sm:table-cell px-6 py-4 align-top">
+                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase flex items-center w-max gap-1 ${expiracao.expirado ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{expiracao.expirado && <AlertCircle className="h-3 w-3" />} {expiracao.texto}</span>
+                      </td>
+                      
+                      <td className="hidden sm:table-cell px-6 py-4 text-right space-x-2 align-top">
+                        <Button variant="accent" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Ativar</Button>
+                        <Button variant="outline" size="sm" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
+                        <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")}><Ban className="h-4 w-4"/></Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </TabsContent>
 
         <TabsContent value="inativos" className="p-0">
-           <table className="w-full text-sm">
-            <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground"><tr><th className="px-6 py-4 text-left">Aluno</th><th className="px-6 py-4 text-left">Matéria</th><th className="px-6 py-4 text-right">Ação</th></tr></thead>
-            <tbody>
-              {filtrarAlunos('inativos').map(aluno => (
-                  <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors opacity-60 grayscale">
-                    <td className="px-6 py-4">
-                      {/* CIRURGIA DO EMAIL NOS INATIVOS */}
-                      <div className="font-bold text-primary">{aluno.nome}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">{aluno.email}</div>
-                    </td>
-                    <td className="px-6 py-4 font-bold">{aluno.materia}</td>
-                    <td className="px-6 py-4 text-right space-x-2"><Button variant="outline" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar</Button></td>
-                  </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="w-full">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground">
+                <tr>
+                  <th className="px-4 sm:px-6 py-4 text-left">Aluno</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-left">Matéria</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrarAlunos('inativos').map(aluno => (
+                    <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors opacity-60 grayscale">
+                      <td className="px-4 sm:px-6 py-4 align-top">
+                        <div className="font-bold text-primary">{aluno.nome}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 mb-2">{aluno.email}</div>
+                        
+                        {/* MOBILE: Matéria e Botões abaixo do nome */}
+                        <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-3">
+                          Matéria: {aluno.materia}
+                        </div>
+                        <div className="flex sm:hidden mt-2 w-full">
+                          <Button variant="outline" size="sm" className="h-8 text-xs w-full" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar Aluno</Button>
+                        </div>
+                      </td>
+                      
+                      <td className="hidden sm:table-cell px-6 py-4 font-bold align-top">{aluno.materia}</td>
+                      
+                      <td className="hidden sm:table-cell px-6 py-4 text-right space-x-2 align-top">
+                        <Button variant="outline" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar</Button>
+                      </td>
+                    </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </TabsContent>
       </Tabs>
 
