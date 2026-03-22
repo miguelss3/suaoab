@@ -4,10 +4,21 @@ import * as admin from "firebase-admin";
 // Inicializa o acesso ao banco de dados
 admin.initializeApp();
 
+// 🔒 SEGURANÇA: Cole aqui o seu Hottok (Token) que está na tela de Webhooks da Hotmart
+const MEU_HOTTOK = "COLE_O_SEU_TOKEN_DA_HOTMART_AQUI";
+
 export const hotmartWebhook = functions.https.onRequest(async (req, res) => {
   // Aceita apenas requisições POST da Hotmart
   if (req.method !== "POST") {
     res.status(405).send("Método não permitido");
+    return;
+  }
+
+  // 🔒 VERIFICAÇÃO DE SEGURANÇA: Garante que foi a Hotmart que enviou
+  const hottokRecebido = req.headers["x-hotmart-hottok"];
+  if (hottokRecebido !== MEU_HOTTOK) {
+    console.warn("Tentativa de invasão bloqueada: Hottok inválido.");
+    res.status(401).send("Acesso não autorizado");
     return;
   }
 
@@ -26,11 +37,11 @@ export const hotmartWebhook = functions.https.onRequest(async (req, res) => {
         if (!snapshot.empty) {
           const batch = admin.firestore().batch();
           snapshot.docs.forEach((doc) => {
-            // Encontrou o aluno Lead! Agora destranca o acesso mudando para Premium
-            batch.update(doc.ref, { status: "Premium" });
+            // Destranca o acesso padronizado em minúsculas
+            batch.update(doc.ref, { status: "premium" });
           });
           await batch.commit();
-          console.log(`Sucesso: Aluno ${emailDoAluno} atualizado para Premium!`);
+          console.log(`Sucesso: Aluno ${emailDoAluno} atualizado para premium!`);
         } else {
           console.log(`Aviso: E-mail ${emailDoAluno} não encontrado. Ele pode ter pulado a etapa de cadastro.`);
         }

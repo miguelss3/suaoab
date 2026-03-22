@@ -27,18 +27,24 @@ const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [vagasRestantes, setVagasRestantes] = useState<number>(12);
+  
+  // Novos Estados para a Precificação Dinâmica
+  const [precoOriginal, setPrecoOriginal] = useState("899");
+  const [precoAtual, setPrecoAtual] = useState("599");
 
-  // --- MOTOR DE ESCASSEZ CORRIGIDO (Maiúsculas e Minúsculas) ---
   useEffect(() => {
-    const calcularVagas = async () => {
+    const carregarConfiguracoes = async () => {
       try {
         const configSnap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
         let limiteVagas = 50; 
-        if (configSnap.exists() && configSnap.data().vagas_totais) {
-          limiteVagas = Number(configSnap.data().vagas_totais);
+        
+        if (configSnap.exists()) {
+          const data = configSnap.data();
+          if (data.vagas_totais) limiteVagas = Number(data.vagas_totais);
+          if (data.preco_original) setPrecoOriginal(data.preco_original);
+          if (data.preco_atual) setPrecoAtual(data.preco_atual);
         }
 
-        // CIRURGIA AQUI: O 'in' busca tanto "premium" minúsculo quanto "Premium" maiúsculo
         const qPremium = query(collection(db, "alunos"), where("status", "in", ["premium", "Premium"]));
         const snapPremium = await getDocs(qPremium);
         const totalPremium = snapPremium.size;
@@ -46,10 +52,10 @@ const Index = () => {
         const restantes = limiteVagas - totalPremium;
         setVagasRestantes(restantes > 0 ? restantes : 0);
       } catch (error) {
-        console.error("Erro ao calcular vagas:", error);
+        console.error("Erro ao carregar configurações da Index:", error);
       }
     };
-    calcularVagas();
+    carregarConfiguracoes();
   }, []);
 
   const openAuth = (login: boolean) => {
@@ -81,7 +87,6 @@ const Index = () => {
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <motion.div initial="hidden" animate="visible" className="space-y-8">
               
-              {/* ETIQUETA COM VAGAS DINÂMICAS */}
               {vagasRestantes > 0 ? (
                 <motion.div variants={fadeUp} custom={0} className="inline-flex items-center gap-2 rounded-full bg-accent/10 border border-accent/30 px-4 py-2 text-sm text-accent font-medium">
                   ⚠️ Restam apenas <span className="text-destructive font-bold">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span> para correção artesanal
@@ -220,10 +225,11 @@ const Index = () => {
             <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground mt-4 mb-2">Garanta a sua Aprovação na 2ª Fase</h2>
             <p className="text-muted-foreground text-lg mb-8">Plataforma Completa + Aulas + Correção de Peças + Cronograma Inteligente.</p>
             
+            {/* O PREÇO AGORA VEM DIRETAMENTE DO BANCO DE DADOS */}
             <div className="mb-8">
-              <p className="text-muted-foreground line-through text-xl">De R$ 899,00</p>
+              <p className="text-muted-foreground line-through text-xl">De R$ {precoOriginal},00</p>
               <p className="text-5xl md:text-6xl font-display font-black text-foreground mt-2">
-                R$ 599<span className="text-xl font-normal text-muted-foreground">,00 à vista ou até 12x</span>
+                R$ {precoAtual}<span className="text-xl font-normal text-muted-foreground">,00 à vista ou até 12x</span>
               </p>
             </div>
 
@@ -259,7 +265,6 @@ const Index = () => {
         isLogin={isLogin} 
         setIsLogin={setIsLogin} 
       />
-
     </div>
   );
 };
