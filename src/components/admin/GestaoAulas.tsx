@@ -12,6 +12,7 @@ import { toast } from "sonner";
 const GestaoAulas = () => {
   const [aulas, setAulas] = useState<any[]>([]);
   const [filtroMateria, setFiltroMateria] = useState("");
+  const [erroCarregamento, setErroCarregamento] = useState("");
   
   // Campos do formulário
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -24,9 +25,19 @@ const GestaoAulas = () => {
   // Busca as aulas no banco de dados
   useEffect(() => {
     const q = query(collection(db, "aulas_globais"), orderBy("data_publicacao", "desc"));
-    return onSnapshot(q, (snap) => {
-      setAulas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setErroCarregamento("");
+        setAulas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (error) => {
+        console.error("Erro ao carregar aulas globais:", error);
+        setAulas([]);
+        setErroCarregamento("Nao foi possivel carregar as videoaulas agora. Verifique permissao ou conexao.");
+        toast.error("Erro ao carregar videoaulas.");
+      }
+    );
   }, []);
 
   // --- EXTRATOR DE FORÇA BRUTA (100% à prova de falhas) ---
@@ -234,6 +245,13 @@ const GestaoAulas = () => {
               </tr>
             </thead>
             <tbody>
+              {erroCarregamento && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-4 text-center text-destructive font-medium bg-destructive/5 border-b border-border">
+                    {erroCarregamento}
+                  </td>
+                </tr>
+              )}
               {aulasFiltradas.map((aula) => {
                 const idParaMostrar = String(aula.youtubeId);
                 const idSuspeito = idParaMostrar.length !== 11;
@@ -298,7 +316,7 @@ const GestaoAulas = () => {
                   </tr>
                 )
               })}
-              {aulasFiltradas.length === 0 && (
+              {!erroCarregamento && aulasFiltradas.length === 0 && (
                 <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground italic">Nenhuma aula encontrada para este filtro.</td></tr>
               )}
             </tbody>

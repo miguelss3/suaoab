@@ -13,6 +13,7 @@ const Aula = () => {
   const [aluno, setAluno] = useState<any>(null);
   const [aulas, setAulas] = useState<any[]>([]);
   const [aulaAtiva, setAulaAtiva] = useState<any>(null);
+  const [erroAulas, setErroAulas] = useState("");
   const [loading, setLoading] = useState(true);
 
   // 1. Autenticação e Carregamento do Aluno
@@ -48,31 +49,37 @@ const Aula = () => {
       where("materia", "==", materiaBusca)
     );
 
-    const unsubAulas = onSnapshot(qAulas, (snap) => {
-      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      lista.sort((a: any, b: any) => {
-        const timeA = a.data_publicacao?.toMillis ? a.data_publicacao.toMillis() : 0;
-        const timeB = b.data_publicacao?.toMillis ? b.data_publicacao.toMillis() : 0;
-        return timeA - timeB; 
-      });
-      
-      setAulas(lista);
+    const unsubAulas = onSnapshot(
+      qAulas,
+      (snap) => {
+        setErroAulas("");
+        const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        lista.sort((a: any, b: any) => {
+          const timeA = a.data_publicacao?.toMillis ? a.data_publicacao.toMillis() : 0;
+          const timeB = b.data_publicacao?.toMillis ? b.data_publicacao.toMillis() : 0;
+          return timeA - timeB; 
+        });
+        
+        setAulas(lista);
 
-      // Mantem a aula ativa sempre valida para nao ocultar a acao de "Marcar como Vista".
-      if (lista.length === 0) {
+        setAulaAtiva((prev: any) => {
+          if (lista.length === 0) return null;
+          if (prev && lista.some((aula: any) => aula.id === prev.id)) return prev;
+          return lista[0];
+        });
+      },
+      (error) => {
+        console.error("Erro ao carregar playlist de aulas:", error);
+        setAulas([]);
         setAulaAtiva(null);
-        return;
+        setErroAulas("Nao foi possivel carregar as videoaulas da sua disciplina agora.");
+        toast.error("Erro ao carregar videoaulas.");
       }
-
-      const aulaAtivaAindaExiste = aulaAtiva && lista.some((aula: any) => aula.id === aulaAtiva.id);
-      if (!aulaAtivaAindaExiste) {
-        setAulaAtiva(lista[0]);
-      }
-    });
+    );
 
     return () => unsubAulas();
-  }, [aluno?.materia, aulaAtiva]);
+  }, [aluno?.materia]);
 
   // 3. Função para Marcar/Desmarcar Aula
   const toggleAulaAssistida = async (aulaId: string) => {
@@ -167,7 +174,7 @@ const Aula = () => {
               <div className="bg-card rounded-xl border-2 border-dashed border-border p-16 flex flex-col items-center justify-center text-center h-full min-h-[400px]">
                 <Play className="h-16 w-16 text-muted-foreground opacity-20 mb-4" />
                 <h3 className="text-xl font-bold text-primary mb-2">Sala de Aula Vazia</h3>
-                <p className="text-muted-foreground">O professor ainda não publicou nenhuma videoaula para a sua disciplina.</p>
+                <p className="text-muted-foreground">{erroAulas || "O professor ainda não publicou nenhuma videoaula para a sua disciplina."}</p>
               </div>
             )}
           </div>

@@ -36,6 +36,7 @@ const VisaoAluno = () => {
   const [laboratorio, setLaboratorio] = useState<any[]>([]);
   const [historico, setHistorico] = useState<any[]>([]);
   const [aulas, setAulas] = useState<any[]>([]);
+  const [erroAulas, setErroAulas] = useState("");
   const [loading, setLoading] = useState(true);
 
   // Estados do Modal da Sala de Aula (Sandbox)
@@ -107,16 +108,26 @@ const VisaoAluno = () => {
 
     // Puxa as Videoaulas reais da disciplina
     const qAulas = query(collection(db, "aulas_globais"), where("materia", "==", disciplinaAtiva));
-    const unsubAulas = onSnapshot(qAulas, (snap) => {
-      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      lista.sort((a: any, b: any) => (a.data_publicacao?.toMillis?.() || 0) - (b.data_publicacao?.toMillis?.() || 0));
-      setAulas(lista);
-      if (lista.length > 0) {
-        setAulaAtiva((prev: any) => prev ? prev : lista);
-      } else {
+    const unsubAulas = onSnapshot(
+      qAulas,
+      (snap) => {
+        setErroAulas("");
+        const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        lista.sort((a: any, b: any) => (a.data_publicacao?.toMillis?.() || 0) - (b.data_publicacao?.toMillis?.() || 0));
+        setAulas(lista);
+        setAulaAtiva((prev: any) => {
+          if (lista.length === 0) return null;
+          if (prev && lista.some((aula: any) => aula.id === prev.id)) return prev;
+          return lista[0];
+        });
+      },
+      (error) => {
+        console.error("Erro ao carregar videoaulas no sandbox:", error);
+        setErroAulas("Nao foi possivel carregar as videoaulas da disciplina agora.");
+        setAulas([]);
         setAulaAtiva(null);
       }
-    });
+    );
 
     return () => { unsubMateriais(); unsubLab(); unsubHist(); unsubAulas(); };
   }, [disciplinaAtiva]);
@@ -221,6 +232,7 @@ const VisaoAluno = () => {
               >
                 {aulas.length === 0 ? "Nenhuma Aula Publicada" : "▶ Entrar na Sala de Aula"}
               </Button>
+              {erroAulas && <p className="mt-3 text-sm text-destructive">{erroAulas}</p>}
             </div>
             
             <GestorPecas perfilAluno={perfilFantasma} historico={historico} />
