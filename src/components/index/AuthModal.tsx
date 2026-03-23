@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, Mail, Lock, User, Phone, BookOpen, Eye, EyeOff, ArrowLeft } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, functionsClient } from "@/lib/firebase";
+import { ADMIN_EMAIL } from "@/lib/constants";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { doc, setDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { toast } from "sonner";
 
 // Máscara do Telefone
@@ -20,7 +22,21 @@ const formatPhoneNumber = (value: string) => {
   return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
 };
 
-export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin }: any) => {
+type AuthModalProps = {
+  showAuthModal: boolean;
+  setShowAuthModal: (value: boolean) => void;
+  isLogin: boolean;
+  setIsLogin: (value: boolean) => void;
+};
+
+const getErrorCode = (error: unknown): string | undefined => {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    return String((error as { code?: unknown }).code);
+  }
+  return undefined;
+};
+
+export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin }: AuthModalProps) => {
   const navigate = useNavigate();
   const [nome, setNome] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
@@ -51,7 +67,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
       await sendPasswordResetEmail(auth, resetEmail.trim());
       toast.success("E-mail de recuperação enviado! Verifique sua caixa (e spam).");
       setShowResetModal(false); // Volta para a tela de login
-    } catch (error: any) {
+    } catch {
       toast.error("Erro ao enviar e-mail. Verifique se o endereço está correto.");
     } finally {
       setLoading(false);
@@ -74,21 +90,17 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, emailLimpo, password);
         toast.success("Acesso autorizado!");
-        if (userCredential.user.email === "miguelss3@yahoo.com.br") navigate("/painel");
+        if (userCredential.user.email === ADMIN_EMAIL) navigate("/painel");
         else navigate("/aluno");
       } else {
         if (!materia) { toast.error("Selecione a disciplina."); setLoading(false); return; }
         if (whatsapp.replace(/\D/g, '').length < 10) { toast.error("WhatsApp incompleto."); setLoading(false); return; }
         if (!aceitouTermos) { toast.error("Aceite os Termos de Uso."); setLoading(false); return; }
 
-        let novaMatricula = "2026100"; 
-        const qMatricula = query(collection(db, "alunos"), orderBy("matricula", "desc"), limit(1));
-        const snapMatricula = await getDocs(qMatricula);
-        
-        if (!snapMatricula.empty) {
-          const ultima = snapMatricula.docs[0].data().matricula;
-          if (ultima && !isNaN(Number(ultima))) novaMatricula = (Number(ultima) + 1).toString();
-        }
+        const gerarMatricula = httpsCallable<unknown, { matricula: string }>(functionsClient, "nextMatricula");
+        const matriculaResp = await gerarMatricula(undefined);
+        const novaMatricula = matriculaResp.data?.matricula;
+        if (!novaMatricula) throw new Error("Falha ao gerar matrícula.");
 
         const userCredential = await createUserWithEmailAndPassword(auth, emailLimpo, password);
         
@@ -115,8 +127,10 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
         navigate("/aluno");
       }
       closeModal();
-    } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') toast.error("E-mail já cadastrado. Faça login.");
+    } catch (error: unknown) {
+      const errorCode = getErrorCode(error);
+      if (errorCode === 'auth/email-already-in-use') toast.error("E-mail já cadastrado. Faça login.");
+      else if (errorCode === 'functions/internal' || errorCode === 'functions/unavailable') toast.error("Não foi possível gerar sua matrícula agora. Tente novamente em instantes.");
       else toast.error("Erro na autenticação. Verifique os dados.");
     } finally {
       setLoading(false);
@@ -126,7 +140,8 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
   return (
     <AnimatePresence>
       {showAuthModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-primary/60 backdrop-blur-sm">
+        // AJUSTE CIRÚRGICO: z- garante que o modal fique sempre à frente
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/60 backdrop-blur-sm">
           <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-card border border-border w-full max-w-md p-8 rounded-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button onClick={closeModal} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X /></button>
             

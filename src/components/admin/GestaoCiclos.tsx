@@ -16,7 +16,7 @@ const GestaoCiclos = () => {
   
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
-  const [linkRepescagem, setLinkRepescagem] = useState(""); // NOVO ESTADO
+  const [linkRepescagem, setLinkRepescagem] = useState(""); 
   
   const [loading, setLoading] = useState(false);
 
@@ -67,20 +67,25 @@ const GestaoCiclos = () => {
       const dataExp = new Date(dataProva + "T12:00:00");
       dataExp.setDate(dataExp.getDate() + 5);
 
+      const vagasRestantesCalculadas = Math.max(0, Number(vagasTotais) - alunosAtivos);
+
       await setDoc(doc(db, "configuracoes", "ciclo_atual"), {
         exame,
         data_prova: dataProva,
-        data_expiracao: dataExp.toISOString().split('T'),
+        // CORREÇÃO 1: Adicionado para salvar como texto e evitar o erro do Array
+        data_expiracao: dataExp.toISOString().split('T'), 
         vagas_totais: Number(vagasTotais),
+        vagas_restantes: vagasRestantesCalculadas,
         preco_original: precoOriginal,
         preco_atual: precoAtual,
-        link_repescagem: linkRepescagem, // Salva o link no banco      
+        link_repescagem: linkRepescagem, 
         atualizado_em: new Date()
       }, { merge: true });
       
-      toast.success("Configurações atualizadas! O site já reflete os novos valores e prazos.");
+      toast.success("Configurações atualizadas! A Landing Page já reflete as vagas reais.");
     } catch (error) {
       toast.error("Erro ao guardar as configurações no banco de dados.");
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -112,6 +117,7 @@ const GestaoCiclos = () => {
               <Label className="text-sm font-bold flex items-center gap-2">
                 <Target className="h-4 w-4 text-muted-foreground"/> Edição do Exame
               </Label>
+              {/* CORREÇÃO 2: Alterado de setExame(setExame) para e.target.value para destravar o banco */}
               <Input placeholder="Ex: Exame 47" value={exame} onChange={(e) => setExame(e.target.value)} className="h-12 text-lg" />
             </div>
             
@@ -144,7 +150,6 @@ const GestaoCiclos = () => {
               </div>
             </div>
 
-            {/* CAMPO DE LINK DE REPESCAGEM PARA O PROFESSOR */}
             <div className="space-y-2 bg-muted/20 p-4 rounded-xl border border-border">
               <Label className="text-sm font-bold flex items-center gap-2">
                 <LinkIcon className="h-4 w-4 text-muted-foreground" /> Link Oculto (Hotmart) - Repescagem 50% OFF

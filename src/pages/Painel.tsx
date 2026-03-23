@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, PlayCircle, Eye } from "lucide-react";
 import { auth } from "@/lib/firebase";
+import { ADMIN_EMAIL } from "@/lib/constants";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
 // Importação de todos os Motores (Componentes)
@@ -25,7 +26,7 @@ const Painel = () => {
   // Proteção de Rota: Apenas o professor pode entrar
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user || user.email !== "miguelss3@yahoo.com.br") {
+      if (!user || user.email !== ADMIN_EMAIL) {
         navigate("/");
       } else {
         setLoading(false);

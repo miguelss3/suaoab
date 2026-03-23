@@ -7,6 +7,32 @@ admin.initializeApp();
 // 🔒 SEGURANÇA: Cole aqui o seu Hottok (Token) que está na tela de Webhooks da Hotmart
 const MEU_HOTTOK = "COLE_O_SEU_TOKEN_DA_HOTMART_AQUI";
 
+export const nextMatricula = functions.https.onCall(async () => {
+  const db = admin.firestore();
+  const counterRef = db.doc("configuracoes/contador_matricula");
+  const currentYearFloor = Number(`${new Date().getFullYear()}000`);
+
+  const matricula = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef);
+    const storedValue = snap.exists ? Number(snap.data()?.valor) : NaN;
+    const lastValue = Number.isFinite(storedValue) ? storedValue : currentYearFloor;
+    const nextValue = lastValue < currentYearFloor ? currentYearFloor + 1 : lastValue + 1;
+
+    tx.set(
+      counterRef,
+      {
+        valor: nextValue,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return String(nextValue);
+  });
+
+  return { matricula };
+});
+
 export const hotmartWebhook = functions.https.onRequest(async (req, res) => {
   // Aceita apenas requisições POST da Hotmart
   if (req.method !== "POST") {

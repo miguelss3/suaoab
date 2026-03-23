@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Clock, PenTool, Timer, Briefcase, Lock, AlertCircle } from "lucide-react";
+import { LogOut, Clock, PenTool, Timer, Briefcase, Lock, AlertCircle, User } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where, getDoc } from "firebase/firestore";
@@ -14,19 +14,96 @@ import { GestorMetas } from "@/components/aluno/GestorMetas";
 import { TelaBloqueio, BannerDegustacao } from "@/components/aluno/TelasDegustacao";
 import { GestorPecas } from "@/components/aluno/GestorPecas";
 import { GestorSimulados } from "@/components/aluno/GestorSimulados";
+import PerfilAluno from "@/components/aluno/PerfilAluno"; // NOVO IMPORT DO PERFIL
+
+type TimestampLike = {
+  toDate?: () => Date;
+  toMillis?: () => number;
+};
+
+type MetaAluno = {
+  status?: string;
+  concluida?: boolean;
+  [key: string]: unknown;
+};
+
+type PerfilAlunoData = {
+  uid?: string;
+  nome?: string;
+  email?: string;
+  matricula?: string;
+  materia?: string;
+  curso?: string;
+  status?: "Lead" | "inativo" | "premium" | string;
+  metas?: MetaAluno[];
+  data_expiracao?: TimestampLike | Date | string;
+  data_cadastro?: TimestampLike | Date | string;
+  [key: string]: unknown;
+};
+
+type MaterialPublicado = {
+  id: string;
+  tipo?: string;
+  titulo?: string;
+  url_pdf?: string;
+  data_publicacao?: TimestampLike;
+  [key: string]: unknown;
+};
+
+type LaboratorioPeca = {
+  nome?: string;
+  url_pdf?: string;
+  [key: string]: unknown;
+};
+
+type HistoricoPeca = {
+  id: string;
+  data_envio?: TimestampLike;
+  [key: string]: unknown;
+};
+
+const getMillis = (value: unknown): number => {
+  if (value && typeof value === "object" && "toMillis" in value && typeof (value as TimestampLike).toMillis === "function") {
+    return (value as TimestampLike).toMillis!();
+  }
+
+  if (value instanceof Date) return value.getTime();
+
+  if (typeof value === "string") {
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+};
+
+const getDate = (value: unknown): Date => {
+  if (value && typeof value === "object" && "toDate" in value && typeof (value as TimestampLike).toDate === "function") {
+    return (value as TimestampLike).toDate!();
+  }
+
+  if (value instanceof Date) return value;
+
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  return new Date();
+};
 
 const Aluno = () => {
   const navigate = useNavigate();
-  const [perfilAluno, setPerfilAluno] = useState<any>(null);
-  const [metas, setMetas] = useState<any[]>([]);
-  const [cadernos, setCadernos] = useState<any[]>([]);
-  const [simulados, setSimulados] = useState<any[]>([]);
-  const [laboratorio, setLaboratorio] = useState<any[]>([]); 
-  const [historico, setHistorico] = useState<any[]>([]);
+  const [perfilAluno, setPerfilAluno] = useState<PerfilAlunoData | null>(null);
+  const [metas, setMetas] = useState<MetaAluno[]>([]);
+  const [cadernos, setCadernos] = useState<MaterialPublicado[]>([]);
+  const [simulados, setSimulados] = useState<MaterialPublicado[]>([]);
+  const [laboratorio, setLaboratorio] = useState<LaboratorioPeca[]>([]);
+  const [historico, setHistorico] = useState<HistoricoPeca[]>([]);
   const [progresso, setProgresso] = useState(0);
   const [loading, setLoading] = useState(true);
   
-  const [modalPreparacao, setModalPreparacao] = useState<any>(null);
+  const [modalPreparacao, setModalPreparacao] = useState<MaterialPublicado | null>(null);
   const [isExpirado, setIsExpirado] = useState(false);
   const [dataCorteVisual, setDataCorteVisual] = useState("");
 
@@ -48,32 +125,47 @@ const Aluno = () => {
   }, []);
 
   useEffect(() => {
+    let cleanupUserSubscriptions: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      cleanupUserSubscriptions?.();
+
       if (user) {
         const unsubDoc = onSnapshot(doc(db, "alunos", user.uid), (docSnap) => {
           if (docSnap.exists()) {
-            const data = docSnap.data();
-            data.uid = user.uid;
+            const data = { ...(docSnap.data() as PerfilAlunoData), uid: user.uid };
             setPerfilAluno(data);
-            setMetas(data.metas || []);
-            if (data.metas && data.metas.length > 0) {
-               const concluidas = data.metas.filter((m:any) => m.status === "concluida" || m.concluida === true).length;
-               setProgresso(Math.round((concluidas / data.metas.length) * 100));
+            const metasAluno = Array.isArray(data.metas) ? data.metas : [];
+            setMetas(metasAluno);
+            if (metasAluno.length > 0) {
+               const concluidas = metasAluno.filter((m) => m.status === "concluida" || m.concluida === true).length;
+              setProgresso(Math.round((concluidas / metasAluno.length) * 100));
             } else setProgresso(0);
           }
           setLoading(false);
         });
         
         const qHist = query(collection(db, "historico_pecas"), where("aluno_id", "==", user.uid));
-        onSnapshot(qHist, (snap) => {
-          const hist: any[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setHistorico(hist.sort((a, b) => (b.data_envio?.toMillis?.() || 0) - (a.data_envio?.toMillis?.() || 0)));
+        const unsubHist = onSnapshot(qHist, (snap) => {
+          const hist: HistoricoPeca[] = snap.docs.map((docItem) => ({
+            id: docItem.id,
+            ...(docItem.data() as Omit<HistoricoPeca, "id">),
+          }));
+
+          setHistorico(hist.sort((a, b) => getMillis(b.data_envio) - getMillis(a.data_envio)));
         });
 
-        return () => unsubDoc();
+        cleanupUserSubscriptions = () => {
+          unsubDoc();
+          unsubHist();
+        };
       } else navigate("/");
     });
-    return () => unsubscribeAuth();
+
+    return () => {
+      cleanupUserSubscriptions?.();
+      unsubscribeAuth();
+    };
   }, [navigate]);
 
   useEffect(() => {
@@ -85,14 +177,21 @@ const Aluno = () => {
     
     const qMateriais = query(collection(db, "materiais_publicados"), where("materia", "==", materiaAluno));
     const unsubMateriais = onSnapshot(qMateriais, (snap) => {
-      let docs: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      docs.sort((a: any, b: any) => (b.data_publicacao?.toMillis?.() || 0) - (a.data_publicacao?.toMillis?.() || 0));
-      setCadernos(docs.filter((d: any) => d.tipo === "Caderno"));
-      setSimulados(docs.filter((d: any) => d.tipo === "Simulado"));
+      const docs: MaterialPublicado[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<MaterialPublicado, "id">),
+      }));
+
+      docs.sort((a, b) => getMillis(b.data_publicacao) - getMillis(a.data_publicacao));
+      setCadernos(docs.filter((d) => d.tipo === "Caderno"));
+      setSimulados(docs.filter((d) => d.tipo === "Simulado"));
     });
 
     const unsubLab = onSnapshot(doc(db, "disciplinas", materiaAluno), (docSnap) => {
-      if (docSnap.exists()) setLaboratorio(docSnap.data().pecas || []); 
+      if (docSnap.exists()) {
+        const data = docSnap.data() as { pecas?: LaboratorioPeca[] };
+        setLaboratorio(Array.isArray(data.pecas) ? data.pecas : []);
+      }
       else setLaboratorio([]);
     });
 
@@ -111,9 +210,9 @@ const Aluno = () => {
     let dataCorte: Date;
     
     if (perfilAluno?.data_expiracao) {
-      dataCorte = perfilAluno.data_expiracao.toDate ? perfilAluno.data_expiracao.toDate() : new Date(perfilAluno.data_expiracao);
+      dataCorte = getDate(perfilAluno.data_expiracao);
     } else if (perfilAluno?.data_cadastro) {
-      dataCorte = perfilAluno.data_cadastro.toDate ? perfilAluno.data_cadastro.toDate() : new Date(perfilAluno.data_cadastro);
+      dataCorte = getDate(perfilAluno.data_cadastro);
       dataCorte.setHours(dataCorte.getHours() + 72); 
     } else {
       dataCorte = new Date();
@@ -187,11 +286,13 @@ const Aluno = () => {
               </div>
 
               <Tabs defaultValue="metas" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 mb-4">
-                  <TabsTrigger value="metas">Cronograma</TabsTrigger>
-                  <TabsTrigger value="laboratorio">Laboratório</TabsTrigger>
-                  <TabsTrigger value="cadernos">Discursivas</TabsTrigger>
-                  <TabsTrigger value="simulados">Simulados</TabsTrigger>
+                {/* ADAPTAÇÃO DAS ABAS PARA SUPORTAR 5 OPÇÕES BEM ALINHADAS */}
+                <TabsList className="flex flex-wrap w-full h-auto mb-4 gap-2 justify-start bg-transparent p-0">
+                  <TabsTrigger value="metas" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Cronograma</TabsTrigger>
+                  <TabsTrigger value="laboratorio" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Laboratório</TabsTrigger>
+                  <TabsTrigger value="cadernos" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Discursivas</TabsTrigger>
+                  <TabsTrigger value="simulados" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Simulados</TabsTrigger>
+                  <TabsTrigger value="perfil" className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground border border-accent/30 bg-accent/5 text-accent font-bold">Meu Perfil</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="metas" className="bg-card p-6 rounded-xl border border-border">
@@ -205,7 +306,7 @@ const Aluno = () => {
                     {laboratorio.map((l, idx) => (
                       <div key={idx} className="p-4 rounded-lg border border-border flex justify-between items-center">
                         <div><span className="font-bold text-sm block text-primary">{l.nome}</span></div>
-                        <Button variant="outline" size="sm" onClick={() => window.open(l.url_pdf, "_blank")}>Abrir Peça</Button>
+                        <Button variant="outline" size="sm" onClick={() => l.url_pdf && window.open(l.url_pdf, "_blank")}>Abrir Peça</Button>
                       </div>
                     ))}
                   </div>
@@ -214,10 +315,10 @@ const Aluno = () => {
                 <TabsContent value="cadernos" className="bg-card p-6 rounded-xl border border-border">
                   <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><PenTool className="h-5 w-5 text-accent" /> Discursivas</h3>
                   <div className="grid gap-3">
-                    {cadernos.map((c: any) => (
+                    {cadernos.map((c) => (
                       <div key={c.id} className="p-4 rounded-lg border border-border flex justify-between items-center">
                         <div><span className="font-bold text-sm block text-primary">{c.titulo}</span></div>
-                        <Button variant="outline" size="sm" onClick={() => window.open(c.url_pdf, "_blank")}>Abrir Caderno</Button>
+                        <Button variant="outline" size="sm" onClick={() => c.url_pdf && window.open(c.url_pdf, "_blank")}>Abrir Caderno</Button>
                       </div>
                     ))}
                   </div>
@@ -226,7 +327,7 @@ const Aluno = () => {
                 <TabsContent value="simulados" className="bg-card p-6 rounded-xl border border-border">
                   <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Timer className="h-5 w-5 text-accent" /> Simulados</h3>
                   <div className="grid gap-3">
-                    {simulados.map((s: any) => (
+                    {simulados.map((s) => (
                       <div key={s.id} className="p-4 rounded-lg border border-border flex justify-between items-center">
                         <div><span className="font-bold text-sm block text-primary">{s.titulo}</span></div>
                         <Button variant="accent" size="sm" onClick={() => setModalPreparacao(s)}>Acessar Simulado</Button>
@@ -234,6 +335,12 @@ const Aluno = () => {
                     ))}
                   </div>
                 </TabsContent>
+
+                {/* NOVO SEPARADOR DO PERFIL */}
+                <TabsContent value="perfil">
+                  <PerfilAluno />
+                </TabsContent>
+
               </Tabs>
             </div>
 

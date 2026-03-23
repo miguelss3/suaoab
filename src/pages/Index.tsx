@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Target, Scale, BarChart3, CheckCircle2, ArrowRight, Shield, Clock, Star, LifeBuoy } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, collection, query, where, getDocs, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import heroBg from "@/assets/hero-bg.jpg";
 
 import { AuthModal } from "@/components/index/AuthModal";
@@ -32,7 +32,7 @@ const heroCarouselImagesPC = [
   "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/imagemcorrecao.png"
 ];
 
-// IMAGENS DE BAIXO (DASHBOARDS PC) - NOVA SEQUÊNCIA SOLICITADA
+// IMAGENS DE BAIXO (DASHBOARDS PC)
 const bottomCarouselImagesPC = [
   "https://raw.githubusercontent.com/miguelss3/suaoab/5fad4bcedbaa2693fc70294a602d7b9f77f8fbc5/src/pages/imagens/dash1.png",
   "https://raw.githubusercontent.com/miguelss3/suaoab/5fad4bcedbaa2693fc70294a602d7b9f77f8fbc5/src/pages/imagens/dash12.png",
@@ -42,7 +42,7 @@ const bottomCarouselImagesPC = [
 // IMAGEM ESTÁTICA PARA O TOPO NO CELULAR (Incentivo)
 const IMAGEM_MOBILE_HERO = "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/imagemcorrecao.png";
 
-// IMAGENS DASHBOARD PARA O CELULAR (CONCLUÍDAS - NÃO ALTERAR)
+// IMAGENS DASHBOARD PARA O CELULAR
 const imagesMobileDash = [
   "https://raw.githubusercontent.com/miguelss3/suaoab/7a5e6fbeeabb5148c758c02857892e0450e0907d/src/pages/imagemcelular/metascelular.jpeg",
   "https://raw.githubusercontent.com/miguelss3/suaoab/7a5e6fbeeabb5148c758c02857892e0450e0907d/src/pages/imagemcelular/simuladocelular.jpeg",
@@ -53,8 +53,8 @@ const imagesMobileDash = [
 const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const [vagasRestantes, setVagasRestantes] = useState<number>(12);
   
+  const [vagasRestantes, setVagasRestantes] = useState<number | null>(null);
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
 
@@ -68,28 +68,28 @@ const Index = () => {
     const carregarConfiguracoes = async () => {
       try {
         const configSnap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
-        let limiteVagas = 50; 
         
         if (configSnap.exists()) {
           const data = configSnap.data();
-          if (data.vagas_totais) limiteVagas = Number(data.vagas_totais);
           if (data.preco_original) setPrecoOriginal(data.preco_original);
           if (data.preco_atual) setPrecoAtual(data.preco_atual);
+          
+          // Lógica de Leitura Segura:
+          // Se o professor adicionar manualmente o campo "vagas_restantes" no DB, ele usa esse número.
+          // Se não existir, ele puxa o "vagas_totais" para não exibir erro.
+          if (data.vagas_restantes !== undefined) {
+            setVagasRestantes(Number(data.vagas_restantes));
+          } else if (data.vagas_totais !== undefined) {
+            setVagasRestantes(Number(data.vagas_totais));
+          } else {
+            setVagasRestantes(0);
+          }
+        } else {
+          setVagasRestantes(0);
         }
-
-        const qPremium = query(collection(db, "alunos"), where("status", "in", ["premium", "Premium"]));
-        const snapPremium = await getDocs(qPremium);
-        
-        const totalPremium = snapPremium.docs.filter(doc => 
-          doc.id !== "admin_sandbox_uid" && 
-          doc.data().email !== "miguelss3@yahoo.com.br" &&
-          doc.data().email !== "sandbox@suaoab.com.br"
-        ).length;
-
-        const restantes = limiteVagas - totalPremium;
-        setVagasRestantes(restantes > 0 ? restantes : 0);
       } catch (error) {
         console.error("Erro ao carregar configurações da Index:", error);
+        setVagasRestantes(0);
       }
     };
     carregarConfiguracoes();
@@ -158,7 +158,10 @@ const Index = () => {
               </p>
             </motion.div>
 
-            {vagasRestantes > 0 ? (
+            {/* LÓGICA DE CARREGAMENTO DAS VAGAS */}
+            {vagasRestantes === null ? (
+              <motion.div variants={fadeUp} custom={1} className="h-24 sm:h-16 w-full max-w-xs sm:max-w-md bg-destructive/10 animate-pulse rounded-2xl sm:rounded-full border border-destructive/20 mx-auto"></motion.div>
+            ) : vagasRestantes > 0 ? (
               <motion.div variants={fadeUp} custom={1} className="inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 rounded-2xl sm:rounded-full bg-destructive/5 border-2 border-destructive/20 p-4 sm:px-8 sm:py-3 text-accent font-medium shadow-2xl sm:shadow-lg w-full sm:w-auto mx-auto">
                 <span className="text-sm lg:text-lg font-bold text-primary-foreground/70">⚠️ Restam apenas</span>
                 <span className="text-4xl sm:text-xl lg:text-3xl text-destructive font-black bg-destructive/10 sm:bg-transparent px-6 py-2 sm:px-0 rounded-xl uppercase tracking-wider my-1 sm:my-0">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span>
@@ -201,7 +204,7 @@ const Index = () => {
               </AnimatePresence>
           </motion.div>
 
-          {/* IMAGEM TOPO CELULAR (INTOCADA) */}
+          {/* IMAGEM TOPO CELULAR */}
           <div className="flex lg:hidden relative z-10 w-full h-[350px] items-center justify-center mx-auto mt-6 px-4">
               <img src={IMAGEM_MOBILE_HERO} alt="Sua OAB Mobile" className="max-w-full max-h-full object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.4)] rounded-2xl" />
           </div>
@@ -209,12 +212,12 @@ const Index = () => {
         </div>
       </section>
 
-      {/* SECÇÃO VERMELHINHA - ADAPTADA PARA PC (TEXTO EM CIMA, IMAGEM EM BAIXO) */}
+      {/* SECÇÃO VERMELHINHA */}
       <section className="py-12 sm:py-24 bg-card">
         <div className="container px-6">
           <div className="flex flex-col items-center w-full">
             
-            {/* TEXTO (AGORA EM CIMA NO PC) */}
+            {/* TEXTO (EM CIMA NO PC) */}
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-6 text-center max-w-4xl mb-12">
               <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-foreground leading-tight italic">
                 A sua "vermelhinha" está mais perto do que você imagina.
@@ -231,7 +234,7 @@ const Index = () => {
               </ul>
             </motion.div>
 
-            {/* CARROSSEL DASHBOARDS PC (AGORA EM BAIXO E MAIOR) */}
+            {/* CARROSSEL DASHBOARDS PC (EM BAIXO E MAIOR) */}
             <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} className="hidden lg:flex relative z-10 w-full max-w-6xl h-[750px] xl:h-[850px] items-center justify-center">
                 <AnimatePresence mode="wait">
                   <motion.img 
@@ -247,7 +250,7 @@ const Index = () => {
                 </AnimatePresence>
             </motion.div>
 
-            {/* CARROSSEL CELULAR (INTOCADO - MANTÉM SWIPE E IMAGENS ORIGINAIS) */}
+            {/* CARROSSEL CELULAR COM SWIPE */}
             <div className="flex lg:hidden relative z-10 w-full h-[480px] items-center justify-center mt-4 touch-pan-y">
                 <AnimatePresence mode="wait">
                   <motion.img 
@@ -270,7 +273,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* RESTANTE DO CÓDIGO (DENTRO DA ÁREA, APROVADOS, REPESCAGEM) - NÃO ALTERADO */}
       <section className="py-20 bg-background border-t border-border">
         <div className="container px-6">
           <div className="text-center mb-12 sm:mb-16">
@@ -359,7 +361,6 @@ const Index = () => {
               <p className="text-xs text-muted-foreground mt-6"><Shield className="h-4 w-4 inline mr-1" /> Compra 100% Segura | 7 Dias de Garantia</p>
             </motion.div>
 
-            {/* BLOCO DE REPESCAGEM RECUPERADO E COMPLETO */}
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} className="relative bg-muted/30 rounded-3xl p-8 sm:p-12 border-2 border-border text-center flex flex-col h-full mt-10 md:mt-0">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-sm font-bold px-6 py-2 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap"><LifeBuoy className="h-4 w-4" /> VAI FAZER REPESCAGEM?</div>
               <h2 className="text-2xl md:text-3xl font-display font-bold text-primary mt-4 mb-2">Desconto de 50%</h2>
@@ -395,7 +396,6 @@ const Index = () => {
         </div>
       </footer>
 
-      {/* BOTÃO WHATSAPP */}
       <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} target="_blank" rel="noreferrer" className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl">
         <img src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" alt="WhatsApp" className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
       </a>

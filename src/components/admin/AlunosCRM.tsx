@@ -1,7 +1,7 @@
 // src/components/admin/AlunosCRM.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc } from "firebase/firestore";
 import { Search, AlertCircle, Ban } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -61,24 +61,24 @@ const AlunosCRM = () => {
     return Math.round((concluidas / metas.length) * 100);
   };
 
+// src/components/admin/AlunosCRM.tsx (Trecho da função handleMudarStatus)
   const handleMudarStatus = (id: string, novoStatus: string) => {
     const executarMudanca = async () => {
       try {
-        await updateDoc(doc(db, "alunos", id), { status: novoStatus });
-        toast.success(`Status alterado para ${novoStatus.toUpperCase()}!`);
+        const dadosAtualizacao: any = { status: novoStatus };
+        
+        // AJUSTE: Ao reativar, dá 90 dias de prazo para o aluno não ser bloqueado de novo
+        if (novoStatus === "premium") {
+          const novaData = new Date();
+          novaData.setDate(novaData.getDate() + 90);
+          dadosAtualizacao.data_expiracao = novaData.toISOString().split('T')[0];
+        }
+
+        await updateDoc(doc(db, "alunos", id), dadosAtualizacao);
+        toast.success(`Aluno ${novoStatus === 'premium' ? 'Reativado' : 'Inativado'} com sucesso!`);
       } catch (e) { toast.error("Erro ao atualizar status."); }
     };
-
-    if (novoStatus === "inativo") {
-      setModalConfirmacao({
-        isOpen: true,
-        titulo: "Desativar Aluno?",
-        mensagem: "Desativar este aluno bloqueará imediatamente o seu acesso à plataforma. Tem a certeza que deseja continuar?",
-        acao: () => { setModalConfirmacao(prev => ({ ...prev, isOpen: false })); executarMudanca(); }
-      });
-    } else {
-      executarMudanca();
-    }
+    executarMudanca();
   };
 
   const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos') => {
@@ -99,10 +99,13 @@ const AlunosCRM = () => {
     if (aluno.data_expiracao) {
       if (typeof aluno.data_expiracao === "string") {
         d = new Date(aluno.data_expiracao);
+      } else if (Array.isArray(aluno.data_expiracao)) {
+        // AJUSTE: Proteção extra para ler a data mesmo se o bug do array persistir
+        d = new Date(aluno.data_expiracao[0]);
       } else if (aluno.data_expiracao instanceof Date) {
         d = aluno.data_expiracao;
       } else {
-        d = aluno.data_expiracao.toDate();
+        d = (aluno.data_expiracao as any).toDate();
       }
     } else if (aluno.data_cadastro) {
       if (typeof aluno.data_cadastro === "string") {
@@ -110,7 +113,7 @@ const AlunosCRM = () => {
       } else if (aluno.data_cadastro instanceof Date) {
         d = aluno.data_cadastro;
       } else {
-        d = aluno.data_cadastro.toDate();
+        d = (aluno.data_cadastro as any).toDate();
       }
     } else {
       d = new Date();
@@ -125,26 +128,49 @@ const AlunosCRM = () => {
     return diffHoras <= 0 ? { texto: "EXPIRADO", expirado: true } : { texto: `${diffHoras}h restantes`, expirado: false };
   };
 
+  // --- AUTOMACAO: Varrer Expirados e Sincronizar Vagas no Index ---
   useEffect(() => {
-    const varrerExpirados = async () => {
-      const alunosEmTeste = alunos.filter(a => a.status !== "premium" && a.status !== "inativo");
-      
-      for (const aluno of alunosEmTeste) {
-        const expiracao = calcularExpiracaoLead(aluno);
-        if (expiracao.expirado) {
-          try {
+    const processarManutencaoAlunos = async () => {
+      if (alunos.length === 0) return;
+
+      try {
+        // 1. Varrer alunos expirados para inativar (Proteção)
+        const alunosParaVerificar = alunos.filter(a => a.status !== "inativo");
+        for (const aluno of alunosParaVerificar) {
+          const expiracao = calcularExpiracaoLead(aluno);
+          if (expiracao.expirado) {
             await updateDoc(doc(db, "alunos", aluno.id), { status: "inativo" });
-            console.log(`[AUTOMAÇÃO] Aluno ${aluno.nome} foi inativado por expiração.`);
-          } catch (e) {
-            console.error("Erro ao inativar aluno", e);
+            console.log(`[AUTOMAÇÃO] Aluno ${aluno.nome} inativado por expiração.`);
           }
         }
+
+        // 2. Sincronizar Vagas com o Index (Gatilho de Escassez Automático)
+        const docRef = doc(db, "configuracoes", "ciclo_atual");
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const config = docSnap.data();
+          const vagasTotais = Number(config.vagas_totais || 0);
+
+          const ativosReais = alunos.filter(a => 
+            (a.status?.trim().toLowerCase() === "premium") &&
+            a.id !== "admin_sandbox_uid" && 
+            a.email !== "miguelss3@yahoo.com.br" &&
+            a.email !== "sandbox@suaoab.com.br"
+          ).length;
+
+          const novasVagasRestantes = Math.max(0, vagasTotais - ativosReais);
+
+          if (Number(config.vagas_restantes) !== novasVagasRestantes) {
+            await updateDoc(docRef, { vagas_restantes: novasVagasRestantes });
+          }
+        }
+      } catch (error) {
+        console.error("Erro na manutenção automática do CRM:", error);
       }
     };
 
-    if (alunos.length > 0) {
-      varrerExpirados();
-    }
+    processarManutencaoAlunos();
   }, [alunos]);
 
   return (
@@ -183,7 +209,6 @@ const AlunosCRM = () => {
                       <div className="text-[10px] text-muted-foreground">{aluno.email}</div>
                       <div className="text-[10px] font-black text-accent tracking-widest uppercase mt-0.5 mb-2">Matrícula: {aluno.matricula || "S/N"}</div>
                       
-                      {/* MOBILE: Matéria e Botões abaixo do nome */}
                       <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-2">
                         Matéria: {aluno.materia}
                       </div>
@@ -233,7 +258,6 @@ const AlunosCRM = () => {
                         <div className="font-bold text-primary">{aluno.nome}</div>
                         <div className="text-[10px] text-muted-foreground mb-2">{aluno.email}</div>
                         
-                        {/* MOBILE: Matéria, Prazo e Botões abaixo do nome */}
                         <div className="sm:hidden flex flex-col gap-1.5 mb-3">
                           <span className="text-[10px] font-bold text-muted-foreground">Matéria: {aluno.materia}</span>
                           <span className={`px-2 py-1 rounded text-[10px] font-black uppercase flex items-center w-max gap-1 ${expiracao.expirado ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{expiracao.expirado && <AlertCircle className="h-3 w-3" />} {expiracao.texto}</span>
@@ -281,7 +305,6 @@ const AlunosCRM = () => {
                         <div className="font-bold text-primary">{aluno.nome}</div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 mb-2">{aluno.email}</div>
                         
-                        {/* MOBILE: Matéria e Botões abaixo do nome */}
                         <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-3">
                           Matéria: {aluno.materia}
                         </div>
