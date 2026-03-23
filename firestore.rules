@@ -55,8 +55,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ─── Aulas ──────────────────────────────────────────────────────────────
+    // ─── Aulas (legado) ─────────────────────────────────────────────────────
     match /aulas/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Aulas globais (acervo atual) ───────────────────────────────────────
+    match /aulas_globais/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }

@@ -59,9 +59,9 @@ const Aula = () => {
       
       setAulas(lista);
       
-      // --- CORREÇÃO DO CARREGAMENTO DO VÍDEO (lista) ---
+      // Define a primeira aula como ativa quando a playlist carregar.
       if (lista.length > 0 && !aulaAtiva) {
-        setAulaAtiva(lista); 
+        setAulaAtiva(lista[0]); 
       }
     });
 
