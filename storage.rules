@@ -1,0 +1,46 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── Helpers ────────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "miguelss3@yahoo.com.br";
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ─── Peças enviadas pelos alunos ─────────────────────────────────────────
+    // Aluno envia para a própria pasta; admin e dono podem ler/deletar.
+    match /pecas_alunos/{userId}/{fileName} {
+      allow read:   if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId)
+                    && request.resource.size  < 20 * 1024 * 1024   // max 20 MB
+                    && request.resource.contentType.matches('application/pdf');
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ─── Peças corrigidas pelo admin ─────────────────────────────────────────
+    // Admin escreve; aluno dono pode ler (URL pública no Firestore).
+    match /pecas_corrigidas/{allPaths=**} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Materiais do admin (PDFs, anexos, modelos de peça) ─────────────────
+    match /materiais_alunos/{allPaths=**} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Fallback — nega tudo que não esteja explicitamente permitido ────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

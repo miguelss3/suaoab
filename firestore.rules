@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ────────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "miguelss3@yahoo.com.br";
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ─── Perfis de aluno ────────────────────────────────────────────────────
+    // Cada aluno acessa apenas o próprio documento; admin acessa todos.
+    match /alunos/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+
+      // Subcoleções do perfil (metas, ciclos, etc.)
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // ─── Histórico de peças ─────────────────────────────────────────────────
+    // Aluno lê/cria peças próprias; admin gerencia todas.
+    match /historico_pecas/{docId} {
+      allow read: if isSignedIn() &&
+        (resource.data.aluno_id == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+        request.resource.data.aluno_id == request.auth.uid;
+      allow update, delete: if isSignedIn() &&
+        (resource.data.aluno_id == request.auth.uid || isAdmin());
+    }
+
+    // ─── Materiais publicados ───────────────────────────────────────────────
+    // Alunos autenticados leem; apenas admin escreve.
+    match /materiais_publicados/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Disciplinas / banco de questões ────────────────────────────────────
+    match /disciplinas/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /banco_questoes/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Aulas ──────────────────────────────────────────────────────────────
+    match /aulas/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Configurações (inclui contador de matrícula) ───────────────────────
+    // Escritas feitas pelo admin SDK (Cloud Functions) — ignoram estas regras.
+    // Leitura restrita ao admin para segurança extra.
+    match /configuracoes/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─── Fallback — nega tudo que não esteja explicitamente permitido ────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
