@@ -6,10 +6,20 @@ import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "sonner";
+import { HistoricoPeca, PerfilAlunoPortalBase } from "@/lib/aulas";
 
-export const GestorPecas = ({ perfilAluno, historico = [] }: any) => {
+type PerfilAlunoPecas = PerfilAlunoPortalBase & {
+  nome?: string;
+};
+
+type GestorPecasProps<TPerfil extends PerfilAlunoPecas> = {
+  perfilAluno: TPerfil | null;
+  historico?: HistoricoPeca[];
+};
+
+export const GestorPecas = <TPerfil extends PerfilAlunoPecas>({ perfilAluno, historico = [] }: GestorPecasProps<TPerfil>) => {
   const [uploading, setUploading] = useState(false);
-  const [feedbackSelecionado, setFeedbackSelecionado] = useState<any>(null);
+  const [feedbackSelecionado, setFeedbackSelecionado] = useState<HistoricoPeca | null>(null);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,7 +128,7 @@ export const GestorPecas = ({ perfilAluno, historico = [] }: any) => {
         <div className="p-4 bg-muted/10 border-b border-border font-bold text-primary italic">Histórico de Correções</div>
         <div className="divide-y divide-border">
           {safeHistorico.length === 0 && <p className="p-6 text-center text-muted-foreground text-sm italic">Nenhuma peça enviada ainda.</p>}
-          {safeHistorico.map((h: any) => (
+          {safeHistorico.map((h) => (
             // Layout da linha do histórico: flex-col no mobile, sm:flex-row no desktop
             <div key={h.id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:bg-muted/5 transition-colors">
               <div className="flex items-start gap-3 flex-1 min-w-0">

@@ -7,10 +7,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AulaGlobal } from "@/lib/aulas";
 import { toast } from "sonner";
 
+const mapDocToAula = (docSnap: { id: string; data: () => Record<string, unknown> }): AulaGlobal => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    titulo: typeof data.titulo === "string" ? data.titulo : "",
+    materia: typeof data.materia === "string" ? data.materia : "",
+    desc: typeof data.desc === "string" ? data.desc : "",
+    youtubeId: typeof data.youtubeId === "string" ? data.youtubeId : "",
+    data_publicacao:
+      data.data_publicacao && typeof data.data_publicacao === "object"
+        ? (data.data_publicacao as AulaGlobal["data_publicacao"])
+        : null,
+  };
+};
+
 const GestaoAulas = () => {
-  const [aulas, setAulas] = useState<any[]>([]);
+  const [aulas, setAulas] = useState<AulaGlobal[]>([]);
   const [filtroMateria, setFiltroMateria] = useState("");
   const [erroCarregamento, setErroCarregamento] = useState("");
   
@@ -29,7 +45,7 @@ const GestaoAulas = () => {
       q,
       (snap) => {
         setErroCarregamento("");
-        setAulas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setAulas(snap.docs.map(mapDocToAula));
       },
       (error) => {
         console.error("Erro ao carregar aulas globais:", error);
@@ -119,19 +135,13 @@ const GestaoAulas = () => {
     }
   };
 
-  const handleEditar = (aula: any) => {
+  const handleEditar = (aula: AulaGlobal) => {
     setEditandoId(aula.id);
     setTitulo(aula.titulo || "");
     setMateria(aula.materia || "");
     setDesc(aula.desc || "");
-    
-    // Tratamento para limpar se o BD tiver guardado array por engano antes
-    let idRecuperado = aula.youtubeId;
-    if (Array.isArray(idRecuperado) || typeof idRecuperado === "object") {
-      idRecuperado = idRecuperado || idRecuperado || "";
-    }
-    
-    setYoutubeInput(String(idRecuperado));
+
+    setYoutubeInput(String(aula.youtubeId || ""));
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
 
@@ -147,7 +157,7 @@ const GestaoAulas = () => {
     }
   };
 
-  const aulasFiltradas = aulas.filter(a => filtroMateria ? a.materia === filtroMateria : true);
+  const aulasFiltradas = aulas.filter((aula) => filtroMateria ? aula.materia === filtroMateria : true);
 
   return (
     <div className="space-y-6">

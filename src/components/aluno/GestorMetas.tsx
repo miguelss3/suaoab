@@ -1,15 +1,24 @@
 // src/components/aluno/GestorMetas.tsx
+import { Dispatch, SetStateAction } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Lock, Link as LinkIcon, FileText, FastForward } from "lucide-react";
+import { MetaAluno, PerfilAlunoPortalBase } from "@/lib/aulas";
 
-export const GestorMetas = ({ perfilAluno, setPerfilAluno, metas, setMetas }: any) => {
+type GestorMetasProps<TPerfil extends PerfilAlunoPortalBase> = {
+  perfilAluno: TPerfil | null;
+  setPerfilAluno: Dispatch<SetStateAction<TPerfil | null>>;
+  metas: MetaAluno[];
+  setMetas: Dispatch<SetStateAction<MetaAluno[]>>;
+};
+
+export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno, setPerfilAluno, metas, setMetas }: GestorMetasProps<TPerfil>) => {
   
   const handleStatusMeta = async (index: number, novoStatus: string) => {
     if (!perfilAluno) return;
-    let novasMetas = [...metas];
+    const novasMetas = [...metas];
     novasMetas[index].status = novoStatus;
     novasMetas[index].concluida = (novoStatus === "concluida"); 
     setMetas(novasMetas);
@@ -54,7 +63,7 @@ export const GestorMetas = ({ perfilAluno, setPerfilAluno, metas, setMetas }: an
       ) : (
         (() => {
           let metaCounter = 1; 
-          return metas.map((m: any, i: number) => {
+          return metas.map((m, i) => {
             if (m.atividade?.includes("Boas-Vindas")) return null;
 
             const currentMetaNum = metaCounter++;

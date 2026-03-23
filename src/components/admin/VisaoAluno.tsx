@@ -6,6 +6,7 @@ import { Eye, BookOpen, Clock, Briefcase, PenTool, Timer, PlayCircle, X } from "
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { AulaGlobal, DisciplinaCodigo, getTimestampMillis, HistoricoPeca, MaterialPublicado, MetaAluno, PecaLaboratorio } from "@/lib/aulas";
 
 // Importamos os mesmos componentes que o aluno real utiliza
 import { GestorMetas } from "@/components/aluno/GestorMetas";
@@ -17,31 +18,79 @@ interface PerfilAluno {
   uid: string;
   nome?: string;
   email?: string;
-  materia?: string;
+  materia?: DisciplinaCodigo;
   status?: string;
   matricula?: string;
   metaZeroConcluida?: boolean;
-  metas?: any[];
-  [key: string]: any;
+  metas?: MetaAluno[];
+  [key: string]: unknown;
 }
 
+const mapDocToAula = (docSnap: { id: string; data: () => Record<string, unknown> }): AulaGlobal => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    titulo: typeof data.titulo === "string" ? data.titulo : "",
+    materia: typeof data.materia === "string" ? data.materia : "",
+    desc: typeof data.desc === "string" ? data.desc : "",
+    youtubeId: typeof data.youtubeId === "string" ? data.youtubeId : "",
+    data_publicacao:
+      data.data_publicacao && typeof data.data_publicacao === "object"
+        ? (data.data_publicacao as AulaGlobal["data_publicacao"])
+        : null,
+  };
+};
+
+const mapDocToMaterial = (docSnap: { id: string; data: () => Record<string, unknown> }): MaterialPublicado => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    titulo: typeof data.titulo === "string" ? data.titulo : "",
+    tipo: typeof data.tipo === "string" ? data.tipo : undefined,
+    materia: typeof data.materia === "string" ? data.materia : undefined,
+    url_pdf: typeof data.url_pdf === "string" ? data.url_pdf : undefined,
+    data_publicacao:
+      data.data_publicacao && typeof data.data_publicacao === "object"
+        ? (data.data_publicacao as MaterialPublicado["data_publicacao"])
+        : null,
+  };
+};
+
+const mapDocToHistorico = (docSnap: { id: string; data: () => Record<string, unknown> }): HistoricoPeca => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    aluno_id: typeof data.aluno_id === "string" ? data.aluno_id : undefined,
+    nome_documento: typeof data.nome_documento === "string" ? data.nome_documento : "",
+    status: typeof data.status === "string" ? data.status : undefined,
+    data_envio:
+      data.data_envio && typeof data.data_envio === "object"
+        ? (data.data_envio as HistoricoPeca["data_envio"])
+        : null,
+    url_audio_feedback: typeof data.url_audio_feedback === "string" ? data.url_audio_feedback : undefined,
+    url_arquivo_corrigido: typeof data.url_arquivo_corrigido === "string" ? data.url_arquivo_corrigido : undefined,
+    url_corrigida: typeof data.url_corrigida === "string" ? data.url_corrigida : undefined,
+    observacao_professor: typeof data.observacao_professor === "string" ? data.observacao_professor : undefined,
+  };
+};
+
 const VisaoAluno = () => {
-  const [disciplinaAtiva, setDisciplinaAtiva] = useState("DADM");
+  const [disciplinaAtiva, setDisciplinaAtiva] = useState<DisciplinaCodigo>("DADM");
   const [perfilFantasma, setPerfilFantasma] = useState<PerfilAluno | null>(null);
   
   // Estados para os conteúdos da disciplina
-  const [metas, setMetas] = useState<any[]>([]);
-  const [cadernos, setCadernos] = useState<any[]>([]);
-  const [simulados, setSimulados] = useState<any[]>([]);
-  const [laboratorio, setLaboratorio] = useState<any[]>([]);
-  const [historico, setHistorico] = useState<any[]>([]);
-  const [aulas, setAulas] = useState<any[]>([]);
+  const [metas, setMetas] = useState<MetaAluno[]>([]);
+  const [cadernos, setCadernos] = useState<MaterialPublicado[]>([]);
+  const [simulados, setSimulados] = useState<MaterialPublicado[]>([]);
+  const [laboratorio, setLaboratorio] = useState<PecaLaboratorio[]>([]);
+  const [historico, setHistorico] = useState<HistoricoPeca[]>([]);
+  const [aulas, setAulas] = useState<AulaGlobal[]>([]);
   const [erroAulas, setErroAulas] = useState("");
   const [loading, setLoading] = useState(true);
 
   // Estados do Modal da Sala de Aula (Sandbox)
   const [aulaSandboxVisivel, setAulaSandboxVisivel] = useState(false);
-  const [aulaAtiva, setAulaAtiva] = useState<any>(null);
+  const [aulaAtiva, setAulaAtiva] = useState<AulaGlobal | null>(null);
 
   // 1. Inicializa ou Ouve o Perfil Fantasma no Firestore
   useEffect(() => {
@@ -87,23 +136,26 @@ const VisaoAluno = () => {
     // Puxa Materiais
     const qMateriais = query(collection(db, "materiais_publicados"), where("materia", "==", disciplinaAtiva));
     const unsubMateriais = onSnapshot(qMateriais, (snap) => {
-      let docs: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      docs.sort((a: any, b: any) => (b.data_publicacao?.toMillis?.() || 0) - (a.data_publicacao?.toMillis?.() || 0));
-      setCadernos(docs.filter((d: any) => d.tipo === "Caderno"));
-      setSimulados(docs.filter((d: any) => d.tipo === "Simulado"));
+      const docs = snap.docs.map(mapDocToMaterial);
+      docs.sort((a, b) => getTimestampMillis(b.data_publicacao) - getTimestampMillis(a.data_publicacao));
+      setCadernos(docs.filter((docItem) => docItem.tipo === "Caderno"));
+      setSimulados(docs.filter((docItem) => docItem.tipo === "Simulado"));
     });
 
     // Puxa Laboratório de Peças
     const unsubLab = onSnapshot(doc(db, "disciplinas", disciplinaAtiva), (docSnap) => {
-      if (docSnap.exists()) setLaboratorio(docSnap.data().pecas || []); 
+      if (docSnap.exists()) {
+        const pecas = docSnap.data().pecas;
+        setLaboratorio(Array.isArray(pecas) ? (pecas as PecaLaboratorio[]) : []);
+      }
       else setLaboratorio([]);
     });
 
     // Puxa Histórico de Envios
     const qHist = query(collection(db, "historico_pecas"), where("aluno_id", "==", UID_SANDBOX));
     const unsubHist = onSnapshot(qHist, (snap) => {
-      const hist: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setHistorico(hist.sort((a, b) => (b.data_envio?.toMillis?.() || 0) - (a.data_envio?.toMillis?.() || 0)));
+      const hist = snap.docs.map(mapDocToHistorico);
+      setHistorico(hist.sort((a, b) => getTimestampMillis(b.data_envio) - getTimestampMillis(a.data_envio)));
     });
 
     // Puxa as Videoaulas reais da disciplina
@@ -112,12 +164,12 @@ const VisaoAluno = () => {
       qAulas,
       (snap) => {
         setErroAulas("");
-        const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        lista.sort((a: any, b: any) => (a.data_publicacao?.toMillis?.() || 0) - (b.data_publicacao?.toMillis?.() || 0));
+        const lista = snap.docs.map(mapDocToAula);
+        lista.sort((a, b) => getTimestampMillis(a.data_publicacao) - getTimestampMillis(b.data_publicacao));
         setAulas(lista);
-        setAulaAtiva((prev: any) => {
+        setAulaAtiva((prev) => {
           if (lista.length === 0) return null;
-          if (prev && lista.some((aula: any) => aula.id === prev.id)) return prev;
+          if (prev && lista.some((aula) => aula.id === prev.id)) return prev;
           return lista[0];
         });
       },
@@ -151,7 +203,7 @@ const VisaoAluno = () => {
           <select 
             className="w-full h-10 border-2 border-accent/40 rounded-lg px-3 bg-background text-sm font-bold text-primary focus:ring-accent cursor-pointer" 
             value={disciplinaAtiva} 
-            onChange={e => setDisciplinaAtiva(e.target.value)}
+            onChange={e => setDisciplinaAtiva(e.target.value as DisciplinaCodigo)}
           >
             <option value="DADM">Direito Administrativo</option>
             <option value="DPEN">Direito Penal</option>
@@ -194,7 +246,7 @@ const VisaoAluno = () => {
                 <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><PenTool className="h-5 w-5 text-accent" /> Discursivas</h3>
                 <div className="grid gap-3">
                   {cadernos.length === 0 && <p className="text-sm italic text-muted-foreground">Nenhum caderno cadastrado.</p>}
-                  {cadernos.map((c: any) => (
+                  {cadernos.map((c) => (
                     <div key={c.id} className="p-4 rounded-lg border border-border flex justify-between items-center bg-muted/5">
                       <span className="font-bold text-sm block text-primary">{c.titulo}</span>
                       <Button variant="outline" size="sm" onClick={() => window.open(c.url_pdf, "_blank")}>Abrir Caderno</Button>
@@ -207,7 +259,7 @@ const VisaoAluno = () => {
                 <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Timer className="h-5 w-5 text-accent" /> Simulados</h3>
                 <div className="grid gap-3">
                   {simulados.length === 0 && <p className="text-sm italic text-muted-foreground">Nenhum simulado cadastrado.</p>}
-                  {simulados.map((s: any) => (
+                  {simulados.map((s) => (
                     <div key={s.id} className="p-4 rounded-lg border border-border flex justify-between items-center bg-muted/5">
                       <span className="font-bold text-sm block text-primary">{s.titulo}</span>
                       <Button variant="accent" size="sm" onClick={() => window.open(s.url_pdf, "_blank")}>Acessar Simulado</Button>

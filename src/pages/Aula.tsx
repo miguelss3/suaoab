@@ -6,13 +6,35 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { ChevronLeft, PlayCircle, CheckCircle2, LogOut, Clock, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AulaGlobal, getTimestampMillis } from "@/lib/aulas";
 import { toast } from "sonner";
+
+interface AlunoAulasProfile {
+  id: string;
+  materia?: string;
+  aulas_assistidas: string[];
+}
+
+const mapDocToAula = (docSnap: { id: string; data: () => Record<string, unknown> }): AulaGlobal => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    titulo: typeof data.titulo === "string" ? data.titulo : "",
+    materia: typeof data.materia === "string" ? data.materia : "",
+    desc: typeof data.desc === "string" ? data.desc : "",
+    youtubeId: typeof data.youtubeId === "string" ? data.youtubeId : "",
+    data_publicacao:
+      data.data_publicacao && typeof data.data_publicacao === "object"
+        ? (data.data_publicacao as AulaGlobal["data_publicacao"])
+        : null,
+  };
+};
 
 const Aula = () => {
   const navigate = useNavigate();
-  const [aluno, setAluno] = useState<any>(null);
-  const [aulas, setAulas] = useState<any[]>([]);
-  const [aulaAtiva, setAulaAtiva] = useState<any>(null);
+  const [aluno, setAluno] = useState<AlunoAulasProfile | null>(null);
+  const [aulas, setAulas] = useState<AulaGlobal[]>([]);
+  const [aulaAtiva, setAulaAtiva] = useState<AulaGlobal | null>(null);
   const [erroAulas, setErroAulas] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -22,8 +44,14 @@ const Aula = () => {
       if (user) {
         const unsubAluno = onSnapshot(doc(db, "alunos", user.uid), (docSnap) => {
           if (docSnap.exists()) {
-            const dadosAluno: any = { id: docSnap.id, ...docSnap.data() };
-            if (!dadosAluno.aulas_assistidas) dadosAluno.aulas_assistidas = [];
+            const dados = docSnap.data();
+            const dadosAluno: AlunoAulasProfile = {
+              id: docSnap.id,
+              materia: typeof dados.materia === "string" ? dados.materia : undefined,
+              aulas_assistidas: Array.isArray(dados.aulas_assistidas)
+                ? dados.aulas_assistidas.filter((item): item is string => typeof item === "string")
+                : [],
+            };
             setAluno(dadosAluno);
           }
           setLoading(false);
@@ -53,19 +81,15 @@ const Aula = () => {
       qAulas,
       (snap) => {
         setErroAulas("");
-        const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        lista.sort((a: any, b: any) => {
-          const timeA = a.data_publicacao?.toMillis ? a.data_publicacao.toMillis() : 0;
-          const timeB = b.data_publicacao?.toMillis ? b.data_publicacao.toMillis() : 0;
-          return timeA - timeB; 
-        });
+        const lista = snap.docs.map(mapDocToAula);
+
+        lista.sort((a, b) => getTimestampMillis(a.data_publicacao) - getTimestampMillis(b.data_publicacao));
         
         setAulas(lista);
 
-        setAulaAtiva((prev: any) => {
+        setAulaAtiva((prev) => {
           if (lista.length === 0) return null;
-          if (prev && lista.some((aula: any) => aula.id === prev.id)) return prev;
+          if (prev && lista.some((aula) => aula.id === prev.id)) return prev;
           return lista[0];
         });
       },
