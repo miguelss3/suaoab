@@ -184,10 +184,15 @@ export const hotmartWebhook = onRequest(
     }
 
     // 🔒 VERIFICAÇÃO DE SEGURANÇA: Garante que foi a Hotmart que enviou
-    const hottokRecebido = req.headers["x-hotmart-hottok"];
-    const hottokHeader = Array.isArray(hottokRecebido) ? hottokRecebido[0] : hottokRecebido;
-    if (hottokHeader !== HOTTOK.value()) {
-      console.warn("Tentativa de invasão bloqueada: Hottok inválido.");
+    // Hotmart v2 envia o token tanto no header quanto no body
+    const hottokHeader = (() => {
+      const h = req.headers["x-hotmart-hottok"];
+      return Array.isArray(h) ? h[0] : h;
+    })();
+    const hottokBody = (req.body as Record<string, unknown>)?.hottok;
+    const hottokRecebido = hottokHeader || (typeof hottokBody === "string" ? hottokBody : undefined);
+    if (hottokRecebido !== HOTTOK.value()) {
+      console.warn("Tentativa de invasão bloqueada: Hottok inválido.", { hottokHeader: !!hottokHeader, hottokBody: !!hottokBody });
       res.status(401).send("Acesso não autorizado");
       return;
     }

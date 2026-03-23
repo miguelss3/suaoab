@@ -57,6 +57,15 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
     "reconciliarCompraHotmart"
   );
 
+  const tentarReconciliarCompra = async (emailNormalizado: string) => {
+    try {
+      return await reconciliarCompraHotmart({ email: emailNormalizado });
+    } catch (error) {
+      console.warn("Falha ao reconciliar compra Hotmart sem bloquear autenticacao:", error);
+      return null;
+    }
+  };
+
   const closeModal = () => {
     setShowAuthModal(false);
     setTimeout(() => setShowResetModal(false), 300); // Reseta a tela ao fechar
@@ -96,7 +105,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, emailLimpo, password);
         await setDoc(doc(db, "alunos", userCredential.user.uid), { email_normalizado: emailLimpo }, { merge: true });
-        await reconciliarCompraHotmart({ email: emailLimpo });
+        await tentarReconciliarCompra(emailLimpo);
         toast.success("Acesso autorizado!");
         if (userCredential.user.email === ADMIN_EMAIL) navigate("/painel");
         else navigate("/aluno");
@@ -133,7 +142,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
           }]
         });
 
-        const reconciliacao = await reconciliarCompraHotmart({ email: emailLimpo });
+  const reconciliacao = await tentarReconciliarCompra(emailLimpo);
         const statusFinal = reconciliacao.data?.status;
 
         toast.success(`Matrícula nº ${novaMatricula} criada com sucesso!`);
