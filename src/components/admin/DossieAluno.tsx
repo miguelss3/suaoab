@@ -39,6 +39,16 @@ interface Aluno {
 
 type TipoDataRota = "oficial" | "personalizada";
 
+const getDateOnlyString = (value: unknown) => {
+  if (typeof value === "string") return value;
+
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+
+  return "";
+};
+
 const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) => {
   const [modalConfirmacao, setModalConfirmacao] = useState({ isOpen: false, titulo: "", mensagem: "", acao: () => {} });
   
@@ -80,7 +90,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
         const snap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
         if (snap.exists()) {
           if (snap.data().data_prova) setGlobalDataProva(snap.data().data_prova);
-          if (snap.data().data_expiracao) setGlobalDataExpiracao(snap.data().data_expiracao);
+          if (snap.data().data_expiracao) setGlobalDataExpiracao(getDateOnlyString(snap.data().data_expiracao));
         }
       } catch (error) { console.error("Erro ao buscar ciclo atual", error); }
     };

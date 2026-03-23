@@ -32,7 +32,7 @@ const GestaoAulas = () => {
   // --- EXTRATOR DE FORÇA BRUTA (100% à prova de falhas) ---
   const extrairYoutubeId = (urlOuId: string) => {
     if (!urlOuId) return "";
-    let str = String(urlOuId).trim();
+    const str = String(urlOuId).trim();
 
     // Se o professor já colou apenas os 11 caracteres limpos
     if (str.length === 11 && !str.includes("/") && !str.includes("?")) return str;
@@ -57,9 +57,9 @@ const GestaoAulas = () => {
 
     // Regex de segurança caso seja um formato super obscuro
     const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|live\/|shorts\/))([\w-]{11})/);
-    if (match && match) return match;
+    if (match?.[1]) return match[1];
 
-    return str; // Retorna o que estava se nada funcionou
+    return "";
   };
 
   const limparFormulario = () => {
@@ -76,6 +76,11 @@ const GestaoAulas = () => {
     setIsPublishing(true);
     try {
       const youtubeIdFinal = extrairYoutubeId(youtubeInput);
+
+      if (youtubeIdFinal.length !== 11) {
+        toast.error("Não foi possível extrair um ID válido do YouTube. Cole a URL completa ou o ID de 11 caracteres.");
+        return;
+      }
       
       const dadosAula = {
         titulo,

@@ -92,6 +92,16 @@ const getDate = (value: unknown): Date => {
   return new Date();
 };
 
+const getDateOnlyString = (value: unknown): string => {
+  if (typeof value === "string") return value;
+
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+
+  return "";
+};
+
 const Aluno = () => {
   const navigate = useNavigate();
   const [perfilAluno, setPerfilAluno] = useState<PerfilAlunoData | null>(null);
@@ -112,7 +122,8 @@ const Aluno = () => {
       try {
         const docSnap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
         if (docSnap.exists() && docSnap.data().data_expiracao) {
-          const dataExp = docSnap.data().data_expiracao;
+          const dataExp = getDateOnlyString(docSnap.data().data_expiracao);
+          if (!dataExp) return;
           const [ano, mes, dia] = dataExp.split('-');
           setDataCorteVisual(`${dia}/${mes}/${ano}`);
           const hoje = new Date();

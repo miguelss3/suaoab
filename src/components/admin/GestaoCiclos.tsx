@@ -108,8 +108,7 @@ const GestaoCiclos = () => {
       await setDoc(cicloRef, {
         exame,
         data_prova: dataProva,
-        // CORREÇÃO 1: Adicionado para salvar como texto e evitar o erro do Array
-        data_expiracao: dataExp.toISOString().split('T'), 
+        data_expiracao: dataExp.toISOString().split('T')[0],
         vagas_totais: Number(vagasTotais),
         matriculados: matriculadosAtuais,
         vagas_restantes: vagasRestantesCalculadas,
