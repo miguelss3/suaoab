@@ -58,15 +58,21 @@ const Aula = () => {
       });
       
       setAulas(lista);
-      
-      // Define a primeira aula como ativa quando a playlist carregar.
-      if (lista.length > 0 && !aulaAtiva) {
-        setAulaAtiva(lista[0]); 
+
+      // Mantem a aula ativa sempre valida para nao ocultar a acao de "Marcar como Vista".
+      if (lista.length === 0) {
+        setAulaAtiva(null);
+        return;
+      }
+
+      const aulaAtivaAindaExiste = aulaAtiva && lista.some((aula: any) => aula.id === aulaAtiva.id);
+      if (!aulaAtivaAindaExiste) {
+        setAulaAtiva(lista[0]);
       }
     });
 
     return () => unsubAulas();
-  }, [aluno?.materia, aulaAtiva]); // aulaAtiva adicionada na dependência para garantir a leitura correta
+  }, [aluno?.materia, aulaAtiva]);
 
   // 3. Função para Marcar/Desmarcar Aula
   const toggleAulaAssistida = async (aulaId: string) => {

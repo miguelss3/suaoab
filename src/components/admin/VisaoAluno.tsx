@@ -235,7 +235,7 @@ const VisaoAluno = () => {
             
             <div className="p-4 border-b bg-muted/10 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-primary flex items-center gap-2">
-                <PlayCircle className="h-5 w-5 text-accent"/> Sala de Aula (Homologação)
+                <PlayCircle className="h-5 w-5 text-accent"/> Sala de Aula
               </h3>
               <Button variant="ghost" size="sm" onClick={() => setAulaSandboxVisivel(false)} className="hover:bg-destructive/10 hover:text-destructive">
                 <X className="h-5 w-5"/>
