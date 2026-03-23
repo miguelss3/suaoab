@@ -11,6 +11,7 @@ import { ADMIN_EMAIL } from "@/lib/constants";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
+import { normalizarEmail } from "@/lib/hotmart";
 import { toast } from "sonner";
 
 // Máscara do Telefone
@@ -51,6 +52,11 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
 
+  const reconciliarCompraHotmart = httpsCallable<{ email?: string }, { reconciliado: boolean; status?: string }>(
+    functionsClient,
+    "reconciliarCompraHotmart"
+  );
+
   const closeModal = () => {
     setShowAuthModal(false);
     setTimeout(() => setShowResetModal(false), 300); // Reseta a tela ao fechar
@@ -64,7 +70,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
     
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, resetEmail.trim());
+      await sendPasswordResetEmail(auth, normalizarEmail(resetEmail));
       toast.success("E-mail de recuperação enviado! Verifique sua caixa (e spam).");
       setShowResetModal(false); // Volta para a tela de login
     } catch {
@@ -78,7 +84,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
     e.preventDefault();
     setLoading(true);
     
-    const emailLimpo = email.trim();
+    const emailLimpo = normalizarEmail(email);
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(emailLimpo)) {
       toast.error("O E-mail inserido é inválido. Inclua o '@' e um domínio válido.");
@@ -89,6 +95,8 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
     try {
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, emailLimpo, password);
+        await setDoc(doc(db, "alunos", userCredential.user.uid), { email_normalizado: emailLimpo }, { merge: true });
+        await reconciliarCompraHotmart({ email: emailLimpo });
         toast.success("Acesso autorizado!");
         if (userCredential.user.email === ADMIN_EMAIL) navigate("/painel");
         else navigate("/aluno");
@@ -108,6 +116,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
           nome: nome,
           whatsapp: whatsapp,
           email: emailLimpo,
+          email_normalizado: emailLimpo,
           materia: materia, 
           matricula: novaMatricula, 
           status: "Lead",
@@ -123,7 +132,14 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
             concluida: false 
           }]
         });
+
+        const reconciliacao = await reconciliarCompraHotmart({ email: emailLimpo });
+        const statusFinal = reconciliacao.data?.status;
+
         toast.success(`Matrícula nº ${novaMatricula} criada com sucesso!`);
+        if (statusFinal === "premium") {
+          toast.success("Compra Hotmart localizada. Seu acesso premium foi liberado automaticamente.");
+        }
         navigate("/aluno");
       }
       closeModal();

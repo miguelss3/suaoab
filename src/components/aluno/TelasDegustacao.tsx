@@ -1,40 +1,15 @@
 // src/components/aluno/TelasDegustacao.tsx
 import { LogOut, Lock, CheckCircle2, ArrowRight, ShieldCheck, AlertOctagon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { HotmartCheckoutPerfil } from "@/lib/hotmart";
 
-// --- FUNÇÃO MÁGICA: PREENCHE O CHECKOUT DA HOTMART SOZINHO (AGORA COM DDD SEPARADO) ---
-const gerarLinkHotmart = (aluno: any) => {
-  const baseUrl = "https://pay.hotmart.com/Q104967483T"; // Seu link oficial
-  if (!aluno) return baseUrl;
-  
-  const params = new URLSearchParams();
-  if (aluno.nome) params.append("name", aluno.nome);
-  if (aluno.email) params.append("email", aluno.email);
-  
-  if (aluno.whatsapp) {
-    // 1. Limpa tudo que não for número (Remove parênteses, traços, espaços)
-    const foneLimpo = aluno.whatsapp.replace(/\D/g, '');
-    
-    // 2. Garante que tem pelo menos o tamanho de um DDD + Telefone (ex: 2199991234 tem 10 ou 11 dígitos)
-    if (foneLimpo.length >= 10) {
-      // Verifica se o aluno digitou o 55 do Brasil junto. Se sim, a gente ignora o 55.
-      const temCodigoPais = foneLimpo.startsWith("55") && foneLimpo.length >= 12;
-      
-      // Pega os 2 primeiros números como DDD (phoneac) e o resto como número (phonenumber)
-      const ddd = temCodigoPais ? foneLimpo.substring(2, 4) : foneLimpo.substring(0, 2);
-      const numero = temCodigoPais ? foneLimpo.substring(4) : foneLimpo.substring(2);
-      
-      params.append("phoneac", ddd);
-      params.append("phonenumber", numero);
-    }
-  }
-  
-  return `${baseUrl}?${params.toString()}`;
+type TelaBloqueioProps = {
+  perfilAluno: HotmartCheckoutPerfil | null;
+  handleLogout: () => Promise<void> | void;
+  checkoutUrl: string;
 };
 
-export const TelaBloqueio = ({ perfilAluno, handleLogout }: any) => {
-  const linkCheckout = gerarLinkHotmart(perfilAluno);
-
+export const TelaBloqueio = ({ perfilAluno, handleLogout, checkoutUrl }: TelaBloqueioProps) => {
   return (
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4 md:p-8">
       <div className="max-w-2xl w-full bg-card rounded-3xl p-10 shadow-elevated border-2 border-accent/20 text-center space-y-8 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
@@ -73,7 +48,7 @@ export const TelaBloqueio = ({ perfilAluno, handleLogout }: any) => {
           <p className="text-sm text-muted-foreground">Para retomar os seus estudos, conclua sua matrícula:</p>
           
           <a 
-            href={linkCheckout} 
+            href={checkoutUrl} 
             target="_blank" 
             rel="noopener noreferrer"
             className="w-full max-w-md inline-flex justify-center items-center gap-3 h-16 bg-accent hover:bg-accent/90 text-accent-foreground font-display font-black text-xl rounded-xl transition-all shadow-lg hover:shadow-accent/30 tracking-tight mx-auto"
@@ -96,8 +71,14 @@ export const TelaBloqueio = ({ perfilAluno, handleLogout }: any) => {
   );
 };
 
-export const BannerDegustacao = ({ tempoRestanteTexto, perfilAluno }: any) => {
-  const linkCheckout = gerarLinkHotmart(perfilAluno);
+type BannerDegustacaoProps = {
+  tempoRestanteTexto: string;
+  perfilAluno: HotmartCheckoutPerfil | null;
+  checkoutUrl: string;
+};
+
+export const BannerDegustacao = ({ tempoRestanteTexto, perfilAluno, checkoutUrl }: BannerDegustacaoProps) => {
+  void perfilAluno;
   
   // Deteta se a string contém "hora" ou "minuto", indicando menos de 1 dia.
   const isAcabando = tempoRestanteTexto.includes("hora") || tempoRestanteTexto.includes("minuto");
@@ -120,7 +101,7 @@ export const BannerDegustacao = ({ tempoRestanteTexto, perfilAluno }: any) => {
       </div>
       
       <Button asChild variant={isAcabando ? "destructive" : "hero"} className="w-full sm:w-auto shadow-lg whitespace-nowrap">
-        <a href={linkCheckout} target="_blank" rel="noopener noreferrer">
+        <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">
           Garantir Vaga Premium
         </a>
       </Button>

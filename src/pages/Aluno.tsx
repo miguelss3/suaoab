@@ -15,6 +15,7 @@ import { TelaBloqueio, BannerDegustacao } from "@/components/aluno/TelasDegustac
 import { GestorPecas } from "@/components/aluno/GestorPecas";
 import { GestorSimulados } from "@/components/aluno/GestorSimulados";
 import PerfilAluno from "@/components/aluno/PerfilAluno"; // NOVO IMPORT DO PERFIL
+import { DEFAULT_HOTMART_CHECKOUT_URL, gerarLinkHotmartComPrefill } from "@/lib/hotmart";
 
 type TimestampLike = {
   toDate?: () => Date;
@@ -28,9 +29,10 @@ type MetaAluno = {
 };
 
 type PerfilAlunoData = {
-  uid?: string;
+  uid: string;
   nome?: string;
   email?: string;
+  whatsapp?: string;
   matricula?: string;
   materia?: string;
   curso?: string;
@@ -58,7 +60,13 @@ type LaboratorioPeca = {
 
 type HistoricoPeca = {
   id: string;
+  nome_documento: string;
+  status?: string;
   data_envio?: TimestampLike;
+  url_audio_feedback?: string;
+  url_arquivo_corrigido?: string;
+  url_corrigida?: string;
+  observacao_professor?: string;
   [key: string]: unknown;
 };
 
@@ -116,6 +124,8 @@ const Aluno = () => {
   const [modalPreparacao, setModalPreparacao] = useState<MaterialPublicado | null>(null);
   const [isExpirado, setIsExpirado] = useState(false);
   const [dataCorteVisual, setDataCorteVisual] = useState("");
+  const [linkCheckout, setLinkCheckout] = useState(DEFAULT_HOTMART_CHECKOUT_URL);
+  const [linkRepescagem, setLinkRepescagem] = useState("");
 
   useEffect(() => {
     const verificarCiclo = async () => {
@@ -133,6 +143,27 @@ const Aluno = () => {
       } catch (error) { console.error(error); }
     };
     verificarCiclo();
+  }, []);
+
+  useEffect(() => {
+    const unsubOferta = onSnapshot(
+      doc(db, "configuracoes", "oferta_atual"),
+      (docSnap) => {
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
+        if (typeof data.link_checkout === "string" && data.link_checkout.trim()) {
+          setLinkCheckout(data.link_checkout);
+        }
+        if (typeof data.link_repescagem === "string") {
+          setLinkRepescagem(data.link_repescagem);
+        }
+      },
+      (error) => {
+        console.error("Erro ao carregar links Hotmart do aluno:", error);
+      }
+    );
+
+    return () => unsubOferta();
   }, []);
 
   useEffect(() => {
@@ -158,10 +189,20 @@ const Aluno = () => {
         
         const qHist = query(collection(db, "historico_pecas"), where("aluno_id", "==", user.uid));
         const unsubHist = onSnapshot(qHist, (snap) => {
-          const hist: HistoricoPeca[] = snap.docs.map((docItem) => ({
-            id: docItem.id,
-            ...(docItem.data() as Omit<HistoricoPeca, "id">),
-          }));
+          const hist = snap.docs.map((docItem): HistoricoPeca => {
+            const data = docItem.data() as Record<string, unknown>;
+
+            return {
+              id: docItem.id,
+              nome_documento: typeof data.nome_documento === "string" ? data.nome_documento : "",
+              status: typeof data.status === "string" ? data.status : undefined,
+              data_envio: data.data_envio as TimestampLike | undefined,
+              url_audio_feedback: typeof data.url_audio_feedback === "string" ? data.url_audio_feedback : undefined,
+              url_arquivo_corrigido: typeof data.url_arquivo_corrigido === "string" ? data.url_arquivo_corrigido : undefined,
+              url_corrigida: typeof data.url_corrigida === "string" ? data.url_corrigida : undefined,
+              observacao_professor: typeof data.observacao_professor === "string" ? data.observacao_professor : undefined,
+            };
+          });
 
           setHistorico(hist.sort((a, b) => getMillis(b.data_envio) - getMillis(a.data_envio)));
         });
@@ -245,8 +286,13 @@ const Aluno = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center font-display text-primary italic">Carregando Dossiê...</div>;
 
   if (perfilAluno?.status === "inativo" || (perfilAluno?.status === "Lead" && isDegustacaoExpirada)) {
-    return <TelaBloqueio perfilAluno={perfilAluno} handleLogout={handleLogout} />;
+    return <TelaBloqueio perfilAluno={perfilAluno} handleLogout={handleLogout} checkoutUrl={gerarLinkHotmartComPrefill(linkCheckout, perfilAluno)} />;
   }
+
+  const checkoutLeadUrl = gerarLinkHotmartComPrefill(linkCheckout, perfilAluno);
+  const checkoutRepescagemUrl = linkRepescagem
+    ? gerarLinkHotmartComPrefill(linkRepescagem, perfilAluno)
+    : "";
 
   return (
     <div className="min-h-screen bg-background text-foreground font-body relative pb-24">
@@ -271,7 +317,7 @@ const Aluno = () => {
         </div>
 
         {perfilAluno?.status === "Lead" && !isDegustacaoExpirada && (
-          <BannerDegustacao tempoRestanteTexto={tempoRestanteTexto} perfilAluno={perfilAluno} />
+          <BannerDegustacao tempoRestanteTexto={tempoRestanteTexto} perfilAluno={perfilAluno} checkoutUrl={checkoutLeadUrl} />
         )}
 
         {isExpirado ? (
@@ -281,7 +327,13 @@ const Aluno = () => {
             <p className="text-lg text-muted-foreground max-w-lg mb-8 leading-relaxed">O ciclo de estudos foi encerrado no dia <span className="font-bold text-foreground">{dataCorteVisual}</span>.</p>
             <div className="bg-card p-8 border border-border shadow-elevated rounded-2xl max-w-md w-full relative overflow-hidden">
               <h3 className="font-bold text-xl mb-3 flex items-center justify-center gap-2"><AlertCircle className="h-5 w-5 text-accent" /> Precisa de Repescagem?</h3>
-              <Button variant="hero" size="lg" className="w-full h-14 text-base" onClick={() => toast.success("Solicitação enviada ao seu mentor!")}>Solicitar Repescagem</Button>
+              {checkoutRepescagemUrl ? (
+                <Button variant="hero" size="lg" className="w-full h-14 text-base" asChild>
+                  <a href={checkoutRepescagemUrl} target="_blank" rel="noopener noreferrer">Abrir Checkout de Repescagem</a>
+                </Button>
+              ) : (
+                <Button variant="hero" size="lg" className="w-full h-14 text-base" onClick={() => toast.error("O link de repescagem ainda nao foi configurado no painel.")}>Solicitar Repescagem</Button>
+              )}
             </div>
           </div>
         ) : (

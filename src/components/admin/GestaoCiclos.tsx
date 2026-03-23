@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { calcularVagasVisiveis, countAlunosPremium } from "@/lib/ciclo";
+import { DEFAULT_HOTMART_CHECKOUT_URL } from "@/lib/hotmart";
 
 const GestaoCiclos = () => {
   const cicloRef = doc(db, "configuracoes", "ciclo_atual");
@@ -20,6 +21,7 @@ const GestaoCiclos = () => {
   
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
+  const [linkCheckout, setLinkCheckout] = useState(DEFAULT_HOTMART_CHECKOUT_URL);
   const [linkRepescagem, setLinkRepescagem] = useState(""); 
   
   const [loading, setLoading] = useState(false);
@@ -58,10 +60,12 @@ const GestaoCiclos = () => {
           const oferta = ofertaSnap.data();
           if (oferta.preco_original) setPrecoOriginal(oferta.preco_original);
           if (oferta.preco_atual) setPrecoAtual(oferta.preco_atual);
+          if (oferta.link_checkout) setLinkCheckout(oferta.link_checkout);
           if (oferta.link_repescagem) setLinkRepescagem(oferta.link_repescagem);
         } else {
           if (data.preco_original) setPrecoOriginal(data.preco_original);
           if (data.preco_atual) setPrecoAtual(data.preco_atual);
+          if (data.link_checkout) setLinkCheckout(data.link_checkout);
           if (data.link_repescagem) setLinkRepescagem(data.link_repescagem);
         }
 
@@ -118,6 +122,7 @@ const GestaoCiclos = () => {
       await setDoc(ofertaRef, {
         preco_original: precoOriginal,
         preco_atual: precoAtual,
+        link_checkout: linkCheckout,
         link_repescagem: linkRepescagem, 
         atualizado_em: new Date()
       }, { merge: true });
@@ -190,6 +195,19 @@ const GestaoCiclos = () => {
               </div>
             </div>
 
+            <div className="space-y-2 bg-muted/20 p-4 rounded-xl border border-border mb-4">
+              <Label className="text-sm font-bold flex items-center gap-2">
+                <LinkIcon className="h-4 w-4 text-muted-foreground" /> Link Principal do Checkout Hotmart
+              </Label>
+              <Input
+                placeholder="https://pay.hotmart.com/..."
+                value={linkCheckout}
+                onChange={(e) => setLinkCheckout(e.target.value)}
+                className="font-mono text-sm h-10"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Este link e usado pelos alunos Lead para concluir a compra premium na plataforma.</p>
+            </div>
+
             <div className="space-y-2 bg-muted/20 p-4 rounded-xl border border-border">
               <Label className="text-sm font-bold flex items-center gap-2">
                 <LinkIcon className="h-4 w-4 text-muted-foreground" /> Link Oculto (Hotmart) - Repescagem 50% OFF
@@ -200,7 +218,7 @@ const GestaoCiclos = () => {
                 onChange={(e) => setLinkRepescagem(e.target.value)} 
                 className="font-mono text-sm h-10" 
               />
-              <p className="text-xs text-muted-foreground mt-1">Este link não aparece no site. Você o copiará daqui para mandar ao aluno no WhatsApp após validar o comprovante dele.</p>
+              <p className="text-xs text-muted-foreground mt-1">Este link aparece apenas para alunos bloqueados pelo encerramento do ciclo ou em repescagem.</p>
             </div>
           </div>
 

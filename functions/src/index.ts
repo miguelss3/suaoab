@@ -1,6 +1,5 @@
 import * as admin from "firebase-admin";
-import { onCall } from "firebase-functions/v2/https";
-import { onRequest } from "firebase-functions/v2/https";
+import { onCall, onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 
 // Inicializa o acesso ao banco de dados
@@ -11,9 +10,138 @@ admin.initializeApp();
 //   firebase functions:secrets:set HOTMART_HOTTOK
 // E cole o token quando solicitado. Nunca coloque o valor diretamente aqui.
 const HOTTOK = defineSecret("HOTMART_HOTTOK");
+const db = admin.firestore();
+
+const HOTMART_REVERSAL_EVENTS = new Set([
+  "PURCHASE_CANCELED",
+  "PURCHASE_CANCELLED",
+  "PURCHASE_REFUNDED",
+  "PURCHASE_CHARGEBACK",
+  "SUBSCRIPTION_CANCELLATION",
+  "SUBSCRIPTION_CANCELED",
+]);
+
+const normalizeEmail = (email?: string | null) => (typeof email === "string" ? email.trim().toLowerCase() : "");
+
+const uniqueRefs = (refs: admin.firestore.DocumentReference[]) => {
+  const byPath = new Map<string, admin.firestore.DocumentReference>();
+  refs.forEach((ref) => byPath.set(ref.path, ref));
+  return [...byPath.values()];
+};
+
+const localizarAlunosPorEmail = async (email: string, emailOriginal?: string) => {
+  const alunosRef = db.collection("alunos");
+  const consultas = [alunosRef.where("email_normalizado", "==", email).get(), alunosRef.where("email", "==", email).get()];
+
+  if (emailOriginal && emailOriginal !== email) {
+    consultas.push(alunosRef.where("email", "==", emailOriginal).get());
+  }
+
+  const resultados = await Promise.all(consultas);
+  return uniqueRefs(resultados.flatMap((snapshot) => snapshot.docs.map((docSnap) => docSnap.ref)));
+};
+
+const atualizarStatusAlunosHotmart = async (
+  emailOriginal: string,
+  status: "premium" | "inativo",
+  ultimoEvento: string
+) => {
+  const emailNormalizado = normalizeEmail(emailOriginal);
+  if (!emailNormalizado) return 0;
+
+  const refs = await localizarAlunosPorEmail(emailNormalizado, emailOriginal);
+  if (refs.length === 0) return 0;
+
+  const batch = db.batch();
+  refs.forEach((ref) => {
+    batch.set(
+      ref,
+      {
+        status,
+        email_normalizado: emailNormalizado,
+        ultimo_evento_hotmart: ultimoEvento,
+        atualizado_em_hotmart: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+  await batch.commit();
+
+  return refs.length;
+};
+
+const registrarEventoHotmart = async (evento: string, email: string, payload: unknown) => {
+  await db.collection("hotmart_eventos").add({
+    evento,
+    email,
+    payload,
+    recebido_em: admin.firestore.FieldValue.serverTimestamp(),
+  });
+};
+
+const salvarPendenciaHotmart = async (
+  email: string,
+  statusDesejado: "premium" | "inativo",
+  evento: string,
+  payload: unknown
+) => {
+  if (!email) return;
+
+  await db.collection("hotmart_pendencias").doc(email).set(
+    {
+      email,
+      status_desejado: statusDesejado,
+      ultimo_evento: evento,
+      payload,
+      pendente: true,
+      atualizado_em: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+const concluirPendenciaHotmart = async (email: string, statusAplicado: string, origem: string) => {
+  if (!email) return;
+
+  await db.collection("hotmart_pendencias").doc(email).set(
+    {
+      pendente: false,
+      status_aplicado: statusAplicado,
+      resolvido_por: origem,
+      resolvido_em: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+const reconciliarPendenciaHotmart = async (emailInformado?: string | null, origem = "manual") => {
+  const email = normalizeEmail(emailInformado);
+  if (!email) {
+    return { reconciliado: false, status: undefined as string | undefined, quantidade: 0 };
+  }
+
+  const pendenciaRef = db.collection("hotmart_pendencias").doc(email);
+  const pendenciaSnap = await pendenciaRef.get();
+
+  if (!pendenciaSnap.exists) {
+    return { reconciliado: false, status: undefined as string | undefined, quantidade: 0 };
+  }
+
+  const pendencia = pendenciaSnap.data() as { status_desejado?: "premium" | "inativo"; pendente?: boolean } | undefined;
+  if (!pendencia?.pendente || !pendencia.status_desejado) {
+    return { reconciliado: false, status: pendencia?.status_desejado, quantidade: 0 };
+  }
+
+  const quantidade = await atualizarStatusAlunosHotmart(email, pendencia.status_desejado, `PENDENCIA_${origem.toUpperCase()}`);
+  if (quantidade > 0) {
+    await concluirPendenciaHotmart(email, pendencia.status_desejado, origem);
+    return { reconciliado: true, status: pendencia.status_desejado, quantidade };
+  }
+
+  return { reconciliado: false, status: pendencia.status_desejado, quantidade: 0 };
+};
 
 export const nextMatricula = onCall(async () => {
-  const db = admin.firestore();
   const counterRef = db.doc("configuracoes/contador_matricula");
   const currentYearFloor = Number(`${new Date().getFullYear()}000`);
 
@@ -38,6 +166,14 @@ export const nextMatricula = onCall(async () => {
   return { matricula };
 });
 
+export const reconciliarCompraHotmart = onCall(async (request) => {
+  const emailAuth = typeof request.auth?.token?.email === "string" ? request.auth.token.email : undefined;
+  const emailBody = typeof request.data?.email === "string" ? request.data.email : undefined;
+  const email = normalizeEmail(emailBody || emailAuth);
+
+  return reconciliarPendenciaHotmart(email, "cadastro");
+});
+
 export const hotmartWebhook = onRequest(
   { secrets: [HOTTOK] },
   async (req, res) => {
@@ -49,7 +185,8 @@ export const hotmartWebhook = onRequest(
 
     // 🔒 VERIFICAÇÃO DE SEGURANÇA: Garante que foi a Hotmart que enviou
     const hottokRecebido = req.headers["x-hotmart-hottok"];
-    if (hottokRecebido !== HOTTOK.value()) {
+    const hottokHeader = Array.isArray(hottokRecebido) ? hottokRecebido[0] : hottokRecebido;
+    if (hottokHeader !== HOTTOK.value()) {
       console.warn("Tentativa de invasão bloqueada: Hottok inválido.");
       res.status(401).send("Acesso não autorizado");
       return;
@@ -60,27 +197,38 @@ export const hotmartWebhook = onRequest(
         event?: string;
         data?: { buyer?: { email?: string } };
       };
+      const evento = String(dados.event || "");
+      const emailOriginal = dados.data?.buyer?.email || "";
+      const emailNormalizado = normalizeEmail(emailOriginal);
+
+      await registrarEventoHotmart(evento, emailNormalizado, dados);
+
+      if (!emailNormalizado) {
+        console.warn("Webhook Hotmart recebido sem e-mail do comprador.");
+        res.status(200).send("Recebido sem email");
+        return;
+      }
 
       // Verifica se o evento é de COMPRA APROVADA
-      if (dados.event === "PURCHASE_APPROVED") {
-        const emailDoAluno = dados.data?.buyer?.email;
+      if (evento === "PURCHASE_APPROVED") {
+        const atualizados = await atualizarStatusAlunosHotmart(emailOriginal, "premium", evento);
 
-        if (emailDoAluno) {
-          // Procura o aluno que acabou de se cadastrar no site
-          const alunosRef = admin.firestore().collection("alunos");
-          const snapshot = await alunosRef.where("email", "==", emailDoAluno).get();
+        if (atualizados > 0) {
+          await concluirPendenciaHotmart(emailNormalizado, "premium", "webhook");
+          console.log(`Sucesso: Aluno ${emailNormalizado} atualizado para premium!`);
+        } else {
+          await salvarPendenciaHotmart(emailNormalizado, "premium", evento, dados);
+          console.log(`Aviso: Compra aprovada para ${emailNormalizado} guardada como pendente.`);
+        }
+      } else if (HOTMART_REVERSAL_EVENTS.has(evento)) {
+        const atualizados = await atualizarStatusAlunosHotmart(emailOriginal, "inativo", evento);
 
-          if (!snapshot.empty) {
-            const batch = admin.firestore().batch();
-            snapshot.docs.forEach((doc) => {
-              // Destranca o acesso para premium
-              batch.update(doc.ref, { status: "premium" });
-            });
-            await batch.commit();
-            console.log(`Sucesso: Aluno ${emailDoAluno} atualizado para premium!`);
-          } else {
-            console.log(`Aviso: E-mail ${emailDoAluno} não encontrado. Ele pode ter pulado a etapa de cadastro.`);
-          }
+        if (atualizados > 0) {
+          await concluirPendenciaHotmart(emailNormalizado, "inativo", "webhook");
+          console.log(`Reversao Hotmart aplicada para ${emailNormalizado}.`);
+        } else {
+          await salvarPendenciaHotmart(emailNormalizado, "inativo", evento, dados);
+          console.log(`Aviso: Reversao Hotmart para ${emailNormalizado} guardada como pendente.`);
         }
       }
 
