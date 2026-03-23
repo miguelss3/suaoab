@@ -1,14 +1,18 @@
 // src/components/admin/GestaoCiclos.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from "firebase/firestore";
 import { CalendarDays, Save, AlertTriangle, Clock, Target, Users, Tag, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { calcularVagasVisiveis, countAlunosPremium } from "@/lib/ciclo";
 
 const GestaoCiclos = () => {
+  const cicloRef = doc(db, "configuracoes", "ciclo_atual");
+  const ofertaRef = doc(db, "configuracoes", "oferta_atual");
+
   const [exame, setExame] = useState("");
   const [dataProva, setDataProva] = useState("");
   const [vagasTotais, setVagasTotais] = useState<number | string>(50);
@@ -20,34 +24,64 @@ const GestaoCiclos = () => {
   
   const [loading, setLoading] = useState(false);
 
+  const sincronizarMatriculados = async () => {
+    const qAlunos = query(collection(db, "alunos"), where("status", "!=", "inativo"));
+    const snapAlunos = await getDocs(qAlunos);
+
+    const matriculadosAtuais = countAlunosPremium(
+      snapAlunos.docs.map((alunoDoc) => ({
+        id: alunoDoc.id,
+        ...(alunoDoc.data() as { email?: string; status?: string }),
+      }))
+    );
+
+    setAlunosAtivos(matriculadosAtuais);
+
+    return matriculadosAtuais;
+  };
+
   useEffect(() => {
     const fetchCiclo = async () => {
       try {
-        const docRef = doc(db, "configuracoes", "ciclo_atual");
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setExame(docSnap.data().exame || "");
-          setDataProva(docSnap.data().data_prova || "");
-          if (docSnap.data().vagas_totais) setVagasTotais(docSnap.data().vagas_totais);
-          if (docSnap.data().preco_original) setPrecoOriginal(docSnap.data().preco_original);
-          if (docSnap.data().preco_atual) setPrecoAtual(docSnap.data().preco_atual);
-          if (docSnap.data().link_repescagem) setLinkRepescagem(docSnap.data().link_repescagem);
+        const docSnap = await getDoc(cicloRef);
+        const ofertaSnap = await getDoc(ofertaRef);
+
+        if (!docSnap.exists()) return;
+
+        const data = docSnap.data();
+
+        setExame(data.exame || "");
+        setDataProva(data.data_prova || "");
+        if (data.vagas_totais) setVagasTotais(data.vagas_totais);
+
+        if (ofertaSnap.exists()) {
+          const oferta = ofertaSnap.data();
+          if (oferta.preco_original) setPrecoOriginal(oferta.preco_original);
+          if (oferta.preco_atual) setPrecoAtual(oferta.preco_atual);
+          if (oferta.link_repescagem) setLinkRepescagem(oferta.link_repescagem);
+        } else {
+          if (data.preco_original) setPrecoOriginal(data.preco_original);
+          if (data.preco_atual) setPrecoAtual(data.preco_atual);
+          if (data.link_repescagem) setLinkRepescagem(data.link_repescagem);
         }
 
-        const qPremium = query(collection(db, "alunos"), where("status", "in", ["premium", "Premium"]));
-        const snapPremium = await getDocs(qPremium);
-        
-        const ativosReais = snapPremium.docs.filter(doc => 
-          doc.id !== "admin_sandbox_uid" && 
-          doc.data().email !== "miguelss3@yahoo.com.br" &&
-          doc.data().email !== "sandbox@suaoab.com.br"
-        ).length;
+        const matriculadosAtuais = await sincronizarMatriculados();
+        const vagasRestantesCalculadas = calcularVagasVisiveis(data.vagas_totais, matriculadosAtuais);
 
-        setAlunosAtivos(ativosReais);
+        if (
+          Number(data.matriculados) !== matriculadosAtuais ||
+          Number(data.vagas_restantes) !== vagasRestantesCalculadas
+        ) {
+          await updateDoc(cicloRef, {
+            matriculados: matriculadosAtuais,
+            vagas_restantes: vagasRestantesCalculadas,
+          });
+        }
       } catch (error) {
         console.error("Erro ao carregar dados do ciclo", error);
       }
     };
+
     fetchCiclo();
   }, []);
 
@@ -56,26 +90,33 @@ const GestaoCiclos = () => {
       toast.error("Preencha o número do exame e a data da prova.");
       return;
     }
-    
-    if (Number(vagasTotais) < alunosAtivos) {
-      toast.error(`Você não pode ter menos vagas do que os ${alunosAtivos} alunos Premium atuais.`);
-      return;
-    }
 
     setLoading(true);
     try {
+      const matriculadosAtuais = await sincronizarMatriculados();
+
+      if (Number(vagasTotais) < matriculadosAtuais) {
+        toast.error(`Você não pode ter menos vagas do que os ${matriculadosAtuais} alunos Premium atuais.`);
+        return;
+      }
+
       const dataExp = new Date(dataProva + "T12:00:00");
       dataExp.setDate(dataExp.getDate() + 5);
 
-      const vagasRestantesCalculadas = Math.max(0, Number(vagasTotais) - alunosAtivos);
+      const vagasRestantesCalculadas = calcularVagasVisiveis(vagasTotais, matriculadosAtuais);
 
-      await setDoc(doc(db, "configuracoes", "ciclo_atual"), {
+      await setDoc(cicloRef, {
         exame,
         data_prova: dataProva,
         // CORREÇÃO 1: Adicionado para salvar como texto e evitar o erro do Array
         data_expiracao: dataExp.toISOString().split('T'), 
         vagas_totais: Number(vagasTotais),
+        matriculados: matriculadosAtuais,
         vagas_restantes: vagasRestantesCalculadas,
+        atualizado_em: new Date()
+      }, { merge: true });
+
+      await setDoc(ofertaRef, {
         preco_original: precoOriginal,
         preco_atual: precoAtual,
         link_repescagem: linkRepescagem, 
@@ -180,10 +221,13 @@ const GestaoCiclos = () => {
                 </div>
                 <div className="flex-1 bg-accent/10 border border-accent/20 p-3 rounded-lg text-center">
                   <p className="text-[10px] text-accent uppercase font-black tracking-widest mb-1">Visível no Site</p>
-                  <p className="text-2xl font-display font-black text-accent">{Math.max(0, Number(vagasTotais) - alunosAtivos)}</p>
+                  <p className="text-2xl font-display font-black text-accent">{calcularVagasVisiveis(vagasTotais, alunosAtivos)}</p>
                 </div>
               </div>
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Matriculados e vagas visiveis sao sincronizados automaticamente com a quantidade de alunos Premium no CRM. Esse valor nao depende de preenchimento manual.
+            </p>
           </div>
 
           <div className="bg-muted/30 p-5 rounded-lg border border-border flex items-start gap-4">

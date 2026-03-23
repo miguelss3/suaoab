@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Target, Scale, BarChart3, CheckCircle2, ArrowRight, Shield, Clock, Star, LifeBuoy } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
+import { calcularVagasVisiveis } from "@/lib/ciclo";
 import heroBg from "@/assets/hero-bg.jpg";
 
 import { AuthModal } from "@/components/index/AuthModal";
@@ -53,7 +54,6 @@ const imagesMobileDash = [
 const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  
   const [vagasRestantes, setVagasRestantes] = useState<number | null>(null);
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
@@ -65,34 +65,58 @@ const Index = () => {
   const meuWhatsApp = "5592994742322";
 
   useEffect(() => {
-    const carregarConfiguracoes = async () => {
-      try {
-        const configSnap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
-        
-        if (configSnap.exists()) {
-          const data = configSnap.data();
-          if (data.preco_original) setPrecoOriginal(data.preco_original);
-          if (data.preco_atual) setPrecoAtual(data.preco_atual);
-          
-          // Lógica de Leitura Segura:
-          // Se o professor adicionar manualmente o campo "vagas_restantes" no DB, ele usa esse número.
-          // Se não existir, ele puxa o "vagas_totais" para não exibir erro.
-          if (data.vagas_restantes !== undefined) {
-            setVagasRestantes(Number(data.vagas_restantes));
-          } else if (data.vagas_totais !== undefined) {
-            setVagasRestantes(Number(data.vagas_totais));
-          } else {
-            setVagasRestantes(0);
-          }
+    const toValidNumber = (value: unknown): number | null => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const unsubCiclo = onSnapshot(
+      doc(db, "configuracoes", "ciclo_atual"),
+      (configSnap) => {
+        if (!configSnap.exists()) {
+          setVagasRestantes(0);
+          return;
+        }
+
+        const data = configSnap.data();
+        const vagasRestantesLidas = toValidNumber(data.vagas_restantes);
+        const vagasTotaisLidas = toValidNumber(data.vagas_totais);
+        const matriculadosLidos = toValidNumber(data.matriculados);
+
+        if (vagasRestantesLidas !== null) {
+          setVagasRestantes(vagasRestantesLidas);
+        } else if (vagasTotaisLidas !== null && matriculadosLidos !== null) {
+          setVagasRestantes(calcularVagasVisiveis(vagasTotaisLidas, matriculadosLidos));
+        } else if (vagasTotaisLidas !== null) {
+          setVagasRestantes(vagasTotaisLidas);
         } else {
           setVagasRestantes(0);
         }
-      } catch (error) {
-        console.error("Erro ao carregar configurações da Index:", error);
+      },
+      (error) => {
+        console.error("Erro ao carregar vagas da Index:", error);
         setVagasRestantes(0);
       }
+    );
+
+    const unsubOferta = onSnapshot(
+      doc(db, "configuracoes", "oferta_atual"),
+      (ofertaSnap) => {
+        if (!ofertaSnap.exists()) return;
+
+        const data = ofertaSnap.data();
+        if (data.preco_original) setPrecoOriginal(data.preco_original);
+        if (data.preco_atual) setPrecoAtual(data.preco_atual);
+      },
+      (error) => {
+        console.error("Erro ao carregar preços da Index:", error);
+      }
+    );
+
+    return () => {
+      unsubCiclo();
+      unsubOferta();
     };
-    carregarConfiguracoes();
   }, []);
 
   // Intervalos automáticos
@@ -158,13 +182,12 @@ const Index = () => {
               </p>
             </motion.div>
 
-            {/* LÓGICA DE CARREGAMENTO DAS VAGAS */}
             {vagasRestantes === null ? (
               <motion.div variants={fadeUp} custom={1} className="h-24 sm:h-16 w-full max-w-xs sm:max-w-md bg-destructive/10 animate-pulse rounded-2xl sm:rounded-full border border-destructive/20 mx-auto"></motion.div>
             ) : vagasRestantes > 0 ? (
               <motion.div variants={fadeUp} custom={1} className="inline-flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 rounded-2xl sm:rounded-full bg-destructive/5 border-2 border-destructive/20 p-4 sm:px-8 sm:py-3 text-accent font-medium shadow-2xl sm:shadow-lg w-full sm:w-auto mx-auto">
                 <span className="text-sm lg:text-lg font-bold text-primary-foreground/70">⚠️ Restam apenas</span>
-                <span className="text-4xl sm:text-xl lg:text-3xl text-destructive font-black bg-destructive/10 sm:bg-transparent px-6 py-2 sm:px-0 rounded-xl uppercase tracking-wider my-1 sm:my-0">{vagasRestantes} {vagasRestantes === 1 ? 'vaga' : 'vagas'}</span>
+                <span className="text-4xl sm:text-xl lg:text-3xl text-destructive font-black bg-destructive/10 sm:bg-transparent px-6 py-2 sm:px-0 rounded-xl uppercase tracking-wider my-1 sm:my-0">{vagasRestantes} {vagasRestantes === 1 ? "vaga" : "vagas"}</span>
                 <span className="text-sm lg:text-lg font-bold text-primary-foreground/70">para correção artesanal</span>
               </motion.div>
             ) : (

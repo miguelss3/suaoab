@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { calcularVagasVisiveis, countAlunosPremium, normalizeAlunoStatus } from "@/lib/ciclo";
 import DossieAluno from "./DossieAluno"; 
 
 type MetaStatus = "bloqueada" | "liberada" | "concluida" | "pulada";
@@ -84,7 +85,7 @@ const AlunosCRM = () => {
   const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos') => {
     return alunos.filter(a => {
       const matchesSearch = a.nome?.toLowerCase().includes(busca.toLowerCase()) || a.email?.toLowerCase().includes(busca.toLowerCase());
-      const status = a.status?.toLowerCase() || "";
+      const status = normalizeAlunoStatus(a.status);
       let matchesStatus = false;
       if (filtro === 'premium') matchesStatus = status === "premium";
       else if (filtro === 'inativos') matchesStatus = status === "inativo";
@@ -144,25 +145,25 @@ const AlunosCRM = () => {
           }
         }
 
-        // 2. Sincronizar Vagas com o Index (Gatilho de Escassez Automático)
+        // 2. Sincronizar matriculados e vagas exibidas na landing
         const docRef = doc(db, "configuracoes", "ciclo_atual");
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
           const config = docSnap.data();
-          const vagasTotais = Number(config.vagas_totais || 0);
+          const matriculados = countAlunosPremium(
+            alunos.filter((aluno) => !calcularExpiracaoLead(aluno).expirado)
+          );
+          const vagasVisiveis = calcularVagasVisiveis(config.vagas_totais, matriculados);
 
-          const ativosReais = alunos.filter(a => 
-            (a.status?.trim().toLowerCase() === "premium") &&
-            a.id !== "admin_sandbox_uid" && 
-            a.email !== "miguelss3@yahoo.com.br" &&
-            a.email !== "sandbox@suaoab.com.br"
-          ).length;
-
-          const novasVagasRestantes = Math.max(0, vagasTotais - ativosReais);
-
-          if (Number(config.vagas_restantes) !== novasVagasRestantes) {
-            await updateDoc(docRef, { vagas_restantes: novasVagasRestantes });
+          if (
+            Number(config.matriculados) !== matriculados ||
+            Number(config.vagas_restantes) !== vagasVisiveis
+          ) {
+            await updateDoc(docRef, {
+              matriculados,
+              vagas_restantes: vagasVisiveis,
+            });
           }
         }
       } catch (error) {

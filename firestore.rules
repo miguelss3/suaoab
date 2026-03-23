@@ -61,11 +61,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ─── Configurações (inclui contador de matrícula) ───────────────────────
-    // Escritas feitas pelo admin SDK (Cloud Functions) — ignoram estas regras.
-    // Leitura restrita ao admin para segurança extra.
+    // ─── Configurações ───────────────────────────────────────────────────────
+    // A landing (Index) precisa ler ciclo_atual e oferta_atual sem login.
+    // Qualquer escrita continua restrita ao admin.
     match /configuracoes/{docId} {
-      allow read, write: if isAdmin();
+      allow read: if docId in ["ciclo_atual", "oferta_atual"] || isAdmin();
+      allow write: if isAdmin();
     }
 
     // ─── Fallback — nega tudo que não esteja explicitamente permitido ────────
