@@ -18,6 +18,7 @@ import GestaoPecas from "@/components/admin/GestaoPecas";
 import GestaoCiclos from "@/components/admin/GestaoCiclos"; 
 import GestaoAulas from "@/components/admin/GestaoAulas"; 
 import VisaoAluno from "@/components/admin/VisaoAluno";
+import AdminGraduacao from "@/components/admin/AdminGraduacao";
 
 const Painel = () => {
   const navigate = useNavigate();
@@ -96,6 +97,10 @@ const Painel = () => {
             <TabsTrigger value="ciclos" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <CalendarDays className="h-4 w-4"/> Ciclos e Prazos
             </TabsTrigger>
+
+            <TabsTrigger value="graduacao" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
+              <BookOpen className="h-4 w-4"/> Portal Graduação
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="sandbox"><VisaoAluno /></TabsContent>
@@ -107,6 +112,7 @@ const Painel = () => {
           <TabsContent value="motor"><MotorGerador /></TabsContent>
           <TabsContent value="materiais"><GestaoMateriais /></TabsContent>
           <TabsContent value="ciclos"><GestaoCiclos /></TabsContent>
+          <TabsContent value="graduacao"><AdminGraduacao /></TabsContent>
 
         </Tabs>
       </main>

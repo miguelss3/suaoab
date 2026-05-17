@@ -159,6 +159,11 @@ const Index = () => {
             SUA<span className="text-accent">OAB</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Link to="/portal-graduacao">
+              <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-white text-xs sm:text-sm h-9 px-3 sm:h-11 sm:px-4 hidden sm:flex">
+                Portal Graduação
+              </Button>
+            </Link>
             <Button variant="accent" onClick={() => openAuth(true)} className="h-9 px-4 text-xs sm:text-sm sm:h-11 sm:px-8">
               Área do Aluno
             </Button>
