@@ -39,6 +39,7 @@ import {
 } from "firebase/firestore";
 import { toast } from "sonner";
 import { Disciplina, MaterialAcademico } from "@/lib/academico";
+import { downloadProtectedPDF } from "@/lib/pdfService";
 
 interface PortalAcademicoProps {
   setShowAuthModal?: (value: boolean) => void;
@@ -131,6 +132,25 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
 
   const nomeExibicao =
     nomeUsuario.trim() || usuarioLogado?.displayName?.trim() || usuarioLogado?.email?.split("@")[0] || "Aluno";
+
+  const handleProtectedDownload = async (material: MaterialComData) => {
+    if (!material.urlDownload) {
+      toast.info("Este material ainda nao possui arquivo para download.");
+      return;
+    }
+
+    try {
+      await downloadProtectedPDF({
+        originalPdfUrl: material.urlDownload,
+        alunoNome: nomeExibicao,
+        alunoCpfOuEmail: usuarioLogado?.email || usuarioLogado?.uid,
+        fileName: material.titulo || "material-academico.pdf",
+      });
+      toast.success("Baixando material protegido...");
+    } catch {
+      toast.error("Nao foi possivel preparar o PDF protegido.");
+    }
+  };
 
   // --- MONITORA O ESTADO DE AUTENTICAÇÃO ---
   useEffect(() => {
@@ -279,7 +299,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     : null;
 
   // --- LÓGICA DE ABERTURA DE MATERIAL ---
-  const handleAbrirMaterial = (material: MaterialComData) => {
+  const handleAbrirMaterial = async (material: MaterialComData) => {
     if (material.isPremium && !usuarioLogado) {
       setShowAuthModal?.(true);
       toast.info("Faça login para acessar este material premium");
@@ -292,8 +312,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
       temAnexo && !temTexto && (material.tipo === "slide" || material.tipo === "prova");
 
     if (ehDownloadDireto && material.urlDownload) {
-      toast.success("Baixando material...");
-      window.open(material.urlDownload, "_blank");
+      await handleProtectedDownload(material);
       return;
     }
 
@@ -301,8 +320,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
       setMaterialLeituraSelecionado(material);
       toast.success(temAnexo ? "Acessando material..." : "Abrindo resumo...");
     } else if (material.urlDownload) {
-      toast.success("Baixando material...");
-      window.open(material.urlDownload, "_blank");
+      await handleProtectedDownload(material);
     } else {
       toast.info("Este material ainda não possui conteúdo disponível.");
     }
@@ -631,7 +649,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                 <Button
                   className="w-full gap-2"
                   size="lg"
-                  onClick={() => window.open(materialLeituraSelecionado.urlDownload, "_blank")}
+                  onClick={() => void handleProtectedDownload(materialLeituraSelecionado)}
                 >
                   <Download className="h-4 w-4" />
                   Baixar Arquivo

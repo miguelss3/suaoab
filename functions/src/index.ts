@@ -21,7 +21,31 @@ const HOTMART_REVERSAL_EVENTS = new Set([
   "SUBSCRIPTION_CANCELED",
 ]);
 
+const ALLOWED_STORAGE_BUCKETS = new Set(["sua-oab.firebasestorage.app", "sua-oab.appspot.com"]);
+
 const normalizeEmail = (email?: string | null) => (typeof email === "string" ? email.trim().toLowerCase() : "");
+
+const isAllowedStorageUrl = (value?: string) => {
+  if (!value) return false;
+
+  try {
+    const parsed = new URL(value);
+
+    if (parsed.protocol !== "https:") return false;
+
+    if (parsed.hostname === "firebasestorage.googleapis.com") {
+      return [...ALLOWED_STORAGE_BUCKETS].some((bucket) => parsed.pathname.includes(`/b/${bucket}/`));
+    }
+
+    if (parsed.hostname === "storage.googleapis.com") {
+      return [...ALLOWED_STORAGE_BUCKETS].some((bucket) => parsed.pathname.includes(`/${bucket}/`));
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+};
 
 const uniqueRefs = (refs: admin.firestore.DocumentReference[]) => {
   const byPath = new Map<string, admin.firestore.DocumentReference>();
@@ -164,6 +188,39 @@ export const nextMatricula = onCall(async () => {
   });
 
   return { matricula };
+});
+
+export const downloadPdfSource = onRequest({ cors: true }, async (req, res) => {
+  if (req.method !== "GET") {
+    res.status(405).send("Metodo nao permitido");
+    return;
+  }
+
+  const originalUrl = typeof req.query.url === "string" ? req.query.url : "";
+
+  if (!isAllowedStorageUrl(originalUrl)) {
+    res.status(400).send("URL de origem nao permitida");
+    return;
+  }
+
+  try {
+    const upstreamResponse = await fetch(originalUrl);
+
+    if (!upstreamResponse.ok) {
+      res.status(upstreamResponse.status).send("Falha ao obter PDF de origem");
+      return;
+    }
+
+    const arrayBuffer = await upstreamResponse.arrayBuffer();
+    const contentType = upstreamResponse.headers.get("content-type") || "application/pdf";
+
+    res.set("Cache-Control", "private, max-age=300");
+    res.set("Content-Type", contentType);
+    res.status(200).send(Buffer.from(arrayBuffer));
+  } catch (error) {
+    console.error("Erro ao obter PDF via proxy:", error);
+    res.status(500).send("Erro ao obter PDF");
+  }
 });
 
 export const reconciliarCompraHotmart = onCall(async (request) => {
