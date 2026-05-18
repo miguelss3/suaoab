@@ -29,6 +29,7 @@ interface AlunoCRM {
   id: string;
   nome: string;
   email?: string;
+  faseEstudo?: string;
   materia: string;
   matricula?: string;
   status?: string;
@@ -60,6 +61,40 @@ const AlunosCRM = () => {
     if (!metas || metas.length === 0) return 0;
     const concluidas = metas.filter(m => m.status === "concluida" || m.concluida === true).length;
     return Math.round((concluidas / metas.length) * 100);
+  };
+
+  const renderPerfilBadge = (faseEstudo?: string) => {
+    const faseNormalizada = faseEstudo?.trim().toLowerCase();
+
+    if (faseNormalizada === "estudante de graduação" || faseNormalizada === "graduacao") {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 bg-blue-100 text-blue-800">
+          Graduação
+        </span>
+      );
+    }
+
+    if (faseNormalizada?.includes("1ª fase") || faseNormalizada?.includes("1a fase") || faseNormalizada === "primeira_fase") {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 bg-emerald-100 text-emerald-800">
+          1ª Fase
+        </span>
+      );
+    }
+
+    if (faseNormalizada?.includes("2ª fase") || faseNormalizada?.includes("2a fase") || faseNormalizada === "segunda_fase") {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 bg-orange-100 text-orange-800">
+          2ª Fase
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 bg-gray-100 text-gray-800">
+        Perfil não informado
+      </span>
+    );
   };
 
 // src/components/admin/AlunosCRM.tsx (Trecho da função handleMudarStatus)
@@ -228,6 +263,7 @@ const AlunosCRM = () => {
                     <td className="px-4 sm:px-6 py-4 align-top">
                       <div className="font-bold text-primary">{aluno.nome}</div>
                       <div className="text-[10px] text-muted-foreground">{aluno.email}</div>
+                      {renderPerfilBadge(aluno.faseEstudo)}
                       <div className="text-[10px] font-black text-accent tracking-widest uppercase mt-0.5 mb-2">Matrícula: {aluno.matricula || "S/N"}</div>
                       
                       <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-2">
@@ -280,6 +316,7 @@ const AlunosCRM = () => {
                       <td className="px-4 sm:px-6 py-4 align-top">
                         <div className="font-bold text-primary">{aluno.nome}</div>
                         <div className="text-[10px] text-muted-foreground mb-2">{aluno.email}</div>
+                        {renderPerfilBadge(aluno.faseEstudo)}
                         
                         <div className="sm:hidden flex flex-col gap-1.5 mb-3">
                           <span className="text-[10px] font-bold text-muted-foreground">Matéria: {aluno.materia}</span>
@@ -329,6 +366,7 @@ const AlunosCRM = () => {
                       <td className="px-4 sm:px-6 py-4 align-top">
                         <div className="font-bold text-primary">{aluno.nome}</div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 mb-2">{aluno.email}</div>
+                        {renderPerfilBadge(aluno.faseEstudo)}
                         
                         <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-3">
                           Matéria: {aluno.materia}

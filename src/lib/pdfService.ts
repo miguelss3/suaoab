@@ -1,5 +1,6 @@
-import { PDFDocument, PDFImage, StandardFonts, degrees, rgb } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFImage, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
 import { functionsClient } from "@/lib/firebase";
+import heroBg from "@/assets/hero-bg.jpg";
 
 type DownloadProtectedPDFParams = {
   originalPdfUrl: string;
@@ -14,21 +15,29 @@ const sanitizeFileName = (value?: string) => {
   return withExtension.replace(/[\\/:*?"<>|]+/g, "-");
 };
 
-const normalizeIdentity = (value?: string) => {
-  const trimmed = value?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : "identificacao-nao-informada";
-};
-
 const LOGO_CANDIDATES = [
   "/logo.png",
   "/assets/logo.png",
   "https://raw.githubusercontent.com/miguelss3/suaoab/7e28a9712547ab2eb527663768a4662a304b619c/suaoab.png",
 ] as const;
 
+const PROMO_IMAGE_CANDIDATES = [
+  heroBg,
+  "https://raw.githubusercontent.com/miguelss3/suaoab/8a53302fe24efc4cc5b67e65927b2c7028614709/oab%20carteira.png",
+  "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/imagemcorrecao.png",
+] as const;
+
+const SYMBOL_CANDIDATES = [
+  "https://raw.githubusercontent.com/miguelss3/suaoab/e807c98a9df0bd4326f0f7d2f1db69ab8e82808f/suaoabnovosemfundo.png",
+] as const;
+
 type LogoAsset = {
   bytes: ArrayBuffer;
   format: "png" | "jpg";
 };
+
+const ASSET_FETCH_TIMEOUT_MS = 1800;
+const imageAssetCache = new Map<string, Promise<LogoAsset | null>>();
 
 type RenderableText = {
   content: string;
@@ -63,11 +72,44 @@ const createRoundedRectPath = (x: number, y: number, width: number, height: numb
   ].join(" ");
 };
 
+const inferImageFormat = (assetUrl: string): "png" | "jpg" =>
+  /\.jpe?g($|\?)/i.test(assetUrl) ? "jpg" : "png";
+
 const toAsciiFallback = (value: string) =>
   value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/ß/g, "ss");
+
+const wrapText = (font: PDFFontLike, text: string, size: number, maxWidth: number) => {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+      currentLine = candidate;
+      continue;
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    currentLine = word;
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return lines;
+};
+
+const getImageFit = (image: PDFImage, maxWidth: number, maxHeight: number) => {
+  const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+  return image.scale(scale);
+};
 
 const getRenderableText = (font: PDFFontLike, text: string, size: number): RenderableText => {
   try {
@@ -82,15 +124,25 @@ type PDFFontLike = {
   widthOfTextAtSize: (text: string, size: number) => number;
 };
 
-const loadLogoAsset = async (): Promise<LogoAsset | null> => {
-  for (const logoUrl of LOGO_CANDIDATES) {
+const loadImageAsset = async (candidates: readonly string[]): Promise<LogoAsset | null> => {
+  const cacheKey = candidates.join("|");
+  const cachedAsset = imageAssetCache.get(cacheKey);
+  if (cachedAsset) {
+    return cachedAsset;
+  }
+
+  const assetPromise = (async () => {
+  for (const assetUrl of candidates) {
     try {
-      const response = await fetch(logoUrl);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), ASSET_FETCH_TIMEOUT_MS);
+      const response = await fetch(assetUrl, { signal: controller.signal, cache: "force-cache" });
+      window.clearTimeout(timeoutId);
       if (!response.ok) continue;
 
       return {
         bytes: await response.arrayBuffer(),
-        format: logoUrl.toLowerCase().endsWith(".jpg") || logoUrl.toLowerCase().endsWith(".jpeg") ? "jpg" : "png",
+        format: inferImageFormat(assetUrl),
       };
     } catch {
       continue;
@@ -98,11 +150,61 @@ const loadLogoAsset = async (): Promise<LogoAsset | null> => {
   }
 
   return null;
+  })();
+
+  imageAssetCache.set(cacheKey, assetPromise);
+  return assetPromise;
 };
 
-const embedLogoImage = async (pdfDoc: PDFDocument, logoAsset: LogoAsset | null): Promise<PDFImage | null> => {
-  if (!logoAsset) return null;
-  return logoAsset.format === "jpg" ? pdfDoc.embedJpg(logoAsset.bytes) : pdfDoc.embedPng(logoAsset.bytes);
+const loadLogoAsset = () => loadImageAsset(LOGO_CANDIDATES);
+
+const loadPromoImageAsset = () => loadImageAsset(PROMO_IMAGE_CANDIDATES);
+
+const loadSymbolAsset = () => loadImageAsset(SYMBOL_CANDIDATES);
+
+void loadLogoAsset();
+void loadPromoImageAsset();
+void loadSymbolAsset();
+
+const embedImageAsset = async (pdfDoc: PDFDocument, imageAsset: LogoAsset | null): Promise<PDFImage | null> => {
+  if (!imageAsset) return null;
+  return imageAsset.format === "jpg" ? pdfDoc.embedJpg(imageAsset.bytes) : pdfDoc.embedPng(imageAsset.bytes);
+};
+
+const addLinkAnnotation = (
+  pdfDoc: PDFDocument,
+  page: { ref: unknown },
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  url: string
+) => {
+  const linkAnnotation = pdfDoc.context.obj({
+    Type: "Annot",
+    Subtype: "Link",
+    Rect: [x, y, x + width, y + height],
+    Border: [0, 0, 0],
+    C: [0, 0, 0],
+    A: {
+      Type: "Action",
+      S: "URI",
+      URI: PDFString.of(url),
+    },
+  });
+
+  const linkAnnotationRef = pdfDoc.context.register(linkAnnotation);
+  const pageNode = pdfDoc.context.lookup(page.ref as never) as PDFDict;
+  const annotsKey = PDFName.of("Annots");
+  const existingAnnots = pageNode.get(annotsKey);
+
+  if (existingAnnots instanceof PDFArray) {
+    existingAnnots.push(linkAnnotationRef);
+    return;
+  }
+
+  const annots = pdfDoc.context.obj([linkAnnotationRef]);
+  pageNode.set(annotsKey, annots);
 };
 
 const getPdfProxyUrl = (originalPdfUrl: string) => {
@@ -113,7 +215,12 @@ const getPdfProxyUrl = (originalPdfUrl: string) => {
   return proxyUrl.toString();
 };
 
-const appendMarketingPage = async (pdfDoc: PDFDocument, logoImage: PDFImage | null) => {
+const appendMarketingPage = async (
+  pdfDoc: PDFDocument,
+  logoImage: PDFImage | null,
+  promoImage: PDFImage | null,
+  symbolImage: PDFImage | null
+) => {
   const referencePage = pdfDoc.getPages()[0];
   const referenceSize = referencePage?.getSize();
   const page = referenceSize ? pdfDoc.addPage([referenceSize.width, referenceSize.height]) : pdfDoc.addPage();
@@ -122,6 +229,7 @@ const appendMarketingPage = async (pdfDoc: PDFDocument, logoImage: PDFImage | nu
   const titleFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const ctaFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const eyebrowFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   page.drawRectangle({
     x: 0,
@@ -141,8 +249,15 @@ const appendMarketingPage = async (pdfDoc: PDFDocument, logoImage: PDFImage | nu
     opacity: 1,
   });
 
-  const contentTop = height - margin - 42;
-  const logoScale = logoImage ? Math.min((width * 0.28) / logoImage.width, 0.35) : 0;
+  page.drawLine({
+    start: { x: margin + 8, y: height - margin - 10 },
+    end: { x: width - margin - 8, y: height - margin - 10 },
+    thickness: 2,
+    color: COLORS.bronze,
+  });
+
+  const contentTop = height - margin - 52;
+  const logoScale = logoImage ? Math.min((width * 0.24) / logoImage.width, 0.32) : 0;
   const logoDims = logoImage ? logoImage.scale(logoScale) : null;
   const logoY = contentTop - (logoDims?.height || 0);
 
@@ -155,14 +270,25 @@ const appendMarketingPage = async (pdfDoc: PDFDocument, logoImage: PDFImage | nu
     });
   }
 
+  const eyebrow = getRenderableText(eyebrowFont, "PLATAFORMA OFICIAL SUAOAB", 10);
+  const eyebrowWidth = eyebrowFont.widthOfTextAtSize(eyebrow.content, 10);
   const title = getRenderableText(titleFont, "MÉTODO ESTRATÉGICO OAB", 24);
-  const subtitle = getRenderableText(bodyFont, "A rota mais segura e matemática para conquistar a sua carteira da Ordem.", 13);
+  const subtitle = getRenderableText(bodyFont, "A rota mais segura e matemática até a aprovação do Exame da OAB.", 13);
   const titleSize = 24;
   const subtitleSize = 13;
+  const eyebrowY = (logoDims ? logoY - 26 : contentTop + 10);
   const titleWidth = titleFont.widthOfTextAtSize(title.content, titleSize);
   const subtitleWidth = bodyFont.widthOfTextAtSize(subtitle.content, subtitleSize);
-  const titleY = (logoDims ? logoY - 50 : contentTop - 20);
+  const titleY = eyebrowY - 26;
   const subtitleY = titleY - 30;
+
+  page.drawText(eyebrow.content, {
+    x: width / 2 - eyebrowWidth / 2,
+    y: eyebrowY,
+    size: 10,
+    font: eyebrowFont,
+    color: COLORS.bronze,
+  });
 
   page.drawText(title.content, {
     x: width / 2 - titleWidth / 2,
@@ -188,28 +314,174 @@ const appendMarketingPage = async (pdfDoc: PDFDocument, logoImage: PDFImage | nu
     opacity: 0.9,
   });
 
-  const ctaText = getRenderableText(ctaFont, "FAÇA SUA PRÉ-RESERVA EM SUAOAB.COM.BR", 12);
-  const ctaFontSize = 12;
-  const ctaPaddingX = 26;
-  const ctaHeight = 42;
-  const ctaTextWidth = ctaFont.widthOfTextAtSize(ctaText.content, ctaFontSize);
-  const ctaWidth = ctaTextWidth + ctaPaddingX * 2;
-  const ctaX = width / 2 - ctaWidth / 2;
-  const ctaY = height * 0.22;
-  const ctaRadius = 12;
+  const siteText = getRenderableText(bodyFont, "www.suaoab.com.br", 12);
+  const siteWidth = bodyFont.widthOfTextAtSize(siteText.content, 12);
 
-  page.drawSvgPath(createRoundedRectPath(ctaX, ctaY, ctaWidth, ctaHeight, ctaRadius), {
-    color: COLORS.bronze,
-    borderColor: COLORS.bronze,
+  const contentCardX = margin + 40;
+  const contentCardY = height * 0.33;
+  const contentCardWidth = width - (margin + 40) * 2;
+  const contentCardHeight = 210;
+
+  page.drawRectangle({
+    x: contentCardX,
+    y: contentCardY,
+    width: contentCardWidth,
+    height: contentCardHeight,
+    color: COLORS.white,
+    borderColor: COLORS.bronzeSoft,
+    borderWidth: 1,
+  });
+
+  const imagePanelX = contentCardX + 14;
+  const imagePanelY = contentCardY + 14;
+  const imagePanelWidth = contentCardWidth * 0.55;
+  const imagePanelHeight = contentCardHeight - 28;
+  const textPanelX = imagePanelX + imagePanelWidth + 20;
+  const textPanelWidth = contentCardX + contentCardWidth - 16 - textPanelX;
+
+  page.drawRectangle({
+    x: imagePanelX,
+    y: imagePanelY,
+    width: imagePanelWidth,
+    height: imagePanelHeight,
+    color: rgb(0.98, 0.97, 0.95),
+  });
+
+  if (promoImage) {
+    const promoDims = getImageFit(promoImage, imagePanelWidth - 16, imagePanelHeight - 16);
+    page.drawImage(promoImage, {
+      x: imagePanelX + (imagePanelWidth - promoDims.width) / 2,
+      y: imagePanelY + (imagePanelHeight - promoDims.height) / 2,
+      width: promoDims.width,
+      height: promoDims.height,
+    });
+  }
+
+  const imageTagWidth = 186;
+  const imageTagHeight = 28;
+  const imageTagX = imagePanelX + 14;
+  const imageTagY = imagePanelY + imagePanelHeight - imageTagHeight - 14;
+
+  page.drawRectangle({
+    x: imageTagX,
+    y: imageTagY,
+    width: imageTagWidth,
+    height: imageTagHeight,
+    color: COLORS.navy,
+    borderColor: COLORS.navy,
+    borderWidth: 1,
+  });
+
+  const imageCaption = getRenderableText(eyebrowFont, "Foco 100% no Padrão FGV", 9);
+  page.drawText(imageCaption.content, {
+    x: imageTagX + 12,
+    y: imageTagY + 10,
+    size: 9,
+    font: eyebrowFont,
+    color: COLORS.white,
+  });
+
+  const messageTitleSize = 20;
+  const messageBodySize = 11;
+  const messageQuoteSize = 12;
+  const messageTitle = getRenderableText(titleFont, "O maior erro é estudar o que não cai.", messageTitleSize);
+  const messageTitleLines = wrapText(titleFont, messageTitle.content, messageTitleSize, textPanelWidth);
+  const messageBody = getRenderableText(
+    bodyFont,
+    "Pare de perder tempo com materiais infinitos. Domine o padrão de cobrança da FGV com um método enxuto, previsível e focado no que realmente garante a sua carteira.",
+    messageBodySize
+  );
+  const messageBodyLines = wrapText(bodyFont, messageBody.content, messageBodySize, textPanelWidth);
+  const messageQuote = getRenderableText(bodyFont, '"A sua aprovação é uma questão de matemática e estratégia."', messageQuoteSize);
+  const messageQuoteLines = wrapText(bodyFont, messageQuote.content, messageQuoteSize, textPanelWidth);
+
+  let textCursorY = contentCardY + contentCardHeight - 40;
+  for (const line of messageTitleLines.slice(0, 3)) {
+    const lineWidth = titleFont.widthOfTextAtSize(line, messageTitleSize);
+    page.drawText(line, {
+      x: textPanelX + (textPanelWidth - lineWidth) / 2,
+      y: textCursorY,
+      size: messageTitleSize,
+      font: titleFont,
+      color: COLORS.navy,
+    });
+    textCursorY -= 24;
+  }
+
+  textCursorY -= 10;
+  for (const line of messageBodyLines.slice(0, 5)) {
+    const lineWidth = bodyFont.widthOfTextAtSize(line, messageBodySize);
+    page.drawText(line, {
+      x: textPanelX + (textPanelWidth - lineWidth) / 2,
+      y: textCursorY,
+      size: messageBodySize,
+      font: bodyFont,
+      color: COLORS.graphite,
+    });
+    textCursorY -= 15;
+  }
+
+  textCursorY -= 10;
+  for (const line of messageQuoteLines.slice(0, 3)) {
+    const lineWidth = bodyFont.widthOfTextAtSize(line, messageQuoteSize);
+    page.drawText(line, {
+      x: textPanelX + (textPanelWidth - lineWidth) / 2,
+      y: textCursorY,
+      size: messageQuoteSize,
+      font: bodyFont,
+      color: COLORS.bronze,
+    });
+    textCursorY -= 15;
+  }
+
+  const ctaText = getRenderableText(ctaFont, "CLIQUE AQUI E GARANTA SUA VAGA NA MENTORIA", 12);
+  const ctaFontSize = 12;
+  const ctaWidth = 400;
+  const ctaHeight = 45;
+  const ctaTextWidth = ctaFont.widthOfTextAtSize(ctaText.content, ctaFontSize);
+  const ctaX = width / 2 - 200;
+  const siteY = margin + 12;
+  const symbolY = margin + 32;
+  const symbolMaxWidth = 160;
+  const symbolMaxHeight = 70;
+  const symbolDims = symbolImage ? getImageFit(symbolImage, symbolMaxWidth, symbolMaxHeight) : null;
+  const ctaY = symbolY + (symbolDims?.height || 0) + 30;
+
+  page.drawRectangle({
+    x: ctaX,
+    y: ctaY,
+    width: ctaWidth,
+    height: ctaHeight,
+    color: rgb(0.77, 0.63, 0.35),
+    borderColor: rgb(0.77, 0.63, 0.35),
     borderWidth: 1,
   });
 
   page.drawText(ctaText.content, {
-    x: width / 2 - ctaTextWidth / 2,
-    y: ctaY + (ctaHeight - ctaFontSize) / 2 + 1,
+    x: ctaX + (ctaWidth - ctaTextWidth) / 2,
+    y: ctaY + (ctaHeight - ctaFontSize) / 2 + 2,
     size: ctaFontSize,
     font: ctaFont,
     color: COLORS.white,
+  });
+
+  addLinkAnnotation(pdfDoc, page, ctaX, ctaY, ctaWidth, ctaHeight, "https://suaoab.com.br");
+
+  if (symbolImage && symbolDims) {
+    page.drawImage(symbolImage, {
+      x: width / 2 - symbolDims.width / 2,
+      y: symbolY,
+      width: symbolDims.width,
+      height: symbolDims.height,
+    });
+  }
+
+  page.drawText(siteText.content, {
+    x: width / 2 - siteWidth / 2,
+    y: siteY,
+    size: 12,
+    font: bodyFont,
+    color: COLORS.navy,
   });
 };
 
@@ -221,7 +493,7 @@ const appendFallbackMarketingPage = async (pdfDoc: PDFDocument) => {
   const titleFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const title = "METODO ESTRATEGICO OAB";
-  const subtitle = "A rota mais segura e matematica para conquistar a sua carteira da Ordem.";
+  const subtitle = "A rota mais segura e matematica ate a aprovacao do Exame da OAB.";
   const cta = "FACA SUA PRE-RESERVA EM SUAOAB.COM.BR";
 
   page.drawRectangle({ x: 0, y: 0, width, height, color: COLORS.offWhite });
@@ -258,12 +530,12 @@ const appendFallbackMarketingPage = async (pdfDoc: PDFDocument) => {
 
 export const downloadProtectedPDF = async ({
   originalPdfUrl,
-  alunoNome,
-  alunoCpfOuEmail,
   fileName,
 }: DownloadProtectedPDFParams) => {
-  const [logoAsset, response] = await Promise.all([
+  const [logoAsset, promoImageAsset, symbolAsset, response] = await Promise.all([
     loadLogoAsset(),
+    loadPromoImageAsset(),
+    loadSymbolAsset(),
     fetch(getPdfProxyUrl(originalPdfUrl)),
   ]);
 
@@ -274,39 +546,12 @@ export const downloadProtectedPDF = async ({
 
   const originalPdfBytes = await response.arrayBuffer();
   const pdfDoc = await PDFDocument.load(originalPdfBytes);
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const logoImage = await embedLogoImage(pdfDoc, logoAsset).catch(() => null);
-
-  const licensedTo = `Licenciado para: ${normalizeIdentity(alunoNome)} - ${normalizeIdentity(alunoCpfOuEmail)}`;
-
-  for (const page of pdfDoc.getPages()) {
-    const { width, height } = page.getSize();
-    const watermarkSize = Math.max(22, Math.min(width, height) / 18);
-    const footerSize = 10;
-
-    page.drawText(licensedTo, {
-      x: width * 0.12,
-      y: height * 0.45,
-      size: watermarkSize,
-      rotate: degrees(35),
-      font: helveticaBold,
-      color: rgb(0.75, 0.12, 0.12),
-      opacity: 0.12,
-    });
-
-    page.drawText(licensedTo, {
-      x: 24,
-      y: 18,
-      size: footerSize,
-      font: helvetica,
-      color: rgb(0.25, 0.25, 0.25),
-      opacity: 0.85,
-    });
-  }
+  const logoImage = await embedImageAsset(pdfDoc, logoAsset).catch(() => null);
+  const promoImage = await embedImageAsset(pdfDoc, promoImageAsset).catch(() => null);
+  const symbolImage = await embedImageAsset(pdfDoc, symbolAsset).catch(() => null);
 
   try {
-    await appendMarketingPage(pdfDoc, logoImage);
+    await appendMarketingPage(pdfDoc, logoImage, promoImage, symbolImage);
   } catch (error) {
     console.error("Falha ao gerar pagina premium do PDF. Aplicando fallback.", error);
     await appendFallbackMarketingPage(pdfDoc);
