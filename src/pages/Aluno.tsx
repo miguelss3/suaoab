@@ -241,7 +241,13 @@ const Aluno = () => {
         ...(d.data() as Omit<MaterialPublicado, "id">),
       }));
 
-      docs.sort((a, b) => getMillis(b.data_publicacao) - getMillis(a.data_publicacao));
+      // Ordena pelo campo `ordem` (definido pelo professor). Sem `ordem` -> fim, com data desc como fallback.
+      docs.sort((a: any, b: any) => {
+        const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
+        const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
+        if (oa !== ob) return oa - ob;
+        return getMillis(b.data_publicacao) - getMillis(a.data_publicacao);
+      });
       setCadernos(docs.filter((d) => d.tipo === "Caderno"));
       setSimulados(docs.filter((d) => d.tipo === "Simulado"));
     });

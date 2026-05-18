@@ -20,8 +20,6 @@ import {
   FileText,
   Presentation,
   ClipboardList,
-  Instagram,
-  MessageCircle,
   Star,
   Users,
 } from "lucide-react";
@@ -252,10 +250,16 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
 
         const novosMateriais = new Map<string, MaterialComData[]>();
         disciplinas.forEach((disc) => {
-          novosMateriais.set(
-            disc.id,
-            listaMateriais.filter((material) => materialPertenceADisciplina(material, disc))
-          );
+          const filtrados = listaMateriais
+            .filter((material) => materialPertenceADisciplina(material, disc))
+            .sort((a: any, b: any) => {
+              // Ordena pelo campo `ordem` definido pelo professor no Painel Admin.
+              // Itens sem `ordem` vão pro final (mantém ordem por data desc como fallback).
+              const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
+              const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
+              return oa - ob;
+            });
+          novosMateriais.set(disc.id, filtrados);
         });
 
         setMateriais(novosMateriais);
@@ -737,24 +741,18 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
 
               <div className="flex items-center gap-3">
                 <a
-                  href={usuarioEhGraduacao ? linkWhatsAppGraduacao : linkWhatsAppPadrao}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Falar no WhatsApp"
-                  title="WhatsApp"
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 transition-all hover:scale-105 hover:bg-emerald-100"
-                >
-                  <MessageCircle className="h-7 w-7" />
-                </a>
-                <a
                   href={linkInstagram}
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Abrir Instagram @prof.luizmiguel"
                   title="Instagram @prof.luizmiguel"
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-fuchsia-200 bg-gradient-to-br from-fuchsia-100 via-rose-100 to-orange-100 text-fuchsia-600 transition-all hover:scale-105 hover:from-fuchsia-200 hover:via-rose-200 hover:to-orange-200"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full transition-all hover:scale-105"
                 >
-                  <Instagram className="h-7 w-7" />
+                  <img
+                    src="https://raw.githubusercontent.com/miguelss3/suaoab/7720736cf004090c7a0d66f33b0060358abca74c/Instagram_icon.png"
+                    alt="Instagram"
+                    className="h-10 w-10 object-contain"
+                  />
                 </a>
               </div>
             </div>
@@ -791,7 +789,11 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-4">
             <div className="rounded-lg bg-primary/10 p-2">
-              <BookOpen className="w-6 h-6 text-primary" />
+              <img
+                src="https://raw.githubusercontent.com/miguelss3/suaoab/e807c98a9df0bd4326f0f7d2f1db69ab8e82808f/suaoabnovosemfundo.png"
+                alt="SuaOAB"
+                className="w-10 h-10 object-contain"
+              />
             </div>
             <div className="flex-1">
               <h1 className="text-3xl font-bold">Portal da Graduação</h1>

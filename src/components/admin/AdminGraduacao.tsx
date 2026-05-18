@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { db, storage } from "@/lib/firebase";
 import {
   addDoc,
@@ -9,9 +9,23 @@ import {
   orderBy,
   query,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
-import { BookOpen, GraduationCap, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
+  GraduationCap,
+  GripVertical,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +52,7 @@ type MaterialForm = {
 };
 
 type FirestoreDisciplina = Disciplina;
-type FirestoreMaterial = MaterialAcademico;
+type FirestoreMaterial = MaterialAcademico & { ordem?: number };
 
 const initialDisciplinaForm: DisciplinaForm = {
   nome: "",
@@ -67,6 +81,11 @@ const AdminGraduacao = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadFeedback, setUploadFeedback] = useState("");
+
+  // Acordão (todos fechados por padrão) e DnD
+  const [abertos, setAbertos] = useState<Record<string, boolean>>({});
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const draggedRef = useRef<{ id: string; disciplinaId: string } | null>(null);
 
   const disciplinasAtivas = useMemo(
     () => disciplinas.filter((d) => d.status === "ativa"),
@@ -287,6 +306,104 @@ const AdminGraduacao = () => {
 
   const nomeDisciplina = (disciplinaId: string) => {
     return disciplinas.find((d) => d.id === disciplinaId)?.nome || "Disciplina não encontrada";
+  };
+
+  // --- AGRUPAMENTO POR DISCIPLINA + ORDENAÇÃO POR `ordem` ---
+  const materiaisPorDisciplina = useMemo(() => {
+    const map = new Map<string, FirestoreMaterial[]>();
+    for (const m of materiais) {
+      const chave = m.disciplinaId || "__sem_disciplina__";
+      if (!map.has(chave)) map.set(chave, []);
+      map.get(chave)!.push(m);
+    }
+    for (const [k, lista] of map) {
+      lista.sort((a, b) => {
+        const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
+        const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
+        return oa - ob;
+      });
+      map.set(k, lista);
+    }
+    return map;
+  }, [materiais]);
+
+  // Ordem de exibição dos grupos: disciplinas (alfabético por nome) + bucket "sem disciplina" no fim
+  const gruposOrdenados = useMemo(() => {
+    const ordenadas = [...disciplinas].sort((a, b) => a.nome.localeCompare(b.nome));
+    const grupos: { chave: string; titulo: string; lista: FirestoreMaterial[] }[] = [];
+    for (const d of ordenadas) {
+      const lista = materiaisPorDisciplina.get(d.id) || [];
+      if (lista.length > 0) {
+        grupos.push({ chave: d.id, titulo: d.nome, lista });
+      }
+    }
+    const orfaos = materiaisPorDisciplina.get("__sem_disciplina__");
+    if (orfaos && orfaos.length > 0) {
+      grupos.push({ chave: "__sem_disciplina__", titulo: "Sem disciplina", lista: orfaos });
+    }
+    return grupos;
+  }, [disciplinas, materiaisPorDisciplina]);
+
+  const toggleGrupo = (chave: string) => {
+    setAbertos((prev) => ({ ...prev, [chave]: !prev[chave] }));
+  };
+
+  // --- DRAG AND DROP (HTML5 nativo, sem dependências extras) ---
+  const handleDragStart = (id: string, disciplinaId: string) => {
+    draggedRef.current = { id, disciplinaId };
+  };
+
+  const handleDragOver = (e: React.DragEvent, alvoId: string) => {
+    e.preventDefault();
+    setDragOverId(alvoId);
+  };
+
+  const handleDragLeave = () => setDragOverId(null);
+
+  const handleDrop = async (
+    e: React.DragEvent,
+    alvoId: string,
+    disciplinaId: string,
+    lista: FirestoreMaterial[]
+  ) => {
+    e.preventDefault();
+    setDragOverId(null);
+
+    const dragged = draggedRef.current;
+    draggedRef.current = null;
+    if (!dragged || dragged.id === alvoId) return;
+    if (dragged.disciplinaId !== disciplinaId) {
+      toast.error("Só é possível reordenar dentro da mesma disciplina.");
+      return;
+    }
+
+    const fromIdx = lista.findIndex((m) => m.id === dragged.id);
+    const toIdx = lista.findIndex((m) => m.id === alvoId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const novaLista = [...lista];
+    const [movido] = novaLista.splice(fromIdx, 1);
+    novaLista.splice(toIdx, 0, movido);
+
+    // Atualização otimista da UI
+    setMateriais((prev) => {
+      const ids = new Set(novaLista.map((m) => m.id));
+      const resto = prev.filter((m) => !ids.has(m.id));
+      return [...resto, ...novaLista.map((m, i) => ({ ...m, ordem: i }))];
+    });
+
+    // Persiste no Firestore em batch
+    try {
+      const batch = writeBatch(db);
+      novaLista.forEach((m, i) => {
+        batch.update(doc(db, "materiaisAcademicos", m.id), { ordem: i });
+      });
+      await batch.commit();
+      toast.success("Ordem atualizada com sucesso");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao salvar a nova ordem.");
+    }
   };
 
   return (
@@ -563,40 +680,109 @@ const AdminGraduacao = () => {
           </div>
 
           <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-            <h4 className="text-base font-bold text-primary">Materiais Publicados</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-base font-bold text-primary">Materiais Publicados</h4>
+              <span className="text-[10px] font-black uppercase text-muted-foreground">
+                Arraste pelos itens para reordenar
+              </span>
+            </div>
 
             <div className="space-y-3">
-              {materiais.map((material) => (
-                <div
-                  key={material.id}
-                  className="flex flex-col gap-3 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="space-y-1">
-                    <p className="font-semibold text-primary">{material.titulo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {nomeDisciplina(material.disciplinaId)} • {material.tipo} • {material.isPremium ? "Premium" : "Grátis"}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 self-start md:self-auto">
-                    <Button variant="outline" size="sm" onClick={() => iniciarEdicaoMaterial(material)}>
-                      <Pencil className="h-4 w-4 mr-1" /> Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => excluirMaterial(material.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-
-              {materiais.length === 0 && (
-                <p className="py-6 text-center text-muted-foreground italic">Nenhum material cadastrado.</p>
+              {gruposOrdenados.length === 0 && (
+                <p className="py-6 text-center text-muted-foreground italic">
+                  Nenhum material cadastrado.
+                </p>
               )}
+
+              {gruposOrdenados.map(({ chave, titulo, lista }) => {
+                const aberto = !!abertos[chave];
+                return (
+                  <div
+                    key={chave}
+                    className="border border-border rounded-xl overflow-hidden bg-background/40"
+                  >
+                    {/* CABEÇALHO ACORDEÃO (fechado por padrão) */}
+                    <button
+                      type="button"
+                      onClick={() => toggleGrupo(chave)}
+                      className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-accent/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {aberto ? (
+                          <ChevronDown className="h-5 w-5 text-primary" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <span className="font-black uppercase tracking-wide text-primary text-sm">
+                          {titulo}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-black uppercase text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                        {lista.length} {lista.length === 1 ? "item" : "itens"}
+                      </span>
+                    </button>
+
+                    {/* CONTEÚDO DnD */}
+                    {aberto && (
+                      <div className="p-4 border-t border-border space-y-2">
+                        {lista.map((material) => {
+                          const isHover = dragOverId === material.id;
+                          return (
+                            <div
+                              key={material.id}
+                              draggable
+                              onDragStart={() =>
+                                handleDragStart(material.id, material.disciplinaId)
+                              }
+                              onDragOver={(e) => handleDragOver(e, material.id)}
+                              onDragLeave={handleDragLeave}
+                              onDrop={(e) =>
+                                handleDrop(e, material.id, material.disciplinaId, lista)
+                              }
+                              className={`group flex flex-col gap-3 rounded-lg border p-4 bg-card transition-all cursor-move md:flex-row md:items-center md:justify-between ${
+                                isHover
+                                  ? "border-accent ring-2 ring-accent/40"
+                                  : "border-border hover:border-accent/60"
+                              }`}
+                            >
+                              <div className="flex items-start gap-3 min-w-0">
+                                <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-primary" />
+                                <div className="space-y-1 min-w-0">
+                                  <p className="font-semibold text-primary truncate">
+                                    {material.titulo}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {nomeDisciplina(material.disciplinaId)} • {material.tipo} •{" "}
+                                    {material.isPremium ? "Premium" : "Grátis"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => iniciarEdicaoMaterial(material)}
+                                >
+                                  <Pencil className="h-4 w-4 mr-1" /> Editar
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => excluirMaterial(material.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </TabsContent>

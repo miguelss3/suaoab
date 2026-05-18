@@ -13,7 +13,7 @@ export default function PortalGraduacao() {
 
   const meuWhatsApp = "5592994742322";
   const mensagemMentor = encodeURIComponent(
-    "Olá Mentor! Sou aluno da Graduação SuaOAB e gostaria de tirar uma dúvida."
+    "Olá Prof.! Sou aluno da Graduação e gostaria de tirar uma dúvida."
   );
 
   return (
