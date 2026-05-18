@@ -214,7 +214,9 @@ export const downloadPdfSource = onRequest({ cors: true }, async (req, res) => {
     const arrayBuffer = await upstreamResponse.arrayBuffer();
     const contentType = upstreamResponse.headers.get("content-type") || "application/pdf";
 
-    res.set("Cache-Control", "private, max-age=300");
+    // Cache público: permite que o CDN do Google sirva o PDF sem ir até o Storage,
+    // reduzindo drasticamente a latência em downloads subsequentes.
+    res.set("Cache-Control", "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400");
     res.set("Content-Type", contentType);
     res.status(200).send(Buffer.from(arrayBuffer));
   } catch (error) {

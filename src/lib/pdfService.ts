@@ -1,4 +1,5 @@
 import { PDFArray, PDFDict, PDFDocument, PDFImage, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
+import { toast } from "sonner";
 import { functionsClient } from "@/lib/firebase";
 import heroBg from "@/assets/hero-bg.jpg";
 
@@ -226,10 +227,13 @@ const appendMarketingPage = async (
   const page = referenceSize ? pdfDoc.addPage([referenceSize.width, referenceSize.height]) : pdfDoc.addPage();
   const { width, height } = page.getSize();
   const margin = 25;
-  const titleFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const ctaFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const eyebrowFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  // Embute cada fonte StandardFont uma única vez (em paralelo) e reaproveita.
+  const [titleFont, bodyFont] = await Promise.all([
+    pdfDoc.embedFont(StandardFonts.HelveticaBold),
+    pdfDoc.embedFont(StandardFonts.Helvetica),
+  ]);
+  const ctaFont = titleFont;
+  const eyebrowFont = titleFont;
 
   page.drawRectangle({
     x: 0,
@@ -532,42 +536,55 @@ export const downloadProtectedPDF = async ({
   originalPdfUrl,
   fileName,
 }: DownloadProtectedPDFParams) => {
-  const [logoAsset, promoImageAsset, symbolAsset, response] = await Promise.all([
-    loadLogoAsset(),
-    loadPromoImageAsset(),
-    loadSymbolAsset(),
-    fetch(getPdfProxyUrl(originalPdfUrl)),
-  ]);
-
-  if (!response.ok) {
-    const responseText = await response.text().catch(() => "");
-    throw new Error(`Nao foi possivel baixar o PDF original. ${responseText}`.trim());
-  }
-
-  const originalPdfBytes = await response.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(originalPdfBytes);
-  const logoImage = await embedImageAsset(pdfDoc, logoAsset).catch(() => null);
-  const promoImage = await embedImageAsset(pdfDoc, promoImageAsset).catch(() => null);
-  const symbolImage = await embedImageAsset(pdfDoc, symbolAsset).catch(() => null);
+  const toastId = toast.loading("Preparando seu PDF...", {
+    description: "Estamos protegendo o arquivo, isso pode levar alguns segundos.",
+  });
 
   try {
-    await appendMarketingPage(pdfDoc, logoImage, promoImage, symbolImage);
+    const [logoAsset, promoImageAsset, symbolAsset, response] = await Promise.all([
+      loadLogoAsset(),
+      loadPromoImageAsset(),
+      loadSymbolAsset(),
+      fetch(getPdfProxyUrl(originalPdfUrl)),
+    ]);
+
+    if (!response.ok) {
+      const responseText = await response.text().catch(() => "");
+      throw new Error(`Nao foi possivel baixar o PDF original. ${responseText}`.trim());
+    }
+
+    const originalPdfBytes = await response.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(originalPdfBytes);
+    const [logoImage, promoImage, symbolImage] = await Promise.all([
+      embedImageAsset(pdfDoc, logoAsset).catch(() => null),
+      embedImageAsset(pdfDoc, promoImageAsset).catch(() => null),
+      embedImageAsset(pdfDoc, symbolAsset).catch(() => null),
+    ]);
+
+    try {
+      await appendMarketingPage(pdfDoc, logoImage, promoImage, symbolImage);
+    } catch (error) {
+      console.error("Falha ao gerar pagina premium do PDF. Aplicando fallback.", error);
+      await appendFallbackMarketingPage(pdfDoc);
+    }
+
+    const protectedPdfBytes = await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
+    const blob = new Blob([protectedPdfBytes], { type: "application/pdf" });
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = blobUrl;
+    link.download = sanitizeFileName(fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+
+    toast.success("Download iniciado!", { id: toastId, duration: 2500 });
   } catch (error) {
-    console.error("Falha ao gerar pagina premium do PDF. Aplicando fallback.", error);
-    await appendFallbackMarketingPage(pdfDoc);
+    toast.dismiss(toastId);
+    throw error;
   }
-
-  const protectedPdfBytes = await pdfDoc.save();
-  const blob = new Blob([protectedPdfBytes], { type: "application/pdf" });
-  const blobUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = blobUrl;
-  link.download = sanitizeFileName(fileName);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(blobUrl);
 };
 
 export { appendMarketingPage };
