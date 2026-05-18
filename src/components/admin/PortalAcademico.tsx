@@ -66,6 +66,8 @@ const getIconByTipo = (tipo: string) => {
       return <Presentation className="w-4 h-4" />;
     case "prova":
       return <ClipboardList className="w-4 h-4" />;
+    case "questoes":
+      return <ClipboardList className="w-4 h-4" />;
     case "resumo":
     default:
       return <FileText className="w-4 h-4" />;
@@ -78,6 +80,8 @@ const getTituloTipo = (tipo: string) => {
       return "Slide";
     case "prova":
       return "Prova";
+    case "questoes":
+      return "Questões";
     case "resumo":
       return "Resumo";
     default:
@@ -313,7 +317,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     const temTexto = Boolean(material.conteudoTexto?.trim());
     const temAnexo = Boolean(material.urlDownload?.trim());
     const ehDownloadDireto =
-      temAnexo && !temTexto && (material.tipo === "slide" || material.tipo === "prova");
+      temAnexo && !temTexto && (material.tipo === "slide" || material.tipo === "prova" || material.tipo === "questoes");
 
     if (ehDownloadDireto && material.urlDownload) {
       await handleProtectedDownload(material);
@@ -558,9 +562,10 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                             className="mt-4 border-t pt-4"
                           >
                             {mat.conteudoTexto && (
-                              <p className="text-base md:text-lg leading-relaxed text-gray-700 line-clamp-3">
-                                {mat.conteudoTexto}
-                              </p>
+                              <div
+                                className="text-base md:text-lg leading-relaxed text-gray-700 line-clamp-3 prose prose-sm max-w-none [&_h2]:text-base [&_h2]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6"
+                                dangerouslySetInnerHTML={{ __html: mat.conteudoTexto }}
+                              />
                             )}
                             <div className="mt-4 flex gap-2">
                               <Button
@@ -654,12 +659,11 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
           <div className="max-h-[76vh] overflow-y-auto px-8 py-6">
             <div className="space-y-5">
               <div
-                className="max-w-none whitespace-pre-wrap leading-relaxed text-gray-700 select-none text-lg md:text-xl"
+                className="max-w-none leading-relaxed text-gray-700 select-none text-lg md:text-xl prose prose-lg max-w-none [&_h2]:text-2xl [&_h2]:font-bold [&_blockquote]:border-l-4 [&_blockquote]:border-muted [&_blockquote]:pl-4 [&_blockquote]:italic [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6"
                 onCopy={(e) => e.preventDefault()}
                 onContextMenu={(e) => e.preventDefault()}
-              >
-                {materialLeituraSelecionado.conteudoTexto}
-              </div>
+                dangerouslySetInnerHTML={{ __html: materialLeituraSelecionado.conteudoTexto ?? "" }}
+              />
 
               {materialLeituraSelecionado.urlDownload && (
                 <Button

@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Switch } from "@/components/ui/switch";
 import { Disciplina, MaterialAcademico } from "@/lib/academico";
 
@@ -45,7 +46,7 @@ type DisciplinaForm = {
 type MaterialForm = {
   disciplinaId: string;
   titulo: string;
-  tipo: "resumo" | "slide" | "prova";
+  tipo: "resumo" | "slide" | "prova" | "questoes";
   conteudoTexto: string;
   urlDownload: string;
   isPremium: boolean;
@@ -594,13 +595,14 @@ const AdminGraduacao = () => {
                   onChange={(e) =>
                     setMaterialForm((prev) => ({
                       ...prev,
-                      tipo: e.target.value as "resumo" | "slide" | "prova",
+                      tipo: e.target.value as "resumo" | "slide" | "prova" | "questoes",
                     }))
                   }
                 >
                   <option value="resumo">Resumo</option>
                   <option value="slide">Slide</option>
                   <option value="prova">Prova</option>
+                  <option value="questoes">Questões</option>
                 </select>
               </div>
 
@@ -648,11 +650,11 @@ const AdminGraduacao = () => {
 
             <div className="space-y-2">
               <Label>Conteúdo em Texto</Label>
-              <Textarea
+              <RichTextEditor
                 value={materialForm.conteudoTexto}
-                onChange={(e) => setMaterialForm((prev) => ({ ...prev, conteudoTexto: e.target.value }))}
+                onChange={(html) => setMaterialForm((prev) => ({ ...prev, conteudoTexto: html }))}
                 placeholder="Digite o resumo ou instruções do material..."
-                className="min-h-[120px]"
+                className="min-h-[160px]"
               />
             </div>
 

@@ -89,27 +89,9 @@ export const useAntiPiracy = () => {
     };
 
     // ========================================
-    // 2. BLUR NO LOSS OF FOCUS (Truque do Desfoque)
+    // 2. BLUR NO LOSS OF FOCUS — DESATIVADO
+    // (removido a pedido do usuário; estava atrapalhando UX ao alternar abas)
     // ========================================
-    const handleWindowBlur = () => {
-      setIsBlurred(true);
-      console.warn('⚠️ Janela perdeu foco. Protegendo conteúdo com blur.');
-    };
-
-    const handleWindowFocus = () => {
-      setIsBlurred(false);
-      console.log('✓ Janela recuperou foco. Removendo blur.');
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setIsBlurred(true);
-        console.warn('⚠️ Página ficou oculta. Protegendo conteúdo com blur.');
-      } else {
-        setIsBlurred(false);
-        console.log('✓ Página voltou ao foco. Removendo blur.');
-      }
-    };
 
     // ========================================
     // 3. PREVENÇÃO DE SELEÇÃO E ARRASTE
@@ -130,9 +112,6 @@ export const useAntiPiracy = () => {
     // ADICIONAR LISTENERS
     // ========================================
     window.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('selectstart', handleSelectStart);
     document.addEventListener('contextmenu', handleContextMenu);
 
@@ -141,9 +120,6 @@ export const useAntiPiracy = () => {
     // ========================================
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('selectstart', handleSelectStart);
       document.removeEventListener('contextmenu', handleContextMenu);
     };

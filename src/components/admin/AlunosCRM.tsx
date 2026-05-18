@@ -35,8 +35,16 @@ interface AlunoCRM {
   status?: string;
   data_cadastro?: Date | { toDate: () => Date } | string;
   data_expiracao?: Date | { toDate: () => Date } | string;
+  acessoVitalicio?: boolean;
   metas?: Meta[];
 }
+
+// Aluno de Graduação tem acesso vitalício: não entra em degustação nem em auto-inativação.
+const alunoEhGraduacao = (aluno: { faseEstudo?: string; acessoVitalicio?: boolean }) => {
+  if (aluno.acessoVitalicio === true) return true;
+  const fase = aluno.faseEstudo?.trim().toLowerCase();
+  return fase === "estudante de graduação" || fase === "graduacao";
+};
 
 const AlunosCRM = () => {
   const [alunos, setAlunos] = useState<AlunoCRM[]>([]);
@@ -137,16 +145,37 @@ const AlunosCRM = () => {
     }
   };
 
-  const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos') => {
-    return alunos.filter(a => {
+  const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos' | 'graduacao') => {
+    const lista = alunos.filter(a => {
       const matchesSearch = a.nome?.toLowerCase().includes(busca.toLowerCase()) || a.email?.toLowerCase().includes(busca.toLowerCase());
       const status = normalizeAlunoStatus(a.status);
+      const ehGraduacao = alunoEhGraduacao(a);
       let matchesStatus = false;
-      if (filtro === 'premium') matchesStatus = status === "premium";
-      else if (filtro === 'inativos') matchesStatus = status === "inativo";
-      else matchesStatus = status !== "premium" && status !== "inativo"; 
+      if (filtro === 'graduacao') {
+        matchesStatus = ehGraduacao;
+      } else if (filtro === 'premium') {
+        // Premium: apenas alunos premium NÃO-graduação (graduação tem aba própria)
+        matchesStatus = status === "premium" && !ehGraduacao;
+      } else if (filtro === 'inativos') {
+        matchesStatus = status === "inativo" && !ehGraduacao;
+      } else {
+        // Leads/Em Teste: nunca incluir Graduação
+        matchesStatus = !ehGraduacao && status !== "premium" && status !== "inativo";
+      }
       return matchesSearch && matchesStatus;
     });
+
+    if (filtro === 'graduacao') {
+      // Ordenar por disciplina (matéria) e depois por nome
+      return [...lista].sort((a, b) => {
+        const ma = (a.materia ?? "").toLowerCase();
+        const mb = (b.materia ?? "").toLowerCase();
+        if (ma !== mb) return ma.localeCompare(mb, 'pt-BR');
+        return (a.nome ?? "").localeCompare(b.nome ?? "", 'pt-BR');
+      });
+    }
+
+    return lista;
   };
 
   const calcularExpiracaoLead = (aluno: AlunoCRM) => {
@@ -191,7 +220,8 @@ const AlunosCRM = () => {
 
       try {
         // 1. Varrer alunos expirados para inativar (Proteção)
-        const alunosParaVerificar = alunos.filter(a => a.status !== "inativo");
+        //    Graduação (acessoVitalicio) NUNCA é inativado por expiração.
+        const alunosParaVerificar = alunos.filter(a => a.status !== "inativo" && !alunoEhGraduacao(a));
         for (const aluno of alunosParaVerificar) {
           const expiracao = calcularExpiracaoLead(aluno);
           if (expiracao.expirado) {
@@ -242,6 +272,7 @@ const AlunosCRM = () => {
       <Tabs defaultValue="premium" className="bg-card rounded-xl border border-border overflow-hidden">
         <TabsList className="w-full justify-start rounded-none border-b bg-muted/10 h-auto sm:h-12 px-2 sm:px-6 gap-2 sm:gap-6 overflow-x-auto flex-nowrap py-2 sm:py-0 custom-scrollbar">
           <TabsTrigger value="premium" className="font-bold whitespace-nowrap">Premium ({filtrarAlunos('premium').length})</TabsTrigger>
+          <TabsTrigger value="graduacao" className="font-bold whitespace-nowrap">Graduação ({filtrarAlunos('graduacao').length})</TabsTrigger>
           <TabsTrigger value="leads" className="font-bold whitespace-nowrap">Em Teste ({filtrarAlunos('leads').length})</TabsTrigger>
           <TabsTrigger value="inativos" className="font-bold text-muted-foreground whitespace-nowrap">Inativos ({filtrarAlunos('inativos').length})</TabsTrigger>
         </TabsList>
@@ -294,6 +325,63 @@ const AlunosCRM = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="graduacao" className="p-0">
+          <div className="w-full">
+            {(() => {
+              const lista = filtrarAlunos('graduacao');
+              if (lista.length === 0) {
+                return (
+                  <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+                    Nenhum aluno de Graduação cadastrado ainda.
+                  </div>
+                );
+              }
+              // Agrupar por disciplina (materia)
+              const grupos = lista.reduce<Record<string, AlunoCRM[]>>((acc, a) => {
+                const chave = (a.materia?.trim() || "Disciplina não informada");
+                if (!acc[chave]) acc[chave] = [];
+                acc[chave].push(a);
+                return acc;
+              }, {});
+              const chaves = Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+              return (
+                <div className="divide-y divide-border">
+                  {chaves.map((disciplina) => (
+                    <div key={disciplina}>
+                      <div className="bg-muted/30 px-4 sm:px-6 py-2 text-[11px] font-black uppercase tracking-widest text-primary flex items-center justify-between">
+                        <span>{disciplina}</span>
+                        <span className="text-muted-foreground">{grupos[disciplina].length} {grupos[disciplina].length === 1 ? 'aluno' : 'alunos'}</span>
+                      </div>
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {grupos[disciplina].map((aluno) => (
+                            <tr key={aluno.id} className="border-b border-border last:border-0 hover:bg-muted/5 transition-colors">
+                              <td className="px-4 sm:px-6 py-4 align-top">
+                                <div className="font-bold text-primary">{aluno.nome}</div>
+                                <div className="text-[10px] text-muted-foreground">{aluno.email}</div>
+                                {renderPerfilBadge(aluno.faseEstudo)}
+                                <div className="text-[10px] font-black text-accent tracking-widest uppercase mt-0.5 mb-2">Matrícula: {aluno.matricula || "S/N"}</div>
+                                <div className="flex sm:hidden items-center gap-2 mt-2 w-full">
+                                  <Button variant="outline" size="sm" className="h-8 text-xs flex-1" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
+                                  <Button variant="ghost" size="sm" className="h-8 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
+                                </div>
+                              </td>
+                              <td className="hidden sm:table-cell px-6 py-4 text-right space-x-2 align-top w-px whitespace-nowrap">
+                                <Button variant="outline" size="sm" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
+                                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </TabsContent>
 

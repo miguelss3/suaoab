@@ -207,13 +207,16 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
           data_cadastro: new Date(),
           termos_aceitos: true,             
           data_aceite_termos: new Date(),   
-          metas: [{ 
-            atividade: "Meta 0: Boas-Vindas e Ambientação", 
-            orientacoes: "Parabéns por chegar à 2ª Fase! Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural.", 
-            link: "",
-            status: "liberada", 
-            concluida: false 
-          }]
+          // Meta 0 só faz sentido para alunos de 2ª Fase; Graduação não usa o motor de metas.
+          metas: isGraduacao
+            ? []
+            : [{
+                atividade: "Meta 0: Boas-Vindas e Ambientação",
+                orientacoes: "Parabéns por chegar à 2ª Fase! Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural.",
+                link: "",
+                status: "liberada",
+                concluida: false
+              }]
         };
 
         // Se for Estudante de Graduação, adiciona flag de acesso vitalício
