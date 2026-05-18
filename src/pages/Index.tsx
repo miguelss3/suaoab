@@ -151,21 +151,23 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background relative pb-10">
+    <div className="min-h-screen bg-background relative pb-10 overflow-x-hidden">
       
       <header className="sticky top-0 z-50 bg-primary/95 backdrop-blur-md border-b border-primary/80">
-        <div className="container px-4 sm:px-6 flex items-center justify-between h-16 sm:h-20">
-          <Link to="/" className="font-display text-2xl sm:text-3xl md:text-4xl font-bold text-primary-foreground tracking-tight transition-transform hover:scale-105">
+        <div className="container px-3 sm:px-6 flex items-center justify-between h-16 sm:h-20 gap-2">
+          <Link to="/" className="font-display text-xl sm:text-3xl md:text-4xl font-bold text-primary-foreground tracking-tight transition-transform hover:scale-105 shrink-0">
             SUA<span className="text-accent">OAB</span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <Link to="/portal-graduacao">
-              <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-white text-xs sm:text-sm h-9 px-3 sm:h-11 sm:px-4 hidden sm:flex">
-                Portal Graduação
+              <Button variant="ghost" className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-white text-[11px] sm:text-sm h-9 px-2 sm:h-11 sm:px-4 flex">
+                <span className="sm:hidden">Graduação</span>
+                <span className="hidden sm:inline">Portal Graduação</span>
               </Button>
             </Link>
-            <Button variant="accent" onClick={() => openAuth(true)} className="h-9 px-4 text-xs sm:text-sm sm:h-11 sm:px-8">
-              Área do Aluno
+            <Button variant="accent" onClick={() => openAuth(true)} className="h-9 px-3 text-[11px] sm:text-sm sm:h-11 sm:px-8 whitespace-nowrap">
+              <span className="sm:hidden">Entrar</span>
+              <span className="hidden sm:inline">Área do Aluno</span>
             </Button>
           </div>
         </div>
@@ -425,7 +427,7 @@ const Index = () => {
       </footer>
 
       <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} target="_blank" rel="noreferrer" className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl">
-        <img src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" alt="WhatsApp" className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
+        <img src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" alt="WhatsApp" className="w-12 h-12 sm:w-20 sm:h-20 object-contain" />
       </a>
 
       <AuthModal showAuthModal={showAuthModal} setShowAuthModal={setShowAuthModal} isLogin={isLogin} setIsLogin={setIsLogin} />

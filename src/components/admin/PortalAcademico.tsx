@@ -501,45 +501,47 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
               </div>
             ) : (
               <div className="space-y-3">
-                <h3 className="font-semibold text-2xl">Materiais Disponíveis</h3>
+                <h3 className="font-semibold text-xl sm:text-2xl">Materiais Disponíveis</h3>
                 {maisAcademicos.map((mat) => {
                   const isExpanded = expandedMateriais.has(mat.id);
                   return (
                     <motion.div
                       key={mat.id}
-                      className="rounded-lg border border-gray-200 bg-gradient-to-r from-blue-50 to-transparent p-5 transition-all hover:shadow-md"
+                      className="rounded-lg border border-gray-200 bg-gradient-to-r from-blue-50 to-transparent p-3 sm:p-5 transition-all hover:shadow-md"
                       layout
                     >
                       <button
                         onClick={() => toggleExpandMateriais(mat.id)}
                         className="w-full text-left"
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              {getIconByTipo(mat.tipo)}
-                              <div>
-                                <h4 className="font-semibold text-lg leading-tight">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-2 sm:gap-3">
+                              <div className="shrink-0 mt-0.5">
+                                {getIconByTipo(mat.tipo)}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-semibold text-sm sm:text-lg leading-snug break-words">
                                   {mat.titulo}
                                 </h4>
-                                <p className="mt-1 text-sm text-muted-foreground">
+                                <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-sm text-muted-foreground">
                                   {mat.dataCriacaoFormatada}
                                 </p>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap sm:shrink-0 pl-7 sm:pl-0">
                             {mat.isPremium && (
-                              <Badge variant="outline" className="bg-amber-50">
+                              <Badge variant="outline" className="bg-amber-50 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5">
                                 <Star className="w-3 h-3 mr-1" />
                                 Premium
                               </Badge>
                             )}
-                            <Badge variant="secondary" className="text-sm px-3 py-1">
+                            <Badge variant="secondary" className="text-[10px] sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1">
                               {getTituloTipo(mat.tipo)}
                             </Badge>
                             <ChevronDown
-                              className={`w-4 h-4 transition-transform ${
+                              className={`w-4 h-4 transition-transform ml-auto sm:ml-0 ${
                                 isExpanded ? "rotate-180" : ""
                               }`}
                             />
@@ -783,30 +785,33 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     : disciplinas;
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 overflow-x-hidden">
       {/* HEADER */}
       <div className="border-b bg-white/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <img
-                src="https://raw.githubusercontent.com/miguelss3/suaoab/e807c98a9df0bd4326f0f7d2f1db69ab8e82808f/suaoabnovosemfundo.png"
-                alt="SuaOAB"
-                className="w-10 h-10 object-contain"
-              />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold">Portal da Graduação</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Acesse resumos, slides e materiais exclusivos das aulas
-              </p>
+        <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+                <img
+                  src="https://raw.githubusercontent.com/miguelss3/suaoab/e807c98a9df0bd4326f0f7d2f1db69ab8e82808f/suaoabnovosemfundo.png"
+                  alt="SuaOAB"
+                  className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg sm:text-3xl font-bold leading-tight truncate">Portal da Graduação</h1>
+                <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-sm text-muted-foreground line-clamp-1 sm:line-clamp-none">
+                  Acesse resumos, slides e materiais exclusivos das aulas
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button asChild variant="outline" size="sm" className="gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
+              <Button asChild variant="outline" size="sm" className="gap-1 sm:gap-2 h-8 sm:h-9 px-2 sm:px-3 text-[11px] sm:text-sm">
                 <Link to="/">
-                  <ArrowLeft className="h-4 w-4" />
-                  <span>Voltar para o Início</span>
+                  <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="sm:hidden">Início</span>
+                  <span className="hidden sm:inline">Voltar para o Início</span>
                 </Link>
               </Button>
 
@@ -830,9 +835,10 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                 <Button
                   size="sm"
                   onClick={() => setShowAuthModal?.(true)}
-                  className="gap-2"
+                  className="gap-2 h-8 sm:h-9 px-2 sm:px-3 text-[11px] sm:text-sm whitespace-nowrap"
                 >
-                  Entrar / Cadastrar
+                  <span className="sm:hidden">Entrar</span>
+                  <span className="hidden sm:inline">Entrar / Cadastrar</span>
                 </Button>
               )}
             </div>
