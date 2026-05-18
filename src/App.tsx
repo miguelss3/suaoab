@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { createBrowserRouter, Route, Routes, RouterProvider } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,23 +15,29 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
+const router = createBrowserRouter(
+  [
+    { path: "/", element: <Index /> },
+    { path: "/aluno", element: <Aluno /> },
+    { path: "/aula", element: <Aula /> },
+    { path: "/painel", element: <Painel /> },
+    { path: "/portal-graduacao", element: <PortalGraduacao /> },
+    { path: "/redefinir-senha", element: <RedefinirSenha /> },
+    { path: "*", element: <NotFound /> },
+  ],
+  {
+    future: {
+      v7_startTransition: true,
+    },
+  }
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/aluno" element={<Aluno />} />
-          <Route path="/aula" element={<Aula />} />
-          <Route path="/painel" element={<Painel />} />
-          <Route path="/portal-graduacao" element={<PortalGraduacao />} />
-          <Route path="/redefinir-senha" element={<RedefinirSenha />} /> 
-          
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </TooltipProvider>
   </QueryClientProvider>
 );

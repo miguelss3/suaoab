@@ -36,10 +36,11 @@ type PerfilAlunoData = {
   matricula?: string;
   materia?: string;
   curso?: string;
-  status?: "Lead" | "inativo" | "premium" | string;
+  status?: "Lead" | "inativo" | "ativo" | "premium" | string;
   metas?: MetaAluno[];
   data_expiracao?: TimestampLike | Date | string;
   data_cadastro?: TimestampLike | Date | string;
+  acessoVitalicio?: boolean; // Flag para Estudante de Graduação
   [key: string]: unknown;
 };
 
@@ -258,10 +259,15 @@ const Aluno = () => {
   const ehAlunoGraduacao =
     perfilAluno?.faseEstudo === "Estudante de Graduação" || perfilAluno?.faseEstudo === "graduacao";
 
+  // --- LÓGICA DE DEGUSTAÇÃO: Estudante de Graduação tem acesso vitalício (sem banner) ---
+  const temAcessoVitalicio = perfilAluno?.acessoVitalicio === true;
+
   let isDegustacaoExpirada = false;
   let tempoRestanteTexto = "";
 
-  if (!ehAlunoGraduacao && (perfilAluno?.status === "Lead" || perfilAluno?.status === "inativo")) {
+  // A degustação APENAS se aplica a alunos NÃO-graduação E que estão em status "Lead" ou "inativo"
+  // Gradua­dos SEMPRE têm acesso, então nunca exibir banner ou tela de bloqueio para eles
+  if (!ehAlunoGraduacao && !temAcessoVitalicio && (perfilAluno?.status === "Lead" || perfilAluno?.status === "inativo")) {
     let dataCorte: Date;
     
     if (perfilAluno?.data_expiracao) {
@@ -288,7 +294,8 @@ const Aluno = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-display text-primary italic">Carregando Dossiê...</div>;
 
-  if (!ehAlunoGraduacao && (perfilAluno?.status === "inativo" || (perfilAluno?.status === "Lead" && isDegustacaoExpirada))) {
+  // --- BLOQUEIO: Apenas para alunos NÃO-Graduação com degustação expirada ou status inativo ---
+  if (!ehAlunoGraduacao && !temAcessoVitalicio && (perfilAluno?.status === "inativo" || (perfilAluno?.status === "Lead" && isDegustacaoExpirada))) {
     return <TelaBloqueio perfilAluno={perfilAluno} handleLogout={handleLogout} checkoutUrl={gerarLinkHotmartComPrefill(linkCheckout, perfilAluno)} />;
   }
 
@@ -319,11 +326,11 @@ const Aluno = () => {
           )}
         </div>
 
-        {!ehAlunoGraduacao && perfilAluno?.status === "Lead" && !isDegustacaoExpirada && (
+        {!ehAlunoGraduacao && !temAcessoVitalicio && perfilAluno?.status === "Lead" && !isDegustacaoExpirada && (
           <BannerDegustacao tempoRestanteTexto={tempoRestanteTexto} perfilAluno={perfilAluno} checkoutUrl={checkoutLeadUrl} />
         )}
 
-        {isExpirado ? (
+        {isExpirado && !ehAlunoGraduacao ? (
           <div className="flex flex-col items-center justify-center py-16 text-center animate-in fade-in zoom-in-95 duration-500">
             <div className="bg-destructive/10 p-6 rounded-full mb-6 border-4 border-destructive/20"><Lock className="h-16 w-16 text-destructive" /></div>
             <h2 className="text-3xl md:text-4xl font-display font-bold text-primary italic mb-3">Ciclo Encerrado</h2>

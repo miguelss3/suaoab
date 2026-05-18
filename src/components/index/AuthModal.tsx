@@ -185,7 +185,9 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
           (disciplina) => disciplina.id === disciplinaGraduacaoId
         );
         
-        await setDoc(doc(db, "alunos", userCredential.user.uid), {
+        // --- LÓGICA DE NEGÓCIO: Estudante de Graduação tem acesso vitalício ---
+        const isGraduacao = faseEstudo === "graduacao";
+        const dadosAluno: Record<string, unknown> = {
           nome: nome,
           whatsapp: whatsapp,
           email: emailLimpo,
@@ -199,7 +201,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                 : "",
           disciplinaId: faseEstudo === "graduacao" ? disciplinaGraduacaoId : "",
           matricula: novaMatricula, 
-          status: "Lead",
+          status: isGraduacao ? "ativo" : "Lead",
           progresso: 0,
           data_cadastro: new Date(),
           termos_aceitos: true,             
@@ -211,7 +213,15 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
             status: "liberada", 
             concluida: false 
           }]
-        });
+        };
+
+        // Se for Estudante de Graduação, adiciona flag de acesso vitalício
+        // Caso contrário, a degustação padrão será de 72h a partir de data_cadastro
+        if (isGraduacao) {
+          dadosAluno.acessoVitalicio = true;
+        }
+
+        await setDoc(doc(db, "alunos", userCredential.user.uid), dadosAluno);
 
   const reconciliacao = await tentarReconciliarCompra(emailLimpo);
         const statusFinal = reconciliacao.data?.status;

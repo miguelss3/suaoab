@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   BookOpen,
   ArrowLeft,
@@ -755,6 +756,16 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
   };
 
   // --- RENDER PRINCIPAL ---
+  
+  // --- LÓGICA DE SEPARAÇÃO: Disciplina Principal vs Outras ---
+  const disciplinaPrincipal = usuarioEhGraduacao && disciplinaGraduacaoVinculada 
+    ? disciplinaGraduacaoVinculada 
+    : null;
+  
+  const outrasDisc = disciplinaPrincipal 
+    ? disciplinas.filter((disc) => disc.id !== disciplinaPrincipal.id)
+    : disciplinas;
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5">
       {/* HEADER */}
@@ -810,7 +821,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
       </div>
 
       {/* CONTEÚDO PRINCIPAL */}
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
@@ -824,29 +835,152 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
             </p>
           </div>
         ) : (
-          <>
-            {/* GRID DE DISCIPLINAS */}
-            <motion.div
-              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-            >
-              {disciplinas.map((disc) => renderCartaoDisciplina(disc))}
-            </motion.div>
+          <motion.div
+            className="space-y-6 sm:space-y-8"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {/* 1️⃣ MATÉRIA DO ALUNO (SE FOR GRADUAÇÃO) */}
+            {disciplinaPrincipal && (
+              <motion.div variants={itemVariants} className="space-y-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                  <h2 className="text-base sm:text-lg font-bold text-primary">Sua Disciplina</h2>
+                </div>
+                {renderCartaoDisciplina(disciplinaPrincipal)}
+              </motion.div>
+            )}
 
-            <Separator className="my-12" />
-
-            {/* BANNER DE CROSS-SELLING */}
+            {/* 2️⃣ BANNER DE VENDAS (MENTORIA OAB) */}
             <motion.div
               initial="hidden"
               whileInView="visible"
               variants={containerVariants}
               viewport={{ once: true }}
+              className="my-6 sm:my-8"
             >
               {renderBannerMentoria()}
             </motion.div>
-          </>
+
+            {/* 3️⃣ OUTRAS DISCIPLINAS - MENU SANFONA (ACCORDION) */}
+            {outrasDisc.length > 0 && (
+              <motion.div variants={itemVariants} className="space-y-3 mt-8 sm:mt-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                  <h2 className="text-base sm:text-lg font-bold text-foreground">Explorar Outras Disciplinas</h2>
+                </div>
+
+                {/* ACCORDION RESPONSIVO - Fechado por padrão no mobile */}
+                <Accordion type="single" collapsible className="w-full space-y-2 sm:space-y-3">
+                  {outrasDisc.map((disc) => {
+                    const isBloqueada =
+                      Boolean(usuarioLogado) &&
+                      usuarioEhGraduacao &&
+                      (!disciplinaGraduacaoVinculada || disc.id !== disciplinaGraduacaoVinculada.id);
+
+                    return (
+                      <motion.div key={disc.id} variants={itemVariants}>
+                        <AccordionItem 
+                          value={disc.id}
+                          className={`border rounded-lg px-3 sm:px-4 transition-all ${
+                            isBloqueada 
+                              ? "border-gray-200 bg-muted/30 opacity-60 cursor-not-allowed" 
+                              : "border-primary/20 hover:border-primary/40 bg-gradient-to-r from-primary/5 to-transparent"
+                          }`}
+                        >
+                          <AccordionTrigger 
+                            className={`py-3 sm:py-4 hover:no-underline text-sm sm:text-base ${isBloqueada ? "cursor-not-allowed" : ""}`}
+                            onClick={(e) => {
+                              if (isBloqueada) {
+                                e.preventDefault();
+                                toast.info("Esta disciplina está restrita para os alunos matriculados nesta turma neste semestre.");
+                              }
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-3 sm:gap-4 w-full text-left">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-foreground line-clamp-1 text-sm sm:text-base">
+                                  {disc.nome}
+                                </h3>
+                                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+                                  Prof. {disc.professor}
+                                </p>
+                              </div>
+
+                              {isBloqueada ? (
+                                <Badge variant="secondary" className="shrink-0 border border-border bg-muted text-muted-foreground text-xs py-1 px-2">
+                                  <Lock className="w-3 h-3 mr-1" />
+                                  <span className="hidden sm:inline">Outra Turma</span>
+                                  <span className="sm:hidden">Bloqueada</span>
+                                </Badge>
+                              ) : (
+                                <Badge variant="default" className="shrink-0 text-xs py-1 px-2">
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                  Ativa
+                                </Badge>
+                              )}
+                            </div>
+                          </AccordionTrigger>
+
+                          {!isBloqueada && (
+                            <AccordionContent className="pb-3 sm:pb-4 pt-3 sm:pt-4">
+                              <motion.div
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="space-y-3 sm:space-y-4 border-t border-primary/10 pt-3 sm:pt-4"
+                              >
+                                {/* Preview de materiais */}
+                                {(materiais.get(disc.id) || []).length > 0 ? (
+                                  <div className="space-y-2 sm:space-y-3">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                      Materiais ({(materiais.get(disc.id) || []).length})
+                                    </p>
+                                    <div className="space-y-1.5 sm:space-y-2">
+                                      {(materiais.get(disc.id) || []).slice(0, 3).map((material) => (
+                                        <div key={material.id} className="flex items-start gap-2 text-xs sm:text-sm">
+                                          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                          <div className="min-w-0 flex-1">
+                                            <p className="truncate font-medium text-foreground">{material.titulo}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {getTituloTipo(material.tipo)} • {material.dataCriacaoFormatada}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      {(materiais.get(disc.id) || []).length > 3 && (
+                                        <p className="text-xs text-muted-foreground font-medium pt-2">
+                                          +{(materiais.get(disc.id) || []).length - 3} materiais adicionais
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="rounded-lg border border-dashed border-border bg-muted/30 p-2 sm:p-3 text-xs sm:text-sm text-muted-foreground">
+                                    Disciplina ativa com materiais em atualização.
+                                  </div>
+                                )}
+
+                                {/* Botão de ação */}
+                                <Button
+                                  size="sm"
+                                  className="w-full gap-2 text-xs sm:text-sm h-9 sm:h-10"
+                                  onClick={() => setDisciplinaSelecionada(disc)}
+                                >
+                                  <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                  Ver Detalhes
+                                </Button>
+                              </motion.div>
+                            </AccordionContent>
+                          )}
+                        </AccordionItem>
+                      </motion.div>
+                    );
+                  })}
+                </Accordion>
+              </motion.div>
+            )}
+          </motion.div>
         )}
       </div>
 
