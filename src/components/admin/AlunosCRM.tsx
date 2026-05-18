@@ -1,8 +1,8 @@
 // src/components/admin/AlunosCRM.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc } from "firebase/firestore";
-import { Search, AlertCircle, Ban } from "lucide-react";
+import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc } from "firebase/firestore";
+import { Search, AlertCircle, Ban, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -80,6 +80,26 @@ const AlunosCRM = () => {
       } catch (e) { toast.error("Erro ao atualizar status."); }
     };
     executarMudanca();
+  };
+
+  const handleExcluirAluno = async (alunoId: string, nomeAluno: string) => {
+    const confirmouExclusao = window.confirm(
+      `Tem certeza que deseja excluir o cadastro de ${nomeAluno}? Esta ação removerá o perfil do banco de dados e não pode ser desfeita.`
+    );
+
+    if (!confirmouExclusao) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, "alunos", alunoId));
+      setAlunos((alunosAtuais) => alunosAtuais.filter((aluno) => aluno.id !== alunoId));
+      setAlunoSelecionado((alunoAtual) => (alunoAtual?.id === alunoId ? null : alunoAtual));
+      toast.success("Aluno excluído com sucesso!");
+    } catch (error) {
+      console.error("Erro ao excluir aluno:", error);
+      toast.error("Erro ao excluir aluno. Tente novamente.");
+    }
   };
 
   const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos') => {
@@ -216,6 +236,7 @@ const AlunosCRM = () => {
                       <div className="flex sm:hidden items-center gap-2 mt-2 w-full">
                         <Button variant="outline" size="sm" className="h-8 text-xs flex-1" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
                         <Button variant="ghost" size="sm" className="h-8 px-3 text-destructive border border-transparent hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")} title="Desativar Aluno"><Ban className="h-4 w-4"/></Button>
+                        <Button variant="ghost" size="sm" className="h-8 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     </td>
                     
@@ -231,6 +252,7 @@ const AlunosCRM = () => {
                     <td className="hidden sm:table-cell px-6 py-4 text-right space-x-2 align-top">
                       <Button variant="outline" size="sm" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
                       <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")} title="Desativar Aluno"><Ban className="h-4 w-4"/></Button>
+                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                     </td>
                   </tr>
                 ))}
@@ -267,6 +289,7 @@ const AlunosCRM = () => {
                           <Button variant="accent" size="sm" className="h-8 text-xs flex-1" onClick={() => handleMudarStatus(aluno.id, "premium")}>Ativar</Button>
                           <Button variant="outline" size="sm" className="h-8 text-xs flex-1" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
                           <Button variant="ghost" size="sm" className="h-8 px-3 text-destructive border border-transparent hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")}><Ban className="h-4 w-4"/></Button>
+                          <Button variant="ghost" size="sm" className="h-8 px-3 text-muted-foreground border border-transparent hover:bg-destructive/10 hover:text-destructive" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       </td>
                       
@@ -280,6 +303,7 @@ const AlunosCRM = () => {
                         <Button variant="accent" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Ativar</Button>
                         <Button variant="outline" size="sm" onClick={() => setAlunoSelecionado(aluno)}>Dossiê</Button>
                         <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleMudarStatus(aluno.id, "inativo")}><Ban className="h-4 w-4"/></Button>
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                       </td>
                     </tr>
                   );
@@ -309,8 +333,9 @@ const AlunosCRM = () => {
                         <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-3">
                           Matéria: {aluno.materia}
                         </div>
-                        <div className="flex sm:hidden mt-2 w-full">
-                          <Button variant="outline" size="sm" className="h-8 text-xs w-full" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar Aluno</Button>
+                        <div className="flex sm:hidden mt-2 w-full gap-2">
+                          <Button variant="outline" size="sm" className="h-8 text-xs flex-1" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar Aluno</Button>
+                          <Button variant="ghost" size="sm" className="h-8 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       </td>
                       
@@ -318,6 +343,7 @@ const AlunosCRM = () => {
                       
                       <td className="hidden sm:table-cell px-6 py-4 text-right space-x-2 align-top">
                         <Button variant="outline" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar</Button>
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                       </td>
                     </tr>
                 ))}

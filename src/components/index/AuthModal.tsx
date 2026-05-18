@@ -1,5 +1,5 @@
 // src/components/index/AuthModal.tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, Mail, Lock, User, Phone, BookOpen, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { auth, db, functionsClient } from "@/lib/firebase";
+import { Disciplina } from "@/lib/academico";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { normalizarEmail } from "@/lib/hotmart";
 import { toast } from "sonner";
@@ -45,7 +46,9 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [faseEstudo, setFaseEstudo] = useState<"graduacao" | "primeira_fase" | "segunda_fase" | "">("");
-  const [materia, setMateria] = useState(""); 
+  const [materia, setMateria] = useState("");
+  const [disciplinaGraduacaoId, setDisciplinaGraduacaoId] = useState("");
+  const [disciplinasGraduacao, setDisciplinasGraduacao] = useState<Disciplina[]>([]);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
@@ -53,6 +56,30 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
   // --- ESTADOS DA NOVA TELA DE RECUPERAÇÃO ---
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+
+  useEffect(() => {
+    const qDisciplinas = query(collection(db, "disciplinas"), orderBy("nome"));
+
+    const unsubscribe = onSnapshot(
+      qDisciplinas,
+      (snapshot) => {
+        const disciplinasAtivas = snapshot.docs
+          .map((disciplinaDoc) => ({
+            id: disciplinaDoc.id,
+            ...disciplinaDoc.data(),
+          }))
+          .filter((disciplina) => String((disciplina as Partial<Disciplina>).status ?? "").toLowerCase() === "ativa") as Disciplina[];
+
+        setDisciplinasGraduacao(disciplinasAtivas);
+      },
+      (error) => {
+        console.error("Erro ao carregar disciplinas para cadastro:", error);
+        toast.error("Erro ao carregar as disciplinas do cadastro.");
+      }
+    );
+
+    return unsubscribe;
+  }, []);
 
   const faseEstudoEhGraduacao = (fase?: string) =>
     fase === "Estudante de Graduação" || fase === "graduacao";
@@ -143,6 +170,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
         }
       } else {
         if (!faseEstudo) { toast.error("Selecione o seu momento atual."); setLoading(false); return; }
+        if (faseEstudo === "graduacao" && !disciplinaGraduacaoId) { toast.error("Selecione a sua disciplina neste semestre."); setLoading(false); return; }
         if (faseEstudo === "segunda_fase" && !materia) { toast.error("Selecione a disciplina da 2ª fase."); setLoading(false); return; }
         if (whatsapp.replace(/\D/g, '').length < 10) { toast.error("WhatsApp incompleto."); setLoading(false); return; }
         if (!aceitouTermos) { toast.error("Aceite os Termos de Uso."); setLoading(false); return; }
@@ -153,6 +181,9 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
         if (!novaMatricula) throw new Error("Falha ao gerar matrícula.");
 
         const userCredential = await createUserWithEmailAndPassword(auth, emailLimpo, password);
+        const disciplinaGraduacaoSelecionada = disciplinasGraduacao.find(
+          (disciplina) => disciplina.id === disciplinaGraduacaoId
+        );
         
         await setDoc(doc(db, "alunos", userCredential.user.uid), {
           nome: nome,
@@ -160,7 +191,13 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
           email: emailLimpo,
           email_normalizado: emailLimpo,
           faseEstudo: labelFaseEstudo(faseEstudo),
-          materia: faseEstudo === "segunda_fase" ? materia : "",
+          materia:
+            faseEstudo === "graduacao"
+              ? disciplinaGraduacaoSelecionada?.nome ?? ""
+              : faseEstudo === "segunda_fase"
+                ? materia
+                : "",
+          disciplinaId: faseEstudo === "graduacao" ? disciplinaGraduacaoId : "",
           matricula: novaMatricula, 
           status: "Lead",
           progresso: 0,
@@ -278,9 +315,8 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                           onChange={(e) => {
                             const valor = e.target.value as "graduacao" | "primeira_fase" | "segunda_fase" | "";
                             setFaseEstudo(valor);
-                            if (valor !== "segunda_fase") {
-                              setMateria("");
-                            }
+                            if (valor !== "graduacao") setDisciplinaGraduacaoId("");
+                            if (valor !== "segunda_fase") setMateria("");
                           }}
                           required
                         >
@@ -290,6 +326,30 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                           <option value="segunda_fase">Preparação para 2ª Fase OAB</option>
                         </select>
                       </div>
+                      {faseEstudo === "graduacao" && (
+                        <div className="space-y-2">
+                          <Label className="text-accent font-bold">Qual é a sua disciplina neste semestre?</Label>
+                          <div className="relative">
+                            <BookOpen className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                            <select
+                              className="w-full h-10 border border-input rounded-md pl-10 pr-3 bg-background text-sm focus:ring-2 focus:ring-accent"
+                              value={disciplinaGraduacaoId}
+                              onChange={(e) => setDisciplinaGraduacaoId(e.target.value)}
+                              required
+                              disabled={disciplinasGraduacao.length === 0}
+                            >
+                              <option value="">
+                                {disciplinasGraduacao.length === 0 ? "Carregando disciplinas..." : "Selecione sua disciplina..."}
+                              </option>
+                              {disciplinasGraduacao.map((disciplina) => (
+                                <option key={disciplina.id} value={disciplina.id}>
+                                  {disciplina.nome}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
                       {faseEstudo === "segunda_fase" && (
                         <div className="space-y-2">
                         <Label className="text-accent font-bold">Disciplina da 2ª Fase</Label>

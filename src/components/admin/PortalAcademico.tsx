@@ -19,6 +19,8 @@ import {
   FileText,
   Presentation,
   ClipboardList,
+  Instagram,
+  MessageCircle,
   Star,
   Users,
 } from "lucide-react";
@@ -119,6 +121,8 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
   const [usuarioLogado, setUsuarioLogado] = useState<FirebaseUser | null>(null);
   const [nomeUsuario, setNomeUsuario] = useState("");
   const [faseEstudoUsuario, setFaseEstudoUsuario] = useState("");
+  const [disciplinaUsuarioId, setDisciplinaUsuarioId] = useState("");
+  const [materiaUsuario, setMateriaUsuario] = useState("");
   const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<Disciplina | null>(null);
   const [materialLeituraSelecionado, setMaterialLeituraSelecionado] = useState<MaterialComData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,6 +143,8 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     if (!usuarioLogado) {
       setNomeUsuario("");
       setFaseEstudoUsuario("");
+      setDisciplinaUsuarioId("");
+      setMateriaUsuario("");
       return;
     }
 
@@ -147,8 +153,12 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
       const data = snapshot.data();
       const fase = data?.faseEstudo;
       const nome = data?.nome;
+      const disciplinaId = data?.disciplinaId;
+      const materia = data?.materia;
       setNomeUsuario(typeof nome === "string" ? nome : "");
       setFaseEstudoUsuario(typeof fase === "string" ? fase : "");
+      setDisciplinaUsuarioId(typeof disciplinaId === "string" ? disciplinaId : "");
+      setMateriaUsuario(typeof materia === "string" ? materia : "");
     });
 
     return unsubscribe;
@@ -160,6 +170,8 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
       setUsuarioLogado(null);
       setNomeUsuario("");
       setFaseEstudoUsuario("");
+      setDisciplinaUsuarioId("");
+      setMateriaUsuario("");
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
       toast.error("Não foi possível sair no momento.");
@@ -170,14 +182,16 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
   useEffect(() => {
     setLoading(true);
     try {
-      const constraints: QueryConstraint[] = [where("status", "==", "ativa"), orderBy("nome")];
+      const constraints: QueryConstraint[] = [orderBy("nome")];
       const q = query(collection(db, "disciplinas"), ...constraints);
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const discs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Disciplina[];
+        const discs = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          .filter((disciplina) => String((disciplina as Partial<Disciplina>).status ?? "").toLowerCase() === "ativa") as Disciplina[];
         setDisciplinas(discs);
         setLoading(false);
       });
@@ -250,6 +264,19 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     };
   }, [materialLeituraSelecionado]);
 
+  const usuarioEhGraduacao =
+    faseEstudoUsuario === "Estudante de Graduação" || faseEstudoUsuario === "graduacao";
+
+  const disciplinaGraduacaoVinculada = usuarioEhGraduacao
+    ? disciplinas.find((disciplina) => {
+        const materiaNormalizada = materiaUsuario.trim().toLowerCase();
+        return (
+          disciplina.id === disciplinaUsuarioId ||
+          (materiaNormalizada.length > 0 && disciplina.nome.trim().toLowerCase() === materiaNormalizada)
+        );
+      }) ?? null
+    : null;
+
   // --- LÓGICA DE ABERTURA DE MATERIAL ---
   const handleAbrirMaterial = (material: MaterialComData) => {
     if (material.isPremium && !usuarioLogado) {
@@ -297,16 +324,35 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     const maisAcademicos = materiais.get(disc.id) || [];
     const temConteudo = maisAcademicos.length > 0;
     const materiaisPreview = maisAcademicos.slice(0, 2);
+    const isBloqueada =
+      Boolean(usuarioLogado) &&
+      usuarioEhGraduacao &&
+      (!disciplinaGraduacaoVinculada || disc.id !== disciplinaGraduacaoVinculada.id);
+
+    const handleClickDisciplina = () => {
+      if (isBloqueada) {
+        toast.info("Esta disciplina está restrita para os alunos matriculados nesta turma neste semestre.");
+        return;
+      }
+
+      setDisciplinaSelecionada(disc);
+    };
 
     return (
       <motion.div key={disc.id} variants={itemVariants}>
         <Card
-          className={`cursor-pointer transition-all hover:shadow-lg ${
+          className={`transition-all ${
+            isBloqueada ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:shadow-lg"
+          } ${
             isOutroProfessor
-              ? "border-gray-300 bg-muted/50 hover:border-gray-400"
-              : "border-primary/30 bg-gradient-to-br from-primary/5 to-transparent hover:border-primary/60"
+              ? isBloqueada
+                ? "border-gray-300 bg-muted/50"
+                : "border-gray-300 bg-muted/50 hover:border-gray-400"
+              : isBloqueada
+                ? "border-primary/20 bg-gradient-to-br from-primary/5 to-transparent"
+                : "border-primary/30 bg-gradient-to-br from-primary/5 to-transparent hover:border-primary/60"
           }`}
-          onClick={() => setDisciplinaSelecionada(disc)}
+          onClick={handleClickDisciplina}
         >
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-4">
@@ -319,12 +365,21 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                   {isOutroProfessor && " (Outro professor)"}
                 </CardDescription>
               </div>
-              <Badge variant={isOutroProfessor ? "secondary" : "default"} className="shrink-0">
-                <div className="flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  {temConteudo ? `${maisAcademicos.length} materiais` : "Ativa"}
-                </div>
-              </Badge>
+              {isBloqueada ? (
+                <Badge variant="secondary" className="shrink-0 border border-border bg-muted text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Outra Turma
+                  </div>
+                </Badge>
+              ) : (
+                <Badge variant={isOutroProfessor ? "secondary" : "default"} className="shrink-0">
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {temConteudo ? `${maisAcademicos.length} materiais` : "Ativa"}
+                  </div>
+                </Badge>
+              )}
             </div>
           </CardHeader>
 
@@ -334,10 +389,17 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                 <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5 font-semibold text-primary">
                   Semestre: {disc.semestre}
                 </span>
-                <div className={`flex items-center gap-1 ${isOutroProfessor ? "text-gray-500" : "text-primary"}`}>
-                  <BookOpen className="w-4 h-4" />
-                  Ver mais
-                </div>
+                {isBloqueada ? (
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <Lock className="w-4 h-4" />
+                    Conteúdo Restrito
+                  </div>
+                ) : (
+                  <div className={`flex items-center gap-1 ${isOutroProfessor ? "text-gray-500" : "text-primary"}`}>
+                    <BookOpen className="w-4 h-4" />
+                    Ver mais
+                  </div>
+                )}
               </div>
 
               {temConteudo ? (
@@ -586,11 +648,17 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     const usuarioEhGraduacao =
       faseEstudoUsuario === "Estudante de Graduação" || faseEstudoUsuario === "graduacao";
     const meuWhatsApp = "5592994742322";
+    const instagramHandle = "prof.luizmiguel";
+    const linkInstagram = `https://instagram.com/${instagramHandle}`;
     const nomePrimeiro = nomeUsuario.trim().split(/\s+/)[0] || "aluno";
     const mensagemGraduacao = encodeURIComponent(
       `Olá Professor! Eu sou ${nomePrimeiro}, aluno da graduação, acabei de me cadastrar no portal e gostaria de validar meu desconto especial para a Mentoria da 2ª Fase`
     );
+    const mensagemPadrao = encodeURIComponent(
+      `Olá Professor! Gostaria de saber mais sobre a Mentoria da 2ª Fase da OAB.`
+    );
     const linkWhatsAppGraduacao = `https://wa.me/${meuWhatsApp}?text=${mensagemGraduacao}`;
+    const linkWhatsAppPadrao = `https://wa.me/${meuWhatsApp}?text=${mensagemPadrao}`;
 
     return (
       <motion.div
@@ -603,7 +671,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
             <div className="mb-2 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-primary" />
               <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-                {usuarioEhGraduacao ? "⚠️ Condição Exclusiva para Alunos do Presencial" : "Próximo Passo"}
+                {usuarioEhGraduacao ? "Vagas Limitadas para esta Turma" : "Próximo Passo"}
               </span>
             </div>
             <h3 className="text-3xl font-bold leading-tight">
@@ -647,23 +715,39 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                   Conheça a Mentoria
                 </Button>
               )}
-              <Button size="lg" variant="outline">
-                Fale com o Mentor
-              </Button>
+
+              <div className="flex items-center gap-3">
+                <a
+                  href={usuarioEhGraduacao ? linkWhatsAppGraduacao : linkWhatsAppPadrao}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Falar no WhatsApp"
+                  title="WhatsApp"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 transition-all hover:scale-105 hover:bg-emerald-100"
+                >
+                  <MessageCircle className="h-7 w-7" />
+                </a>
+                <a
+                  href={linkInstagram}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Abrir Instagram @prof.luizmiguel"
+                  title="Instagram @prof.luizmiguel"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-fuchsia-200 bg-gradient-to-br from-fuchsia-100 via-rose-100 to-orange-100 text-fuchsia-600 transition-all hover:scale-105 hover:from-fuchsia-200 hover:via-rose-200 hover:to-orange-200"
+                >
+                  <Instagram className="h-7 w-7" />
+                </a>
+              </div>
             </div>
           </div>
 
           {/* IMAGEM/VISUAL */}
           <div className="hidden flex-col items-center justify-center md:flex">
-            <div className="relative h-72 w-72 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 p-4 shadow-lg flex items-center justify-center">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <img
-                  src="https://raw.githubusercontent.com/miguelss3/suaoab/8a53302fe24efc4cc5b67e65927b2c7028614709/oab%20carteira.png"
-                  alt="Carteira da OAB"
-                  className="h-full w-full max-h-48 object-contain p-2"
-                />
-              </div>
-            </div>
+            <img
+              src="https://raw.githubusercontent.com/miguelss3/suaoab/8a53302fe24efc4cc5b67e65927b2c7028614709/oab%20carteira.png"
+              alt="Solenidade de entrega de carteiras da OAB"
+              className="w-full max-w-[560px] object-cover"
+            />
           </div>
         </div>
       </motion.div>
