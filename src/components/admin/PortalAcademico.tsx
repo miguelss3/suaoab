@@ -565,7 +565,17 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                             <div className="mt-4 flex gap-2">
                               <Button
                                 size="sm"
-                                onClick={() => handleAbrirMaterial(mat)}
+                                onClick={() => {
+                                  // Se há arquivo para download, baixa direto (sem abrir modal de leitura)
+                                  if (
+                                    mat.urlDownload &&
+                                    !(mat.isPremium && !usuarioLogado)
+                                  ) {
+                                    void handleProtectedDownload(mat);
+                                  } else {
+                                    void handleAbrirMaterial(mat);
+                                  }
+                                }}
                                 className={
                                   mat.isPremium && !usuarioLogado
                                     ? "w-full bg-amber-600 hover:bg-amber-700"

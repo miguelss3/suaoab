@@ -159,8 +159,9 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, emailLimpo, password);
         const alunoSnap = await getDoc(doc(db, "alunos", userCredential.user.uid));
-        await setDoc(doc(db, "alunos", userCredential.user.uid), { email_normalizado: emailLimpo }, { merge: true });
-        await tentarReconciliarCompra(emailLimpo);
+        // Fire-and-forget: não bloqueiam o redirecionamento (rodam em background)
+        setDoc(doc(db, "alunos", userCredential.user.uid), { email_normalizado: emailLimpo }, { merge: true }).catch(() => {});
+        tentarReconciliarCompra(emailLimpo).catch(() => {});
         toast.success("Acesso autorizado!");
         if (userCredential.user.email === ADMIN_EMAIL) {
           navigate("/painel");
