@@ -10,6 +10,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where, getDoc } from "firebase/firestore";
 import { toast } from "sonner"; 
 
+import { useAntiPiracy } from "@/hooks/useAntiPiracy";
 import { GestorMetas } from "@/components/aluno/GestorMetas";
 import { TelaBloqueio, BannerDegustacao } from "@/components/aluno/TelasDegustacao";
 import { GestorPecas } from "@/components/aluno/GestorPecas";
@@ -17,6 +18,8 @@ import { GestorSimulados } from "@/components/aluno/GestorSimulados";
 import PerfilAluno from "@/components/aluno/PerfilAluno"; // NOVO IMPORT DO PERFIL
 import { DEFAULT_HOTMART_CHECKOUT_URL, gerarLinkHotmartComPrefill } from "@/lib/hotmart";
 
+import { AntiPiracyNotification } from "@/components/AntiPiracyNotification";
+import { downloadProtectedPDF } from "@/lib/pdfService";
 type TimestampLike = {
   toDate?: () => Date;
   toMillis?: () => number;
@@ -32,6 +35,7 @@ type PerfilAlunoData = {
   uid: string;
   nome?: string;
   email?: string;
+  cpf?: string;
   whatsapp?: string;
   matricula?: string;
   materia?: string;
@@ -128,6 +132,8 @@ const Aluno = () => {
   const [linkCheckout, setLinkCheckout] = useState(DEFAULT_HOTMART_CHECKOUT_URL);
   const [linkRepescagem, setLinkRepescagem] = useState("");
 
+  // Ativar proteção anti-piracy
+  const { isBlurred } = useAntiPiracy();
   useEffect(() => {
     const verificarCiclo = async () => {
       try {
@@ -304,6 +310,21 @@ const Aluno = () => {
     ? gerarLinkHotmartComPrefill(linkRepescagem, perfilAluno)
     : "";
 
+  const handleProtectedMaterialDownload = async (pdfUrl?: string, fileName?: string) => {
+    if (!pdfUrl) return toast.error("PDF indisponivel para download.");
+
+    try {
+      await downloadProtectedPDF({
+        originalPdfUrl: pdfUrl,
+        alunoNome: perfilAluno?.nome || perfilAluno?.email,
+        alunoCpfOuEmail: perfilAluno?.cpf || perfilAluno?.email || perfilAluno?.matricula || perfilAluno?.uid,
+        fileName,
+      });
+    } catch {
+      toast.error("Nao foi possivel preparar o PDF protegido.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground font-body relative pb-24">
       <header className="bg-primary border-b-4 border-accent py-4 sticky top-0 z-40">
@@ -313,7 +334,7 @@ const Aluno = () => {
         </div>
       </header>
 
-      <main className="container py-8">
+      <main className={`container py-8 transition-all duration-300 ${isBlurred ? 'anti-piracy-blur' : ''}`}>
         <div className="mb-8 flex justify-between items-end">
           <div>
             <h2 className="text-3xl font-display font-bold text-primary italic">Portal do Aluno</h2>
@@ -379,7 +400,7 @@ const Aluno = () => {
                     {laboratorio.map((l, idx) => (
                       <div key={idx} className="p-4 rounded-lg border border-border flex justify-between items-center">
                         <div><span className="font-bold text-sm block text-primary">{l.nome}</span></div>
-                        <Button variant="outline" size="sm" onClick={() => l.url_pdf && window.open(l.url_pdf, "_blank")}>Abrir Peça</Button>
+                        <Button variant="outline" size="sm" onClick={() => void handleProtectedMaterialDownload(l.url_pdf, l.nome || "peca-laboratorio.pdf")}>Abrir Peça</Button>
                       </div>
                     ))}
                   </div>
@@ -391,7 +412,7 @@ const Aluno = () => {
                     {cadernos.map((c) => (
                       <div key={c.id} className="p-4 rounded-lg border border-border flex justify-between items-center">
                         <div><span className="font-bold text-sm block text-primary">{c.titulo}</span></div>
-                        <Button variant="outline" size="sm" onClick={() => c.url_pdf && window.open(c.url_pdf, "_blank")}>Abrir Caderno</Button>
+                        <Button variant="outline" size="sm" onClick={() => void handleProtectedMaterialDownload(c.url_pdf, c.titulo || "caderno.pdf")}>Abrir Caderno</Button>
                       </div>
                     ))}
                   </div>
@@ -428,7 +449,13 @@ const Aluno = () => {
         )}
       </main>
 
-      <GestorSimulados modalPreparacao={modalPreparacao} setModalPreparacao={setModalPreparacao} />
+      <GestorSimulados
+        modalPreparacao={modalPreparacao}
+        setModalPreparacao={setModalPreparacao}
+        alunoNome={perfilAluno?.nome || perfilAluno?.email}
+        alunoCpfOuEmail={perfilAluno?.cpf || perfilAluno?.email || perfilAluno?.matricula || perfilAluno?.uid}
+      />
+        <AntiPiracyNotification />
     </div>
   );
 };

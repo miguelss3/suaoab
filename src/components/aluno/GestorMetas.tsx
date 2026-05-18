@@ -5,7 +5,9 @@ import { db } from "@/lib/firebase";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Lock, Link as LinkIcon, FileText, FastForward } from "lucide-react";
+import { toast } from "sonner";
 import { MetaAluno, PerfilAlunoPortalBase } from "@/lib/aulas";
+import { downloadProtectedPDF } from "@/lib/pdfService";
 
 type GestorMetasProps<TPerfil extends PerfilAlunoPortalBase> = {
   perfilAluno: TPerfil | null;
@@ -15,6 +17,20 @@ type GestorMetasProps<TPerfil extends PerfilAlunoPortalBase> = {
 };
 
 export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno, setPerfilAluno, metas, setMetas }: GestorMetasProps<TPerfil>) => {
+  const handleProtectedAttachmentDownload = async (arquivoUrl?: string, arquivoNome?: string) => {
+    if (!arquivoUrl) return toast.error("Arquivo indisponivel para download.");
+
+    try {
+      await downloadProtectedPDF({
+        originalPdfUrl: arquivoUrl,
+        alunoNome: perfilAluno?.nome,
+        alunoCpfOuEmail: perfilAluno?.cpf || perfilAluno?.email || perfilAluno?.uid,
+        fileName: arquivoNome || "material-meta.pdf",
+      });
+    } catch {
+      toast.error("Nao foi possivel preparar o PDF protegido.");
+    }
+  };
   
   const handleStatusMeta = async (index: number, novoStatus: string) => {
     if (!perfilAluno) return;
@@ -98,8 +114,13 @@ export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno
                           </Button>
                         )}
                         {m.arquivo_url && (
-                          <Button variant="outline" size="sm" className="font-bold text-success border-success/30 hover:bg-success/10" asChild>
-                            <a href={m.arquivo_url} target="_blank" rel="noreferrer"><FileText className="h-4 w-4 mr-2" /> {m.arquivo_nome || "Baixar Anexo"}</a>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="font-bold text-success border-success/30 hover:bg-success/10"
+                            onClick={() => void handleProtectedAttachmentDownload(m.arquivo_url, m.arquivo_nome)}
+                          >
+                            <FileText className="h-4 w-4 mr-2" /> {m.arquivo_nome || "Baixar Anexo"}
                           </Button>
                         )}
                       </div>

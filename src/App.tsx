@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, Route, Routes, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +14,9 @@ import PortalGraduacao from "./pages/PortalGraduacao.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
+const routerFuture = {
+  v7_startTransition: true,
+} as const;
 
 const router = createBrowserRouter(
   [
@@ -26,9 +29,7 @@ const router = createBrowserRouter(
     { path: "*", element: <NotFound /> },
   ],
   {
-    future: {
-      v7_startTransition: true,
-    },
+    future: routerFuture,
   }
 );
 
@@ -37,7 +38,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <RouterProvider router={router} />
+      <RouterProvider router={router} future={routerFuture} />
     </TooltipProvider>
   </QueryClientProvider>
 );

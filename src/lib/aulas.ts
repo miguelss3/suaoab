@@ -53,6 +53,8 @@ export interface MetaAluno {
 export interface PerfilAlunoPortalBase {
   uid: string;
   nome?: string;
+  email?: string;
+  cpf?: string;
   materia?: string;
   metaZeroConcluida?: boolean;
 }

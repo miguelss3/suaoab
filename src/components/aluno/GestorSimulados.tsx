@@ -3,8 +3,16 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { downloadProtectedPDF } from "@/lib/pdfService";
 
-export const GestorSimulados = ({ modalPreparacao, setModalPreparacao }: any) => {
+type GestorSimuladosProps = {
+  modalPreparacao: any;
+  setModalPreparacao: (value: any) => void;
+  alunoNome?: string;
+  alunoCpfOuEmail?: string;
+};
+
+export const GestorSimulados = ({ modalPreparacao, setModalPreparacao, alunoNome, alunoCpfOuEmail }: GestorSimuladosProps) => {
   const [simuladoAtivo, setSimuladoAtivo] = useState<any>(null);
   const [tempoRestante, setTempoRestante] = useState(18000); // 5 horas
 
@@ -30,12 +38,29 @@ export const GestorSimulados = ({ modalPreparacao, setModalPreparacao }: any) =>
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const iniciarSimulado = () => {
+  const iniciarSimulado = async () => {
+    const materialUrl = modalPreparacao?.url_pdf || modalPreparacao?.url || modalPreparacao?.link;
+    if (!materialUrl) {
+      toast.error("O PDF do simulado nao esta disponivel.");
+      return;
+    }
+
     setSimuladoAtivo(modalPreparacao);
     setTempoRestante(18000);
     setModalPreparacao(null);
-    window.open(modalPreparacao.url_pdf || modalPreparacao.url || modalPreparacao.link, "_blank");
-    toast.success("Cronômetro de 5 horas iniciado. Boa prova!");
+
+    try {
+      await downloadProtectedPDF({
+        originalPdfUrl: materialUrl,
+        alunoNome,
+        alunoCpfOuEmail,
+        fileName: modalPreparacao?.titulo || "simulado.pdf",
+      });
+      toast.success("Cronometro de 5 horas iniciado. Boa prova!");
+    } catch {
+      setSimuladoAtivo(null);
+      toast.error("Nao foi possivel preparar o PDF protegido do simulado.");
+    }
   };
 
   return (

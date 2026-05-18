@@ -7,6 +7,7 @@ import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/fi
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "sonner";
 import { HistoricoPeca, PerfilAlunoPortalBase } from "@/lib/aulas";
+import { downloadProtectedPDF } from "@/lib/pdfService";
 
 type PerfilAlunoPecas = PerfilAlunoPortalBase & {
   nome?: string;
@@ -21,6 +22,21 @@ export const GestorPecas = <TPerfil extends PerfilAlunoPecas>({ perfilAluno, his
   const [uploading, setUploading] = useState(false);
   const [feedbackSelecionado, setFeedbackSelecionado] = useState<HistoricoPeca | null>(null);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+
+  const handleProtectedCorrectionDownload = async (url?: string, fileName?: string) => {
+    if (!url) return toast.error("Correcao indisponivel para download.");
+
+    try {
+      await downloadProtectedPDF({
+        originalPdfUrl: url,
+        alunoNome: perfilAluno?.nome,
+        alunoCpfOuEmail: perfilAluno?.cpf || perfilAluno?.email || perfilAluno?.uid,
+        fileName: fileName || "correcao.pdf",
+      });
+    } catch {
+      toast.error("Nao foi possivel preparar a correcao protegida.");
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -161,7 +177,7 @@ export const GestorPecas = <TPerfil extends PerfilAlunoPecas>({ perfilAluno, his
                       variant="outline" 
                       size="sm" 
                       className="h-9 text-xs font-bold border-success text-success hover:bg-success/10 w-full" 
-                      onClick={() => window.open(h.url_arquivo_corrigido || h.url_corrigida, "_blank")}
+                      onClick={() => void handleProtectedCorrectionDownload(h.url_arquivo_corrigido || h.url_corrigida, h.nome_documento)}
                     >
                       Ver Correção
                     </Button>

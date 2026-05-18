@@ -1,0 +1,57 @@
+/* ========================================
+   PROTEÇÃO ANTI-PIRACY
+   ======================================== */
+
+/* Classe para aplicar blur quando janela perde foco */
+.anti-piracy-blur {
+  filter: blur(20px);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Desabilitar seleção de texto em elementos protegidos */
+.anti-piracy-protected {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* ========================================
+   PROTEÇÃO CONTRA IMPRESSÃO E PDF
+   ======================================== */
+@media print {
+  /* Ocultar completamente todo o corpo ao tentar imprimir */
+  body {
+    display: none !important;
+  }
+
+  /* Alternativa: Mostrar mensagem de que impressão não é permitida */
+  body::after {
+    content: '⚠️ Impressão deste documento não é permitida. Respeite os direitos autorais.';
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: #fff;
+    z-index: 99999;
+    font-size: 24px;
+    font-weight: bold;
+    color: #d32f2f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+  }
+}
+
+/* Proteção para elementos de conteúdo */
+main {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
