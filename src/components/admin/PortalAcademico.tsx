@@ -688,75 +688,75 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
     return (
       <motion.div
         variants={itemVariants}
-        className="col-span-full mt-8 rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-8"
+        className="col-span-full mt-6 sm:mt-8 rounded-xl border-2 border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 sm:p-8"
       >
         <div className="grid gap-4 md:grid-cols-2 md:gap-8">
           {/* CONTEÚDO */}
           <div className="flex flex-col justify-center">
             <div className="mb-2 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" />
-              <span className="text-sm font-semibold uppercase tracking-wider text-primary">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              <span className="text-[11px] sm:text-sm font-semibold uppercase tracking-wider text-primary">
                 {usuarioEhGraduacao ? "Vagas Limitadas para esta Turma" : "Próximo Passo"}
               </span>
             </div>
-            <h3 className="text-3xl font-bold leading-tight">
+            <h3 className="text-lg sm:text-3xl font-bold leading-tight">
               {usuarioEhGraduacao
                 ? "⚠️ Condição Exclusiva para Alunos do Presencial"
                 : "Mentoria Artesanal para a 2ª Fase da OAB"}
             </h3>
-            <p className="mt-4 text-base leading-relaxed text-gray-600">
+            <p className="mt-2 sm:mt-4 text-xs sm:text-base leading-relaxed text-gray-600">
               {usuarioEhGraduacao
                 ? "Professor Luiz Miguel liberou um lote de vagas na Mentoria da 2ª Fase com um Desconto Especial de Aluno da Graduação. Não espere o edital sair para blindar a sua aprovação de forma artesanal."
                 : "Você já tem o conhecimento. Agora precisa da prática cirúrgica. Nossas mentorias são artesanais: cada peça sua é corrigida com atenção personalizada, mostrando exatamente onde melhorar."}
             </p>
 
             {/* DESTAQUES */}
-            <div className="mt-6 space-y-2">
+            <div className="mt-3 sm:mt-6 space-y-1.5 sm:space-y-2">
               {[
                 "Correção de peças com devolutiva detalhada",
                 "Cronograma adaptativo para sua rotina",
                 "Comunicação direta com o mentor",
                 "Dossiê de evolução em tempo real",
               ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 w-5 h-5 flex-shrink-0 text-primary" />
-                  <span className="text-sm">{item}</span>
+                <div key={i} className="flex items-start gap-2 sm:gap-3">
+                  <CheckCircle2 className="mt-0.5 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 text-primary" />
+                  <span className="text-xs sm:text-sm">{item}</span>
                 </div>
               ))}
             </div>
 
-            {/* CTA */}
-            <div className="mt-6 flex flex-wrap gap-3">
+            {/* CTA + Instagram lado a lado */}
+            <div className="mt-4 sm:mt-6 flex flex-row flex-nowrap items-center gap-2 sm:gap-3">
               {usuarioEhGraduacao ? (
-                <Button asChild size="lg" className="gap-2">
+                <Button asChild size="lg" className="gap-2 flex-1 sm:flex-initial min-w-0 h-11 sm:h-11 text-xs sm:text-base px-3 sm:px-6">
                   <a href={linkWhatsAppGraduacao} target="_blank" rel="noreferrer">
-                    <Users className="w-5 h-5" />
-                    Garantir Meu Desconto de Aluno
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <span className="truncate">Garantir Meu Desconto de Aluno</span>
                   </a>
                 </Button>
               ) : (
-                <Button size="lg" className="gap-2">
-                  <Users className="w-5 h-5" />
-                  Conheça a Mentoria
+                <Button size="lg" className="gap-2 flex-1 sm:flex-initial min-w-0 h-11 text-xs sm:text-base px-3 sm:px-6">
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                  <span className="truncate">Conheça a Mentoria</span>
                 </Button>
               )}
 
-              <div className="flex items-center gap-3">
-                <a
-                  href={linkInstagram}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Abrir Instagram @prof.luizmiguel"
-                  title="Instagram @prof.luizmiguel"
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full transition-all hover:scale-105"
-                >
-                  <img
-                    src="https://raw.githubusercontent.com/miguelss3/suaoab/7720736cf004090c7a0d66f33b0060358abca74c/Instagram_icon.png"
-                    alt="Instagram"
-                    className="h-10 w-10 object-contain"
-                  />
-                </a>
-              </div>
+              <a
+                href={linkInstagram}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Abrir Instagram @prof.luizmiguel"
+                title="Instagram @prof.luizmiguel"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all hover:scale-105"
+              >
+                <img
+                  src="https://raw.githubusercontent.com/miguelss3/suaoab/7720736cf004090c7a0d66f33b0060358abca74c/Instagram_icon.png"
+                  alt="Instagram"
+                  className="h-10 w-10 object-contain"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
             </div>
           </div>
 
@@ -766,6 +766,8 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
               src="https://raw.githubusercontent.com/miguelss3/suaoab/8a53302fe24efc4cc5b67e65927b2c7028614709/oab%20carteira.png"
               alt="Solenidade de entrega de carteiras da OAB"
               className="w-full max-w-[560px] object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </div>
         </div>
