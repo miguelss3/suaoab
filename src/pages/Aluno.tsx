@@ -255,10 +255,13 @@ const Aluno = () => {
     navigate("/");
   };
 
+  const ehAlunoGraduacao =
+    perfilAluno?.faseEstudo === "Estudante de Graduação" || perfilAluno?.faseEstudo === "graduacao";
+
   let isDegustacaoExpirada = false;
   let tempoRestanteTexto = "";
 
-  if (perfilAluno?.status === "Lead" || perfilAluno?.status === "inativo") {
+  if (!ehAlunoGraduacao && (perfilAluno?.status === "Lead" || perfilAluno?.status === "inativo")) {
     let dataCorte: Date;
     
     if (perfilAluno?.data_expiracao) {
@@ -285,7 +288,7 @@ const Aluno = () => {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-display text-primary italic">Carregando Dossiê...</div>;
 
-  if (perfilAluno?.status === "inativo" || (perfilAluno?.status === "Lead" && isDegustacaoExpirada)) {
+  if (!ehAlunoGraduacao && (perfilAluno?.status === "inativo" || (perfilAluno?.status === "Lead" && isDegustacaoExpirada))) {
     return <TelaBloqueio perfilAluno={perfilAluno} handleLogout={handleLogout} checkoutUrl={gerarLinkHotmartComPrefill(linkCheckout, perfilAluno)} />;
   }
 
@@ -316,7 +319,7 @@ const Aluno = () => {
           )}
         </div>
 
-        {perfilAluno?.status === "Lead" && !isDegustacaoExpirada && (
+        {!ehAlunoGraduacao && perfilAluno?.status === "Lead" && !isDegustacaoExpirada && (
           <BannerDegustacao tempoRestanteTexto={tempoRestanteTexto} perfilAluno={perfilAluno} checkoutUrl={checkoutLeadUrl} />
         )}
 

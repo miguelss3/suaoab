@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -687,6 +688,13 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
             </div>
 
             <div className="flex items-center gap-3">
+              <Button asChild variant="outline" size="sm" className="gap-2">
+                <Link to="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Voltar para o Início</span>
+                </Link>
+              </Button>
+
               {usuarioLogado ? (
                 <>
                   <div className="hidden sm:block text-right">

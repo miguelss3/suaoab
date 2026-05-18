@@ -59,7 +59,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
 
   const labelFaseEstudo = (fase: "graduacao" | "primeira_fase" | "segunda_fase") => {
     if (fase === "graduacao") return "Estudante de Graduação";
-    if (fase === "primeira_fase") return "Preparação para 1ª Fase OAB";
+    if (fase === "primeira_fase") return "Preparação para 1ª Fase OAB (Em Breve)";
     return "Preparação para 2ª Fase OAB";
   };
 
@@ -286,7 +286,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                         >
                           <option value="">Selecione...</option>
                           <option value="graduacao">Estudante de Graduação</option>
-                          <option value="primeira_fase">Preparação para 1ª Fase OAB</option>
+                          <option value="primeira_fase">Preparação para 1ª Fase OAB (Em Breve)</option>
                           <option value="segunda_fase">Preparação para 2ª Fase OAB</option>
                         </select>
                       </div>

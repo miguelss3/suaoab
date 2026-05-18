@@ -7,6 +7,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Identifica você como administrador supremo da plataforma
     function isAdmin() {
       return isSignedIn() && request.auth.token.email == "miguelss3@yahoo.com.br";
     }
@@ -46,12 +47,18 @@ service cloud.firestore {
 
     // ─── Disciplinas / banco de questões ────────────────────────────────────
     match /disciplinas/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true; // Liberado para o aluno ver a vitrine sem login
       allow write: if isAdmin();
     }
 
     match /banco_questoes/{docId} {
       allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ─── Portal da Graduação (Materiais) ────────────────────────────────────
+    match /materiaisAcademicos/{docId} {
+      allow read: if true; // Liberado para a vitrine. O frontend barra o download/clique.
       allow write: if isAdmin();
     }
 

@@ -38,6 +38,14 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
+    // ─── Portal da Graduação (Materiais de Aula) ───────────────────────────
+    match /materiais_graduacao/{allPaths=**} {
+      // Liberado para os alunos baixarem/visualizarem os resumos e slides na vitrine
+      allow read:  if true; 
+      // Protegido: Apenas você (admin) consegue fazer o upload dos arquivos pelo painel
+      allow write: if isAdmin(); 
+    }
+
     // ─── Fallback — nega tudo que não esteja explicitamente permitido ────────
     match /{allPaths=**} {
       allow read, write: if false;
