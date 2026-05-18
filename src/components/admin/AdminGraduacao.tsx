@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import {
   addDoc,
   collection,
@@ -10,6 +10,7 @@ import {
   query,
   updateDoc,
 } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { BookOpen, GraduationCap, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,9 @@ const AdminGraduacao = () => {
   const [materialForm, setMaterialForm] = useState<MaterialForm>(initialMaterialForm);
   const [disciplinaEditandoId, setDisciplinaEditandoId] = useState<string | null>(null);
   const [materialEditandoId, setMaterialEditandoId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadFeedback, setUploadFeedback] = useState("");
 
   const disciplinasAtivas = useMemo(
     () => disciplinas.filter((d) => d.status === "ativa"),
@@ -206,8 +210,8 @@ const AdminGraduacao = () => {
         disciplinaId: materialForm.disciplinaId,
         titulo: materialForm.titulo.trim(),
         tipo: materialForm.tipo,
-        conteudoTexto: materialForm.conteudoTexto.trim() || undefined,
-        urlDownload: materialForm.urlDownload.trim() || undefined,
+        conteudoTexto: materialForm.conteudoTexto.trim() || "",
+        urlDownload: materialForm.urlDownload.trim() || "",
         isPremium: materialForm.isPremium,
       };
 
@@ -226,6 +230,46 @@ const AdminGraduacao = () => {
     } catch (error) {
       console.error("Erro ao salvar material:", error);
       window.alert("Erro ao salvar material.");
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadFeedback("");
+
+    try {
+      const safeFileName = file.name.replace(/\s+/g, "_");
+      const storageRef = ref(storage, `materiais_graduacao/${Date.now()}-${safeFileName}`);
+
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on(
+          "state_changed",
+          (snapshot) => {
+            const progress = snapshot.totalBytes > 0 ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100 : 0;
+            setUploadProgress(Math.round(progress));
+          },
+          (error) => reject(error),
+          () => resolve()
+        );
+      });
+
+      const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+      setMaterialForm((prev) => ({ ...prev, urlDownload: downloadUrl }));
+      setUploadProgress(100);
+      setUploadFeedback("Ficheiro carregado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao fazer upload do ficheiro:", error);
+      setUploadFeedback("Erro ao carregar o ficheiro.");
+      window.alert("Erro ao carregar o ficheiro.");
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
     }
   };
 
@@ -454,6 +498,38 @@ const AdminGraduacao = () => {
             </div>
 
             <div className="space-y-2">
+              <Label>Ficheiro do Material</Label>
+              <div className="flex flex-col gap-2 rounded-md border border-dashed border-border bg-muted/30 p-4">
+                <input
+                  type="file"
+                  accept=".pdf,.ppt,.pptx,.doc,.docx,.jpg,.png"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground file:font-semibold hover:file:bg-primary/90"
+                />
+                {isUploading && (
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-200 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {isUploading ? (
+                    <span className="font-semibold text-primary">A carregar ficheiro... {uploadProgress}%</span>
+                  ) : uploadFeedback ? (
+                    <span className={uploadFeedback.includes("sucesso") ? "font-semibold text-emerald-600" : "font-semibold text-destructive"}>
+                      {uploadFeedback}
+                    </span>
+                  ) : (
+                    <span>PDF, apresentações, documentos e imagens são aceites.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label>Conteúdo em Texto</Label>
               <Textarea
                 value={materialForm.conteudoTexto}
@@ -474,12 +550,12 @@ const AdminGraduacao = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button onClick={salvarMaterial} className="font-bold">
+              <Button onClick={salvarMaterial} className="font-bold" disabled={isUploading}>
                 {materialEditandoId ? <Save className="h-4 w-4 mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
                 {materialEditandoId ? "Atualizar Material" : "Publicar Material"}
               </Button>
               {materialEditandoId && (
-                <Button variant="outline" onClick={cancelarEdicaoMaterial}>
+                <Button variant="outline" onClick={cancelarEdicaoMaterial} disabled={isUploading}>
                   <X className="h-4 w-4 mr-2" /> Cancelar Edição
                 </Button>
               )}

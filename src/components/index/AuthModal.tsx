@@ -1,6 +1,6 @@
 // src/components/index/AuthModal.tsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { X, Mail, Lock, User, Phone, BookOpen, Eye, EyeOff, ArrowLeft } from "lu
 import { auth, db, functionsClient } from "@/lib/firebase";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { normalizarEmail } from "@/lib/hotmart";
 import { toast } from "sonner";
@@ -39,10 +39,12 @@ const getErrorCode = (error: unknown): string | undefined => {
 
 export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin }: AuthModalProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [nome, setNome] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [faseEstudo, setFaseEstudo] = useState<"graduacao" | "primeira_fase" | "segunda_fase" | "">("");
   const [materia, setMateria] = useState(""); 
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -51,6 +53,31 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
   // --- ESTADOS DA NOVA TELA DE RECUPERAÇÃO ---
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+
+  const faseEstudoEhGraduacao = (fase?: string) =>
+    fase === "Estudante de Graduação" || fase === "graduacao";
+
+  const labelFaseEstudo = (fase: "graduacao" | "primeira_fase" | "segunda_fase") => {
+    if (fase === "graduacao") return "Estudante de Graduação";
+    if (fase === "primeira_fase") return "Preparação para 1ª Fase OAB";
+    return "Preparação para 2ª Fase OAB";
+  };
+
+  const redirecionarAposAuth = (fase?: string) => {
+    if (faseEstudoEhGraduacao(fase)) {
+      if (location.pathname === "/portal-graduacao") {
+        closeModal();
+        return;
+      }
+
+      navigate("/portal-graduacao");
+      closeModal();
+      return;
+    }
+
+    navigate("/aluno");
+    closeModal();
+  };
 
   const reconciliarCompraHotmart = httpsCallable<{ email?: string }, { reconciliado: boolean; status?: string }>(
     functionsClient,
@@ -104,13 +131,19 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
     try {
       if (isLogin) {
         const userCredential = await signInWithEmailAndPassword(auth, emailLimpo, password);
+        const alunoSnap = await getDoc(doc(db, "alunos", userCredential.user.uid));
         await setDoc(doc(db, "alunos", userCredential.user.uid), { email_normalizado: emailLimpo }, { merge: true });
         await tentarReconciliarCompra(emailLimpo);
         toast.success("Acesso autorizado!");
-        if (userCredential.user.email === ADMIN_EMAIL) navigate("/painel");
-        else navigate("/aluno");
+        if (userCredential.user.email === ADMIN_EMAIL) {
+          navigate("/painel");
+          closeModal();
+        } else {
+          redirecionarAposAuth(String(alunoSnap.data()?.faseEstudo ?? ""));
+        }
       } else {
-        if (!materia) { toast.error("Selecione a disciplina."); setLoading(false); return; }
+        if (!faseEstudo) { toast.error("Selecione o seu momento atual."); setLoading(false); return; }
+        if (faseEstudo === "segunda_fase" && !materia) { toast.error("Selecione a disciplina da 2ª fase."); setLoading(false); return; }
         if (whatsapp.replace(/\D/g, '').length < 10) { toast.error("WhatsApp incompleto."); setLoading(false); return; }
         if (!aceitouTermos) { toast.error("Aceite os Termos de Uso."); setLoading(false); return; }
 
@@ -126,7 +159,8 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
           whatsapp: whatsapp,
           email: emailLimpo,
           email_normalizado: emailLimpo,
-          materia: materia, 
+          faseEstudo: labelFaseEstudo(faseEstudo),
+          materia: faseEstudo === "segunda_fase" ? materia : "",
           matricula: novaMatricula, 
           status: "Lead",
           progresso: 0,
@@ -149,9 +183,8 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
         if (statusFinal === "premium") {
           toast.success("Compra Hotmart localizada. Seu acesso premium foi liberado automaticamente.");
         }
-        navigate("/aluno");
+        redirecionarAposAuth(labelFaseEstudo(faseEstudo));
       }
-      closeModal();
     } catch (error: unknown) {
       const errorCode = getErrorCode(error);
       if (errorCode === 'auth/email-already-in-use') toast.error("E-mail já cadastrado. Faça login.");
@@ -238,6 +271,27 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                         </div>
                       </div>
                       <div className="space-y-2">
+                        <Label className="text-accent font-bold">Qual o seu momento atual?</Label>
+                        <select
+                          className="w-full h-10 border border-input rounded-md px-3 bg-background text-sm focus:ring-2 focus:ring-accent"
+                          value={faseEstudo}
+                          onChange={(e) => {
+                            const valor = e.target.value as "graduacao" | "primeira_fase" | "segunda_fase" | "";
+                            setFaseEstudo(valor);
+                            if (valor !== "segunda_fase") {
+                              setMateria("");
+                            }
+                          }}
+                          required
+                        >
+                          <option value="">Selecione...</option>
+                          <option value="graduacao">Estudante de Graduação</option>
+                          <option value="primeira_fase">Preparação para 1ª Fase OAB</option>
+                          <option value="segunda_fase">Preparação para 2ª Fase OAB</option>
+                        </select>
+                      </div>
+                      {faseEstudo === "segunda_fase" && (
+                        <div className="space-y-2">
                         <Label className="text-accent font-bold">Disciplina da 2ª Fase</Label>
                         <div className="relative">
                           <BookOpen className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -249,6 +303,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                           </select>
                         </div>
                       </div>
+                      )}
                     </>
                   )}
 
