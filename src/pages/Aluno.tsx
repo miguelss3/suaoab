@@ -128,8 +128,9 @@ const Aluno = () => {
   const [loading, setLoading] = useState(true);
   
   const [modalPreparacao, setModalPreparacao] = useState<MaterialPublicado | null>(null);
-  const [isExpirado, setIsExpirado] = useState(false);
-  const [dataCorteVisual, setDataCorteVisual] = useState("");
+  // Corte global do ciclo (yyyy-mm-dd), só usado quando o aluno não tem um corte
+  // individual definido pelo professor no Dossiê (aluno.data_expiracao).
+  const [globalDataExpiracao, setGlobalDataExpiracao] = useState("");
   const [linkCheckout, setLinkCheckout] = useState(DEFAULT_HOTMART_CHECKOUT_URL);
   const [linkRepescagem, setLinkRepescagem] = useState("");
 
@@ -141,12 +142,7 @@ const Aluno = () => {
         const docSnap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
         if (docSnap.exists() && docSnap.data().data_expiracao) {
           const dataExp = getDateOnlyString(docSnap.data().data_expiracao);
-          if (!dataExp) return;
-          const [ano, mes, dia] = dataExp.split('-');
-          setDataCorteVisual(`${dia}/${mes}/${ano}`);
-          const hoje = new Date();
-          hoje.setHours(0,0,0,0);
-          if (hoje > new Date(dataExp + "T00:00:00")) setIsExpirado(true);
+          if (dataExp) setGlobalDataExpiracao(dataExp);
         }
       } catch (error) { console.error(error); }
     };
@@ -296,6 +292,25 @@ const Aluno = () => {
       const horasRestantes = Math.floor(diffHoras % 24);
       if (diasFaltando > 0) tempoRestanteTexto = `${diasFaltando} ${diasFaltando === 1 ? 'dia' : 'dias'} e ${horasRestantes}h`;
       else tempoRestanteTexto = `${Math.floor(diffHoras)} horas`;
+    }
+  }
+
+  // --- CORTE DO CICLO: o corte individual do aluno (definido pelo professor no
+  // Dossiê) tem prioridade sobre o corte global do ciclo. Sem isso, estender o
+  // acesso de um aluno específico no Dossiê não tinha efeito algum — ele
+  // continuava vendo "Ciclo Encerrado" pela data global, mesmo com um corte
+  // individual mais distante configurado.
+  let isExpirado = false;
+  let dataCorteVisual = "";
+
+  if (!ehAlunoGraduacao && !temAcessoVitalicio) {
+    const corteIndividual = perfilAluno?.data_expiracao ? getDate(perfilAluno.data_expiracao) : null;
+    const corteGlobal = globalDataExpiracao ? new Date(globalDataExpiracao + "T23:59:59") : null;
+    const dataCorte = corteIndividual ?? corteGlobal;
+
+    if (dataCorte) {
+      dataCorteVisual = dataCorte.toLocaleDateString('pt-BR');
+      if (new Date() > dataCorte) isExpirado = true;
     }
   }
 
