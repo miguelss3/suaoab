@@ -1,5 +1,5 @@
 // src/pages/Painel.tsx
-import { lazy, Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -7,21 +7,24 @@ import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, P
 import { auth } from "@/lib/firebase";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 
 // Cada motor do painel admin só é baixado quando a respectiva aba é aberta
 // (só o professor acessa isso, mas mesmo assim evita travar a aba ativa
 // esperando o parse/execução de motores que ele nem abriu nesta sessão).
-const PainelVendas = lazy(() => import("@/components/admin/PainelVendas"));
-const AlunosCRM = lazy(() => import("@/components/admin/AlunosCRM"));
-const FilaCorrecao = lazy(() => import("@/components/admin/FilaCorrecao"));
-const BancoQuestoes = lazy(() => import("@/components/admin/BancoQuestoes"));
-const MotorGerador = lazy(() => import("@/components/admin/MotorGerador"));
-const GestaoMateriais = lazy(() => import("@/components/admin/GestaoMateriais"));
-const GestaoPecas = lazy(() => import("@/components/admin/GestaoPecas"));
-const GestaoCiclos = lazy(() => import("@/components/admin/GestaoCiclos"));
-const GestaoAulas = lazy(() => import("@/components/admin/GestaoAulas"));
-const VisaoAluno = lazy(() => import("@/components/admin/VisaoAluno"));
-const AdminGraduacao = lazy(() => import("@/components/admin/AdminGraduacao"));
+// lazyWithReload evita a tela de erro "Failed to fetch dynamically imported
+// module" quando um deploy novo troca os hashes dos chunks com o painel aberto.
+const PainelVendas = lazyWithReload(() => import("@/components/admin/PainelVendas"));
+const AlunosCRM = lazyWithReload(() => import("@/components/admin/AlunosCRM"));
+const FilaCorrecao = lazyWithReload(() => import("@/components/admin/FilaCorrecao"));
+const BancoQuestoes = lazyWithReload(() => import("@/components/admin/BancoQuestoes"));
+const MotorGerador = lazyWithReload(() => import("@/components/admin/MotorGerador"));
+const GestaoMateriais = lazyWithReload(() => import("@/components/admin/GestaoMateriais"));
+const GestaoPecas = lazyWithReload(() => import("@/components/admin/GestaoPecas"));
+const GestaoCiclos = lazyWithReload(() => import("@/components/admin/GestaoCiclos"));
+const GestaoAulas = lazyWithReload(() => import("@/components/admin/GestaoAulas"));
+const VisaoAluno = lazyWithReload(() => import("@/components/admin/VisaoAluno"));
+const AdminGraduacao = lazyWithReload(() => import("@/components/admin/AdminGraduacao"));
 
 const AbaFallback = () => (
   <div className="p-10 text-center text-sm text-muted-foreground font-bold">Carregando...</div>
