@@ -15,7 +15,7 @@ const ModalEdicaoMeta = ({ aluno, metaIndex, onClose }: { aluno: any, metaIndex:
   const [editMetaDescricao, setEditMetaDescricao] = useState(meta.orientacoes || "");
   const [editMetaLink, setEditMetaLink] = useState(meta.link || "");
   const [editMetaArquivo, setEditMetaArquivo] = useState<File | null>(null);
-  const [editMetaPrazo, setEditMetaPrazo] = useState(meta.data_sugerida ? String(meta.data_sugerida).split('T') : "");
+  const [editMetaPrazo, setEditMetaPrazo] = useState(meta.data_sugerida ? String(meta.data_sugerida).split('T')[0] : "");
   const [isEditingMeta, setIsEditingMeta] = useState(false);
 
   const handleSalvarEdicao = async () => {

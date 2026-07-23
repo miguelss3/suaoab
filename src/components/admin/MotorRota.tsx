@@ -163,7 +163,7 @@ const MotorRota = ({ aluno, onClose }: { aluno: any, onClose: () => void }) => {
                         <div className="grid md:grid-cols-[1fr_150px] gap-4">
                           <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Título</Label><Input value={m.atividade} onChange={(e) => handleEditPreviewMeta(i, 'atividade', e.target.value)} className="font-bold text-primary" /></div>
                           <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo</Label>
-                            <Input type="date" value={m.data_sugerida ? String(m.data_sugerida).split('T') : ''} onChange={(e) => { const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : ""; handleEditPreviewMeta(i, 'data_sugerida', val); }} />
+                            <Input type="date" value={m.data_sugerida ? String(m.data_sugerida).split('T')[0] : ''} onChange={(e) => { const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : ""; handleEditPreviewMeta(i, 'data_sugerida', val); }} />
                           </div>
                         </div>
                         <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label><textarea value={m.orientacoes} onChange={(e) => handleEditPreviewMeta(i, 'orientacoes', e.target.value)} className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed" /></div>

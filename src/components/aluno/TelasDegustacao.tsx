@@ -26,7 +26,7 @@ export const TelaBloqueio = ({ perfilAluno, handleLogout, checkoutUrl }: TelaBlo
 
         <div className="space-y-3">
           <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground leading-tight">
-            Olá, <span className="text-accent">{perfilAluno?.nome?.split(" ") || "Aluno"}</span>!
+            Olá, <span className="text-accent">{perfilAluno?.nome?.split(" ")[0] || "Aluno"}</span>!
           </h1>
           <p className="text-muted-foreground text-lg max-w-lg mx-auto leading-relaxed">
             O seu período de <strong className="text-foreground">Degustação Gratuita</strong> chegou ao fim.
