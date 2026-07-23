@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import { onCall, onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 
 // Inicializa o acesso ao banco de dados
@@ -302,6 +303,137 @@ export const hotmartWebhook = onRequest(
     } catch (error) {
       console.error("Erro interno no Webhook:", error);
       res.status(500).send("Erro interno do servidor");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────
+// Manutenção diária: inativação por expiração + sincronização de vagas.
+// Espelha a classificação de src/lib/ciclo.ts (front-end) — qualquer mudança
+// nas regras de negócio (graduação, sandbox, expiração) deve ser replicada
+// aqui também. Roda no servidor uma vez por dia, independente de qualquer
+// admin estar com o painel aberto no navegador.
+// ─────────────────────────────────────────────────────────────────────────
+
+const isSandboxAluno = (id: string, email: unknown) => {
+  const emailNormalizado = normalizeEmail(typeof email === "string" ? email : undefined);
+  return id === "admin_sandbox_uid" || emailNormalizado === "miguelss3@yahoo.com.br" || emailNormalizado === "sandbox@suaoab.com.br";
+};
+
+const isGraduacaoAluno = (faseEstudo: unknown, acessoVitalicio: unknown) => {
+  if (acessoVitalicio === true) return true;
+  const fase = typeof faseEstudo === "string" ? faseEstudo.trim().toLowerCase() : "";
+  return fase === "estudante de graduação" || fase === "graduacao";
+};
+
+const paraDataFirestore = (valor: unknown): Date | null => {
+  if (!valor) return null;
+  if (valor instanceof admin.firestore.Timestamp) return valor.toDate();
+  if (typeof valor === "string") {
+    const parsed = new Date(valor);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (Array.isArray(valor) && valor.length > 0) return paraDataFirestore(valor[0]);
+  return null;
+};
+
+// Mesma regra do calcularExpiracaoLead do front-end: `data_expiracao` explícita
+// (premium de 90 dias ou trial já calculado) tem prioridade; sem ela, cai para
+// 3 dias após `data_cadastro` (degustação padrão).
+const alunoExpirou = (dados: FirebaseFirestore.DocumentData): boolean => {
+  let limite: Date;
+
+  if (dados.data_expiracao) {
+    limite = paraDataFirestore(dados.data_expiracao) ?? new Date();
+  } else if (dados.data_cadastro) {
+    const base = paraDataFirestore(dados.data_cadastro) ?? new Date();
+    limite = new Date(base.getTime());
+    limite.setDate(limite.getDate() + 3);
+  } else {
+    return false;
+  }
+
+  return limite.getTime() <= Date.now();
+};
+
+const JANELA_DECAIMENTO_VAGAS_DIAS = 30;
+
+// Espelha calcularTetoComDecaimento de src/lib/ciclo.ts.
+const calcularTetoComDecaimento = (tetoBase: number, vagasMinimas: number, dataProva: Date | null): number => {
+  if (!Number.isFinite(tetoBase)) return tetoBase;
+  if (!dataProva || Number.isNaN(dataProva.getTime())) return tetoBase;
+
+  const minimo = Number.isFinite(vagasMinimas) ? Math.max(0, vagasMinimas) : 0;
+  const diasParaProva = (dataProva.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+
+  if (diasParaProva >= JANELA_DECAIMENTO_VAGAS_DIAS) return tetoBase;
+  if (diasParaProva <= 0) return Math.min(tetoBase, minimo);
+
+  const progresso = 1 - diasParaProva / JANELA_DECAIMENTO_VAGAS_DIAS;
+  const valorInterpolado = tetoBase - progresso * (tetoBase - minimo);
+  return Math.max(minimo, Math.round(valorInterpolado));
+};
+
+export const manutencaoDiariaAlunos = onSchedule(
+  { schedule: "every day 03:00", timeZone: "America/Manaus" },
+  async () => {
+    const alunosSnap = await db.collection("alunos").get();
+
+    const batch = db.batch();
+    let inativados = 0;
+    const alunosVigentes: FirebaseFirestore.DocumentData[] = [];
+
+    alunosSnap.docs.forEach((docSnap) => {
+      const dados = docSnap.data();
+      const status = typeof dados.status === "string" ? dados.status.trim().toLowerCase() : "";
+      const sandbox = isSandboxAluno(docSnap.id, dados.email);
+      const graduacao = isGraduacaoAluno(dados.faseEstudo, dados.acessoVitalicio);
+
+      // Graduação (acesso vitalício) e a conta de simulação do professor nunca são
+      // inativadas automaticamente nem entram nas métricas de matriculados.
+      if (sandbox || graduacao) return;
+
+      if (status !== "inativo" && alunoExpirou(dados)) {
+        batch.update(docSnap.ref, { status: "inativo" });
+        inativados += 1;
+        return;
+      }
+
+      if (status !== "inativo") {
+        alunosVigentes.push(dados);
+      }
+    });
+
+    if (inativados > 0) {
+      await batch.commit();
+      console.log(`[manutencaoDiariaAlunos] ${inativados} aluno(s) inativado(s) por expiração.`);
+    }
+
+    const matriculados = alunosVigentes.filter((dados) => String(dados.status ?? "").trim().toLowerCase() === "premium").length;
+
+    const cicloRef = db.doc("configuracoes/ciclo_atual");
+    const cicloSnap = await cicloRef.get();
+    if (!cicloSnap.exists) return;
+
+    const ciclo = cicloSnap.data() ?? {};
+    const vagasTotais = Number(ciclo.vagas_totais ?? 0);
+    const tetoBase = ciclo.teto_vagas_exibidas;
+    const decaimentoAtivo = ciclo.decaimento_vagas_ativo === true;
+    const vagasMinimas = Number(ciclo.vagas_minimas_decaimento ?? 0);
+    const dataProva = typeof ciclo.data_prova === "string" ? new Date(`${ciclo.data_prova}T12:00:00`) : null;
+
+    let tetoEfetivo: number | undefined;
+    if (tetoBase !== undefined && tetoBase !== null && tetoBase !== "" && Number.isFinite(Number(tetoBase))) {
+      tetoEfetivo = decaimentoAtivo
+        ? calcularTetoComDecaimento(Number(tetoBase), vagasMinimas, dataProva)
+        : Number(tetoBase);
+    }
+
+    const vagasReais = Number.isFinite(vagasTotais) ? Math.max(0, vagasTotais - matriculados) : 0;
+    const vagasRestantes = tetoEfetivo !== undefined ? Math.min(vagasReais, tetoEfetivo) : vagasReais;
+
+    if (Number(ciclo.matriculados) !== matriculados || Number(ciclo.vagas_restantes) !== vagasRestantes) {
+      await cicloRef.set({ matriculados, vagas_restantes: vagasRestantes }, { merge: true });
     }
   }
 );

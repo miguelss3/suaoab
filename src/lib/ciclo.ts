@@ -47,15 +47,39 @@ export const isAlunoSandbox = (aluno: Pick<AlunoComStatus, "id" | "email">) => {
   );
 };
 
-export const isAlunoPremiumReal = (aluno: AlunoComStatus) => {
-  return normalizeAlunoStatus(aluno.status) === "premium" && !isAlunoSandbox(aluno);
+export type CategoriaAluno = "sandbox" | "graduacao" | "premium" | "inativo" | "em_teste";
+
+export interface AlunoParaClassificar {
+  id?: string;
+  email?: string;
+  status?: string | null;
+  faseEstudo?: string;
+  acessoVitalicio?: boolean;
+}
+
+/**
+ * Fonte única de verdade para classificar um aluno. Toda tela que exibe
+ * contagens (Alunos CRM, Painel de Vendas, Ciclos e Prazos) deve usar esta
+ * função — nunca reimplementar o filtro localmente, para os números nunca
+ * divergirem entre telas.
+ */
+export const classificarAluno = (aluno: AlunoParaClassificar): CategoriaAluno => {
+  if (isAlunoSandbox(aluno)) return "sandbox";
+  if (alunoEhGraduacao(aluno)) return "graduacao";
+
+  const status = normalizeAlunoStatus(aluno.status);
+  if (status === "premium") return "premium";
+  if (status === "inativo") return "inativo";
+  return "em_teste";
 };
 
-export const countAlunosPremium = <T extends AlunoComStatus>(alunos: T[]) => {
+export const isAlunoPremiumReal = (aluno: AlunoParaClassificar) => classificarAluno(aluno) === "premium";
+
+export const countAlunosPremium = <T extends AlunoParaClassificar>(alunos: T[]) => {
   return alunos.filter(isAlunoPremiumReal).length;
 };
 
-export const calcularVagasVisiveis = (vagasTotais: unknown, matriculados: unknown) => {
+export const calcularVagasVisiveis = (vagasTotais: unknown, matriculados: unknown, tetoVagasExibidas?: unknown) => {
   const total = Number(vagasTotais ?? 0);
   const ocupadas = Number(matriculados ?? 0);
 
@@ -63,5 +87,41 @@ export const calcularVagasVisiveis = (vagasTotais: unknown, matriculados: unknow
     return 0;
   }
 
-  return Math.max(0, total - ocupadas);
+  const vagasReais = Math.max(0, total - ocupadas);
+
+  // `Number("")` é 0 em JS — trata explicitamente como "sem teto" em vez de "teto zero".
+  if (tetoVagasExibidas === undefined || tetoVagasExibidas === null || tetoVagasExibidas === "") {
+    return vagasReais;
+  }
+
+  const teto = Number(tetoVagasExibidas);
+  if (Number.isFinite(teto) && teto >= 0) {
+    return Math.min(vagasReais, teto);
+  }
+
+  return vagasReais;
+};
+
+// Janela (em dias antes da prova) em que o teto de vagas passa a decair linearmente
+// até `vagasMinimas`, para intensificar a urgência conforme a 2ª fase se aproxima.
+export const JANELA_DECAIMENTO_VAGAS_DIAS = 30;
+
+export const calcularTetoComDecaimento = (
+  tetoBase: number,
+  vagasMinimas: number,
+  dataProva: Date | null,
+  hoje: Date = new Date()
+): number => {
+  if (!Number.isFinite(tetoBase)) return tetoBase;
+  if (!dataProva || Number.isNaN(dataProva.getTime())) return tetoBase;
+
+  const minimo = Number.isFinite(vagasMinimas) ? Math.max(0, vagasMinimas) : 0;
+  const diasParaProva = (dataProva.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24);
+
+  if (diasParaProva >= JANELA_DECAIMENTO_VAGAS_DIAS) return tetoBase;
+  if (diasParaProva <= 0) return Math.min(tetoBase, minimo);
+
+  const progresso = 1 - diasParaProva / JANELA_DECAIMENTO_VAGAS_DIAS; // 0 no início da janela, 1 no dia da prova
+  const valorInterpolado = tetoBase - progresso * (tetoBase - minimo);
+  return Math.max(minimo, Math.round(valorInterpolado));
 };

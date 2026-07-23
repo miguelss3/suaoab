@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { calcularVagasVisiveis, countAlunosPremium } from "@/lib/ciclo";
+import { calcularTetoComDecaimento, calcularVagasVisiveis, countAlunosPremium, JANELA_DECAIMENTO_VAGAS_DIAS } from "@/lib/ciclo";
 import { DEFAULT_HOTMART_CHECKOUT_URL } from "@/lib/hotmart";
 
 const GestaoCiclos = () => {
@@ -22,9 +22,36 @@ const GestaoCiclos = () => {
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
   const [linkCheckout, setLinkCheckout] = useState(DEFAULT_HOTMART_CHECKOUT_URL);
-  const [linkRepescagem, setLinkRepescagem] = useState(""); 
-  
+  const [linkRepescagem, setLinkRepescagem] = useState("");
+
+  const [tetoVagasExibidas, setTetoVagasExibidas] = useState<string>("");
+  const [decaimentoAtivo, setDecaimentoAtivo] = useState(false);
+  const [vagasMinimasDecaimento, setVagasMinimasDecaimento] = useState<string>("1");
+
   const [loading, setLoading] = useState(false);
+
+  // Teto de vagas exibidas "hoje", já considerando o decaimento gradual (se ativo).
+  // É este valor — não o total real de vagas — que deve chegar na landing page.
+  // Recebe os valores explicitamente (em vez de ler o state direto) para poder ser
+  // usado tanto a partir do state atual (preview, salvar) quanto de dados recém
+  // carregados do Firestore (sincronização inicial), sem depender do timing do React.
+  const calcularTetoEfetivo = (
+    teto: string | number | undefined,
+    ativo: boolean | undefined,
+    minimas: string | number | undefined,
+    dataProvaStr: string | undefined
+  ): number | undefined => {
+    if (teto === undefined || teto === "" || teto === null) return undefined;
+
+    const tetoBase = Number(teto);
+    if (!Number.isFinite(tetoBase)) return undefined;
+    if (!ativo) return tetoBase;
+
+    const dataProvaObj = dataProvaStr ? new Date(dataProvaStr + "T12:00:00") : null;
+    return calcularTetoComDecaimento(tetoBase, Number(minimas) || 0, dataProvaObj);
+  };
+
+  const tetoEfetivoAtual = calcularTetoEfetivo(tetoVagasExibidas, decaimentoAtivo, vagasMinimasDecaimento, dataProva);
 
   const sincronizarMatriculados = async () => {
     const qAlunos = query(collection(db, "alunos"), where("status", "!=", "inativo"));
@@ -55,6 +82,13 @@ const GestaoCiclos = () => {
         setExame(data.exame || "");
         setDataProva(data.data_prova || "");
         if (data.vagas_totais) setVagasTotais(data.vagas_totais);
+        if (data.teto_vagas_exibidas !== undefined && data.teto_vagas_exibidas !== null) {
+          setTetoVagasExibidas(String(data.teto_vagas_exibidas));
+        }
+        if (data.decaimento_vagas_ativo === true) setDecaimentoAtivo(true);
+        if (data.vagas_minimas_decaimento !== undefined && data.vagas_minimas_decaimento !== null) {
+          setVagasMinimasDecaimento(String(data.vagas_minimas_decaimento));
+        }
 
         if (ofertaSnap.exists()) {
           const oferta = ofertaSnap.data();
@@ -70,7 +104,13 @@ const GestaoCiclos = () => {
         }
 
         const matriculadosAtuais = await sincronizarMatriculados();
-        const vagasRestantesCalculadas = calcularVagasVisiveis(data.vagas_totais, matriculadosAtuais);
+        const tetoEfetivo = calcularTetoEfetivo(
+          data.teto_vagas_exibidas,
+          data.decaimento_vagas_ativo,
+          data.vagas_minimas_decaimento,
+          data.data_prova
+        );
+        const vagasRestantesCalculadas = calcularVagasVisiveis(data.vagas_totais, matriculadosAtuais, tetoEfetivo);
 
         if (
           Number(data.matriculados) !== matriculadosAtuais ||
@@ -107,13 +147,19 @@ const GestaoCiclos = () => {
       const dataExp = new Date(dataProva + "T12:00:00");
       dataExp.setDate(dataExp.getDate() + 5);
 
-      const vagasRestantesCalculadas = calcularVagasVisiveis(vagasTotais, matriculadosAtuais);
+      const tetoEfetivo = calcularTetoEfetivo(tetoVagasExibidas, decaimentoAtivo, vagasMinimasDecaimento, dataProva);
+      const vagasRestantesCalculadas = calcularVagasVisiveis(vagasTotais, matriculadosAtuais, tetoEfetivo);
 
       await setDoc(cicloRef, {
         exame,
         data_prova: dataProva,
         data_expiracao: dataExp.toISOString().split('T')[0],
         vagas_totais: Number(vagasTotais),
+        // Guardamos o teto "cru" (não o valor já com decaimento aplicado) para a
+        // Cloud Function agendada poder recalcular o decaimento dia após dia.
+        teto_vagas_exibidas: tetoVagasExibidas === "" ? null : Number(tetoVagasExibidas),
+        decaimento_vagas_ativo: decaimentoAtivo,
+        vagas_minimas_decaimento: Number(vagasMinimasDecaimento) || 0,
         matriculados: matriculadosAtuais,
         vagas_restantes: vagasRestantesCalculadas,
         atualizado_em: new Date()
@@ -151,7 +197,7 @@ const GestaoCiclos = () => {
             <Target className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-2xl font-display font-bold text-primary italic">Motor Central do Site</h2>
+            <h2 className="text-2xl font-display font-bold text-primary italic">Ciclos e Prazos</h2>
             <p className="text-sm text-muted-foreground">Controle vagas, datas de expiração e os preços exibidos na página de vendas.</p>
           </div>
         </div>
@@ -238,13 +284,75 @@ const GestaoCiclos = () => {
                 </div>
                 <div className="flex-1 bg-accent/10 border border-accent/20 p-3 rounded-lg text-center">
                   <p className="text-[10px] text-accent uppercase font-black tracking-widest mb-1">Visível no Site</p>
-                  <p className="text-2xl font-display font-black text-accent">{calcularVagasVisiveis(vagasTotais, alunosAtivos)}</p>
+                  <p className="text-2xl font-display font-black text-accent">{calcularVagasVisiveis(vagasTotais, alunosAtivos, tetoEfetivoAtual)}</p>
                 </div>
               </div>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              Matriculados e vagas visiveis sao sincronizados automaticamente com a quantidade de alunos Premium no CRM. Esse valor nao depende de preenchimento manual.
+              Matriculados são sincronizados automaticamente com a quantidade de alunos Premium no CRM. Esse valor não depende de preenchimento manual.
             </p>
+
+            <div className="mt-6 space-y-4 bg-muted/20 p-4 rounded-xl border border-border">
+              <div>
+                <Label className="text-sm font-bold">Teto de Vagas Exibidas (opcional)</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Mostra no máximo este número na Landing Page, mesmo que o real seja maior — útil para gerar mais urgência.
+                  Deixe em branco para exibir o número real de vagas.
+                </p>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Ex: 5"
+                  value={tetoVagasExibidas}
+                  onChange={(e) => setTetoVagasExibidas(e.target.value)}
+                  className="h-12 text-lg font-bold max-w-[200px]"
+                />
+              </div>
+
+              {tetoVagasExibidas !== "" && (
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="decaimentoAtivo"
+                    className="mt-1 h-4 w-4 accent-accent cursor-pointer"
+                    checked={decaimentoAtivo}
+                    onChange={(e) => setDecaimentoAtivo(e.target.checked)}
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="decaimentoAtivo" className="text-sm font-bold cursor-pointer">
+                      Reduzir gradualmente conforme a prova se aproxima
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Nos {JANELA_DECAIMENTO_VAGAS_DIAS} dias antes da Data da 2ª Fase, o número exibido cai
+                      linearmente do teto acima até o mínimo definido abaixo.
+                    </p>
+                    {decaimentoAtivo && (
+                      <div className="mt-3 max-w-[200px]">
+                        <Label className="text-xs font-bold text-muted-foreground">Vagas mínimas ao final</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={vagasMinimasDecaimento}
+                          onChange={(e) => setVagasMinimasDecaimento(e.target.value)}
+                          className="h-10"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-lg border border-dashed border-accent/40 bg-primary p-4">
+                <p className="text-[10px] text-primary-foreground/60 uppercase font-black tracking-widest mb-2">Prévia na Landing Page</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm lg:text-base font-bold text-primary-foreground/70">⚠️ Restam apenas</span>
+                  <span className="text-2xl font-display font-black text-accent">
+                    {calcularVagasVisiveis(vagasTotais, alunosAtivos, tetoEfetivoAtual)}
+                  </span>
+                  <span className="text-sm lg:text-base font-bold text-primary-foreground/70">vagas!</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="bg-muted/30 p-5 rounded-lg border border-border flex items-start gap-4">

@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { BarChart3, TrendingUp, Users, UserCheck, UserX, Wallet, Sparkles } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { alunoEhGraduacao, isAlunoSandbox, normalizeAlunoStatus, paraData } from "@/lib/ciclo";
+import { classificarAluno, paraData } from "@/lib/ciclo";
 
 interface AlunoVendas {
   id: string;
@@ -72,13 +72,12 @@ const PainelVendas = () => {
   const metricas = useMemo(() => {
     if (!alunos) return null;
 
-    const elegiveis = alunos.filter((a) => !alunoEhGraduacao(a) && !isAlunoSandbox(a));
-    const premium = elegiveis.filter((a) => normalizeAlunoStatus(a.status) === "premium");
-    const inativos = elegiveis.filter((a) => normalizeAlunoStatus(a.status) === "inativo");
-    const emTeste = elegiveis.filter((a) => {
-      const status = normalizeAlunoStatus(a.status);
-      return status !== "premium" && status !== "inativo";
-    });
+    // Mesma fonte de classificação usada no Alunos CRM, para os números nunca divergirem entre telas.
+    const classificados = alunos.map((a) => ({ aluno: a, categoria: classificarAluno(a) }));
+    const premium = classificados.filter((c) => c.categoria === "premium").map((c) => c.aluno);
+    const inativos = classificados.filter((c) => c.categoria === "inativo").map((c) => c.aluno);
+    const emTeste = classificados.filter((c) => c.categoria === "em_teste").map((c) => c.aluno);
+    const elegiveis = [...premium, ...inativos, ...emTeste];
 
     const precoAtual = Number(oferta?.preco_atual);
     const precoOriginal = Number(oferta?.preco_original);

@@ -1,14 +1,14 @@
 // src/components/admin/AlunosCRM.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc, writeBatch } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc } from "firebase/firestore";
 import { Search, AlertCircle, Ban, Trash2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { alunoEhGraduacao, calcularVagasVisiveis, countAlunosPremium, MOTIVOS_INATIVIDADE, normalizeAlunoStatus, paraData } from "@/lib/ciclo";
+import { calcularVagasVisiveis, classificarAluno, countAlunosPremium, MOTIVOS_INATIVIDADE, paraData } from "@/lib/ciclo";
 import { AlunoParaRepescagem } from "@/lib/repescagem";
 import ModalEnvioRepescagem from "./ModalEnvioRepescagem";
 import DossieAluno from "./DossieAluno";
@@ -177,22 +177,27 @@ const AlunosCRM = () => {
   };
 
   const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos' | 'graduacao') => {
+    const buscaNormalizada = busca.trim().toLowerCase();
     const lista = alunos.filter(a => {
-      const matchesSearch = a.nome?.toLowerCase().includes(busca.toLowerCase()) || a.email?.toLowerCase().includes(busca.toLowerCase());
-      const status = normalizeAlunoStatus(a.status);
-      const ehGraduacao = alunoEhGraduacao(a);
-      let matchesStatus = false;
-      if (filtro === 'graduacao') {
-        matchesStatus = ehGraduacao;
-      } else if (filtro === 'premium') {
-        // Premium: apenas alunos premium NÃO-graduação (graduação tem aba própria)
-        matchesStatus = status === "premium" && !ehGraduacao;
-      } else if (filtro === 'inativos') {
-        matchesStatus = status === "inativo" && !ehGraduacao;
-      } else {
-        // Leads/Em Teste: nunca incluir Graduação
-        matchesStatus = !ehGraduacao && status !== "premium" && status !== "inativo";
-      }
+      // Sem termo de busca, todo mundo passa (inclusive cadastros incompletos sem
+      // nome/e-mail, que antes ficavam invisíveis em todas as abas por engano).
+      const matchesSearch =
+        !buscaNormalizada ||
+        (a.nome?.toLowerCase().includes(buscaNormalizada) ?? false) ||
+        (a.email?.toLowerCase().includes(buscaNormalizada) ?? false);
+
+      // Fonte única de classificação — a mesma usada no Painel de Vendas — para
+      // os contadores nunca divergirem entre telas. A conta de simulação do
+      // professor ("sandbox") nunca aparece em nenhuma aba do CRM.
+      const categoria = classificarAluno(a);
+      if (categoria === "sandbox") return false;
+
+      const matchesStatus =
+        filtro === 'graduacao' ? categoria === 'graduacao' :
+        filtro === 'premium' ? categoria === 'premium' :
+        filtro === 'inativos' ? categoria === 'inativo' :
+        categoria === 'em_teste';
+
       return matchesSearch && matchesStatus;
     });
 
@@ -244,35 +249,26 @@ const AlunosCRM = () => {
     return diffHoras <= 0 ? { texto: "EXPIRADO", expirado: true } : { texto: `${diffHoras}h restantes`, expirado: false };
   };
 
-  // --- AUTOMACAO: Varrer Expirados e Sincronizar Vagas no Index ---
+  // --- Sincroniza vagas exibidas na landing sempre que a lista de alunos muda ---
+  // A inativação por expiração roda na Cloud Function agendada `manutencaoDiariaAlunos`
+  // (servidor, uma vez por dia) — não mais aqui. Antes, ela só acontecia quando um
+  // admin tinha esta aba aberta no navegador, o que fazia o contador de Inativos
+  // "pular" de forma imprevisível dependendo de quem estava com o painel aberto.
   useEffect(() => {
-    const processarManutencaoAlunos = async () => {
+    const sincronizarVagasVisiveis = async () => {
       if (alunos.length === 0) return;
 
       try {
-        // 1. Varrer alunos expirados para inativar (Proteção)
-        //    Graduação (acessoVitalicio) NUNCA é inativado por expiração.
-        const alunosParaVerificar = alunos.filter(a => a.status !== "inativo" && !alunoEhGraduacao(a));
-        const alunosExpirados = alunosParaVerificar.filter(a => calcularExpiracaoLead(a).expirado);
-        if (alunosExpirados.length > 0) {
-          const batch = writeBatch(db);
-          alunosExpirados.forEach((aluno) => {
-            batch.update(doc(db, "alunos", aluno.id), { status: "inativo" });
-          });
-          await batch.commit();
-          console.log(`[AUTOMAÇÃO] ${alunosExpirados.length} aluno(s) inativado(s) por expiração.`);
-        }
-
-        // 2. Sincronizar matriculados e vagas exibidas na landing
         const docRef = doc(db, "configuracoes", "ciclo_atual");
         const docSnap = await getDoc(docRef);
-        
+
         if (docSnap.exists()) {
           const config = docSnap.data();
-          const matriculados = countAlunosPremium(
-            alunos.filter((aluno) => !calcularExpiracaoLead(aluno).expirado)
-          );
-          const vagasVisiveis = calcularVagasVisiveis(config.vagas_totais, matriculados);
+          // Já desconta quem tecnicamente expirou mas ainda não foi flagado pelo
+          // job diário, para a contagem pública não ficar defasada até 24h.
+          const alunosVigentes = alunos.filter((aluno) => !calcularExpiracaoLead(aluno).expirado);
+          const matriculados = countAlunosPremium(alunosVigentes);
+          const vagasVisiveis = calcularVagasVisiveis(config.vagas_totais, matriculados, config.teto_vagas_exibidas);
 
           if (
             Number(config.matriculados) !== matriculados ||
@@ -285,11 +281,11 @@ const AlunosCRM = () => {
           }
         }
       } catch (error) {
-        console.error("Erro na manutenção automática do CRM:", error);
+        console.error("Erro ao sincronizar vagas exibidas:", error);
       }
     };
 
-    processarManutencaoAlunos();
+    sincronizarVagasVisiveis();
   }, [alunos]);
 
   return (
