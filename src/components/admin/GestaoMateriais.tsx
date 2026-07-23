@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { compararPorOrdem } from "@/lib/utils";
 
 interface Material {
   id: string;
@@ -92,11 +93,7 @@ const GestaoMateriais = () => {
     // Dentro de cada grupo: ordena por `ordem` ascendente.
     // Itens sem `ordem` vão para o final (mantendo a ordem por data vinda do snapshot).
     for (const [k, lista] of map) {
-      lista.sort((a, b) => {
-        const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
-        const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
-        return oa - ob;
-      });
+      lista.sort(compararPorOrdem);
       map.set(k, lista);
     }
 

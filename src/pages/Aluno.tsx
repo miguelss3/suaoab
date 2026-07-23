@@ -20,6 +20,7 @@ import { DEFAULT_HOTMART_CHECKOUT_URL, gerarLinkHotmartComPrefill } from "@/lib/
 
 import { AntiPiracyNotification } from "@/components/AntiPiracyNotification";
 import { downloadProtectedPDF } from "@/lib/pdfService";
+import { compararPorOrdem } from "@/lib/utils";
 type TimestampLike = {
   toDate?: () => Date;
   toMillis?: () => number;
@@ -241,13 +242,7 @@ const Aluno = () => {
         ...(d.data() as Omit<MaterialPublicado, "id">),
       }));
 
-      // Ordena pelo campo `ordem` (definido pelo professor). Sem `ordem` -> fim, com data desc como fallback.
-      docs.sort((a: any, b: any) => {
-        const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
-        const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
-        if (oa !== ob) return oa - ob;
-        return getMillis(b.data_publicacao) - getMillis(a.data_publicacao);
-      });
+      docs.sort((a, b) => compararPorOrdem(a, b, (x, y) => getMillis(y.data_publicacao) - getMillis(x.data_publicacao)));
       setCadernos(docs.filter((d) => d.tipo === "Caderno"));
       setSimulados(docs.filter((d) => d.tipo === "Simulado"));
     });

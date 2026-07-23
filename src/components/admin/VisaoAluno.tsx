@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { AulaGlobal, DisciplinaCodigo, getTimestampMillis, HistoricoPeca, MaterialPublicado, MetaAluno, PecaLaboratorio } from "@/lib/aulas";
+import { compararPorOrdem } from "@/lib/utils";
 
 // Importamos os mesmos componentes que o aluno real utiliza
 import { GestorMetas } from "@/components/aluno/GestorMetas";
@@ -137,13 +138,7 @@ const VisaoAluno = () => {
     const qMateriais = query(collection(db, "materiais_publicados"), where("materia", "==", disciplinaAtiva));
     const unsubMateriais = onSnapshot(qMateriais, (snap) => {
       const docs = snap.docs.map(mapDocToMaterial);
-      // Ordena pelo campo `ordem`. Sem `ordem` -> fim, com data desc como fallback.
-      docs.sort((a: any, b: any) => {
-        const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
-        const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
-        if (oa !== ob) return oa - ob;
-        return getTimestampMillis(b.data_publicacao) - getTimestampMillis(a.data_publicacao);
-      });
+      docs.sort((a, b) => compararPorOrdem(a, b, (x, y) => getTimestampMillis(y.data_publicacao) - getTimestampMillis(x.data_publicacao)));
       setCadernos(docs.filter((docItem) => docItem.tipo === "Caderno"));
       setSimulados(docs.filter((docItem) => docItem.tipo === "Simulado"));
     });

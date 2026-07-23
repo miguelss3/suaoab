@@ -227,8 +227,8 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
 
         await setDoc(doc(db, "alunos", userCredential.user.uid), dadosAluno);
 
-  const reconciliacao = await tentarReconciliarCompra(emailLimpo);
-        const statusFinal = reconciliacao.data?.status;
+        const reconciliacao = await tentarReconciliarCompra(emailLimpo);
+        const statusFinal = reconciliacao?.data?.status;
 
         toast.success(`Matrícula nº ${novaMatricula} criada com sucesso!`);
         if (statusFinal === "premium") {

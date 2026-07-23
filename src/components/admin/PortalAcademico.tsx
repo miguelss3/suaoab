@@ -38,6 +38,7 @@ import {
 import { toast } from "sonner";
 import { Disciplina, MaterialAcademico } from "@/lib/academico";
 import { downloadProtectedPDF } from "@/lib/pdfService";
+import { compararPorOrdem } from "@/lib/utils";
 
 interface PortalAcademicoProps {
   setShowAuthModal?: (value: boolean) => void;
@@ -256,13 +257,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
         disciplinas.forEach((disc) => {
           const filtrados = listaMateriais
             .filter((material) => materialPertenceADisciplina(material, disc))
-            .sort((a: any, b: any) => {
-              // Ordena pelo campo `ordem` definido pelo professor no Painel Admin.
-              // Itens sem `ordem` vão pro final (mantém ordem por data desc como fallback).
-              const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
-              const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
-              return oa - ob;
-            });
+            .sort(compararPorOrdem);
           novosMateriais.set(disc.id, filtrados);
         });
 

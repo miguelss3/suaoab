@@ -34,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Switch } from "@/components/ui/switch";
 import { Disciplina, MaterialAcademico } from "@/lib/academico";
+import { compararPorOrdem } from "@/lib/utils";
 
 type DisciplinaForm = {
   nome: string;
@@ -318,11 +319,7 @@ const AdminGraduacao = () => {
       map.get(chave)!.push(m);
     }
     for (const [k, lista] of map) {
-      lista.sort((a, b) => {
-        const oa = typeof a.ordem === "number" ? a.ordem : Number.POSITIVE_INFINITY;
-        const ob = typeof b.ordem === "number" ? b.ordem : Number.POSITIVE_INFINITY;
-        return oa - ob;
-      });
+      lista.sort(compararPorOrdem);
       map.set(k, lista);
     }
     return map;
