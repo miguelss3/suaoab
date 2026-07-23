@@ -2,6 +2,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFImage, PDFName, PDFString, StandardF
 import { toast } from "sonner";
 import { functionsClient } from "@/lib/firebase";
 import heroBg from "@/assets/hero-bg.jpg";
+import logoSuaOabSemFundo from "@/assets/suaoabnovosemfundo.png";
 
 type DownloadProtectedPDFParams = {
   originalPdfUrl: string;
@@ -28,9 +29,7 @@ const PROMO_IMAGE_CANDIDATES = [
   "https://raw.githubusercontent.com/miguelss3/suaoab/2554b51a49f66817c4b13774198a0124db93f1bb/imagemcorrecao.png",
 ] as const;
 
-const SYMBOL_CANDIDATES = [
-  "https://raw.githubusercontent.com/miguelss3/suaoab/e807c98a9df0bd4326f0f7d2f1db69ab8e82808f/suaoabnovosemfundo.png",
-] as const;
+const SYMBOL_CANDIDATES = [logoSuaOabSemFundo] as const;
 
 type LogoAsset = {
   bytes: ArrayBuffer;

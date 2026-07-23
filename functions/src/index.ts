@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { onCall, onRequest } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 
@@ -172,25 +172,33 @@ export const nextMatricula = onCall(async () => {
   const counterRef = db.doc("configuracoes/contador_matricula");
   const currentYearFloor = Number(`${new Date().getFullYear()}000`);
 
-  const matricula = await db.runTransaction(async (tx) => {
-    const snap = await tx.get(counterRef);
-    const storedValue = snap.exists ? Number(snap.data()?.valor) : NaN;
-    const lastValue = Number.isFinite(storedValue) ? storedValue : currentYearFloor;
-    const nextValue = lastValue < currentYearFloor ? currentYearFloor + 1 : lastValue + 1;
+  try {
+    const matricula = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(counterRef);
+      const storedValue = snap.exists ? Number(snap.data()?.valor) : NaN;
+      const lastValue = Number.isFinite(storedValue) ? storedValue : currentYearFloor;
+      const nextValue = lastValue < currentYearFloor ? currentYearFloor + 1 : lastValue + 1;
 
-    tx.set(
-      counterRef,
-      {
-        valor: nextValue,
-        updated_at: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+      tx.set(
+        counterRef,
+        {
+          valor: nextValue,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
 
-    return String(nextValue);
-  });
+      return String(nextValue);
+    });
 
-  return { matricula };
+    return { matricula };
+  } catch (error) {
+    console.error("Erro ao gerar proxima matricula:", {
+      mensagem: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw new HttpsError("internal", "Nao foi possivel gerar a matricula no momento.");
+  }
 });
 
 export const downloadPdfSource = onRequest({ cors: true }, async (req, res) => {
@@ -233,7 +241,19 @@ export const reconciliarCompraHotmart = onCall(async (request) => {
   const emailBody = typeof request.data?.email === "string" ? request.data.email : undefined;
   const email = normalizeEmail(emailBody || emailAuth);
 
-  return reconciliarPendenciaHotmart(email, "cadastro");
+  try {
+    return await reconciliarPendenciaHotmart(email, "cadastro");
+  } catch (error) {
+    // Sem isso, qualquer exceção aqui dentro virava um "internal" genérico para o
+    // cliente sem nenhum rastro no log do servidor sobre a causa real.
+    console.error("Erro ao reconciliar pendencia Hotmart:", {
+      email,
+      autenticado: !!request.auth,
+      mensagem: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw new HttpsError("internal", "Nao foi possivel reconciliar a compra no momento.");
+  }
 });
 
 export const hotmartWebhook = onRequest(

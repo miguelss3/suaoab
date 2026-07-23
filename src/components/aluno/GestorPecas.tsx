@@ -7,7 +7,6 @@ import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/fi
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { toast } from "sonner";
 import { HistoricoPeca, PerfilAlunoPortalBase } from "@/lib/aulas";
-import { downloadProtectedPDF } from "@/lib/pdfService";
 
 type PerfilAlunoPecas = PerfilAlunoPortalBase & {
   nome?: string;
@@ -22,11 +21,16 @@ export const GestorPecas = <TPerfil extends PerfilAlunoPecas>({ perfilAluno, his
   const [uploading, setUploading] = useState(false);
   const [feedbackSelecionado, setFeedbackSelecionado] = useState<HistoricoPeca | null>(null);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+  const [preparandoCorrecao, setPreparandoCorrecao] = useState(false);
 
   const handleProtectedCorrectionDownload = async (url?: string, fileName?: string) => {
     if (!url) return toast.error("Correcao indisponivel para download.");
 
+    setPreparandoCorrecao(true);
     try {
+      // Import dinâmico: pdfService (pdf-lib) só é baixado quando o aluno realmente
+      // pede a correção protegida, em vez de entrar no bundle inicial da rota /aluno.
+      const { downloadProtectedPDF } = await import("@/lib/pdfService");
       await downloadProtectedPDF({
         originalPdfUrl: url,
         alunoNome: perfilAluno?.nome,
@@ -35,6 +39,8 @@ export const GestorPecas = <TPerfil extends PerfilAlunoPecas>({ perfilAluno, his
       });
     } catch {
       toast.error("Nao foi possivel preparar a correcao protegida.");
+    } finally {
+      setPreparandoCorrecao(false);
     }
   };
 
@@ -124,14 +130,20 @@ export const GestorPecas = <TPerfil extends PerfilAlunoPecas>({ perfilAluno, his
               </div>
             </div>
 
-            <Button 
-              variant="hero" 
-              className="w-full h-12 text-sm font-bold" 
-              onClick={handleUploadPeca} 
+            <Button
+              variant="hero"
+              className="w-full h-12 text-sm font-bold"
+              onClick={handleUploadPeca}
               disabled={uploading || !arquivoSelecionado}
+              title={!arquivoSelecionado ? "Anexe um PDF acima para habilitar o envio" : undefined}
             >
               {uploading ? "A ENVIAR..." : "2. ENVIAR PARA CORREÇÃO"}
             </Button>
+            {!arquivoSelecionado && (
+              <p className="text-xs text-muted-foreground text-center -mt-1">
+                Anexe um PDF acima para habilitar o envio.
+              </p>
+            )}
           </div>
         ) : (
           <div className="p-4 bg-accent/10 text-accent font-bold rounded-xl text-center border border-accent/20">
@@ -173,13 +185,14 @@ export const GestorPecas = <TPerfil extends PerfilAlunoPecas>({ perfilAluno, his
               <div className="flex flex-col gap-2 shrink-0 w-full sm:w-auto mt-3 sm:mt-0">
                 {h.status === "Corrigido" || h.status === "Corrigida" ? (
                   <>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-9 text-xs font-bold border-success text-success hover:bg-success/10 w-full" 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 text-xs font-bold border-success text-success hover:bg-success/10 w-full"
+                      disabled={preparandoCorrecao}
                       onClick={() => void handleProtectedCorrectionDownload(h.url_arquivo_corrigido || h.url_corrigida, h.nome_documento)}
                     >
-                      Ver Correção
+                      {preparandoCorrecao ? "Preparando..." : "Ver Correção"}
                     </Button>
                     <Button 
                       variant="default" 

@@ -19,7 +19,6 @@ import PerfilAluno from "@/components/aluno/PerfilAluno"; // NOVO IMPORT DO PERF
 import { DEFAULT_HOTMART_CHECKOUT_URL, gerarLinkHotmartComPrefill } from "@/lib/hotmart";
 
 import { AntiPiracyNotification } from "@/components/AntiPiracyNotification";
-import { downloadProtectedPDF } from "@/lib/pdfService";
 import { compararPorOrdem } from "@/lib/utils";
 type TimestampLike = {
   toDate?: () => Date;
@@ -128,6 +127,7 @@ const Aluno = () => {
   const [loading, setLoading] = useState(true);
   
   const [modalPreparacao, setModalPreparacao] = useState<MaterialPublicado | null>(null);
+  const [preparandoDownload, setPreparandoDownload] = useState(false);
   // Corte global do ciclo (yyyy-mm-dd), só usado quando o aluno não tem um corte
   // individual definido pelo professor no Dossiê (aluno.data_expiracao).
   const [globalDataExpiracao, setGlobalDataExpiracao] = useState("");
@@ -329,7 +329,11 @@ const Aluno = () => {
   const handleProtectedMaterialDownload = async (pdfUrl?: string, fileName?: string) => {
     if (!pdfUrl) return toast.error("PDF indisponivel para download.");
 
+    setPreparandoDownload(true);
     try {
+      // Import dinâmico: pdfService (pdf-lib) só é baixado quando o aluno realmente
+      // pede um PDF protegido, em vez de entrar no bundle inicial da rota /aluno.
+      const { downloadProtectedPDF } = await import("@/lib/pdfService");
       await downloadProtectedPDF({
         originalPdfUrl: pdfUrl,
         alunoNome: perfilAluno?.nome || perfilAluno?.email,
@@ -338,6 +342,8 @@ const Aluno = () => {
       });
     } catch {
       toast.error("Nao foi possivel preparar o PDF protegido.");
+    } finally {
+      setPreparandoDownload(false);
     }
   };
 
@@ -416,7 +422,7 @@ const Aluno = () => {
                     {laboratorio.map((l, idx) => (
                       <div key={idx} className="p-4 rounded-lg border border-border flex justify-between items-center">
                         <div><span className="font-bold text-sm block text-primary">{l.nome}</span></div>
-                        <Button variant="outline" size="sm" onClick={() => void handleProtectedMaterialDownload(l.url_pdf, l.nome || "peca-laboratorio.pdf")}>Abrir Peça</Button>
+                        <Button variant="outline" size="sm" disabled={preparandoDownload} onClick={() => void handleProtectedMaterialDownload(l.url_pdf, l.nome || "peca-laboratorio.pdf")}>{preparandoDownload ? "Preparando..." : "Abrir Peça"}</Button>
                       </div>
                     ))}
                   </div>
@@ -428,7 +434,7 @@ const Aluno = () => {
                     {cadernos.map((c) => (
                       <div key={c.id} className="p-4 rounded-lg border border-border flex justify-between items-center">
                         <div><span className="font-bold text-sm block text-primary">{c.titulo}</span></div>
-                        <Button variant="outline" size="sm" onClick={() => void handleProtectedMaterialDownload(c.url_pdf, c.titulo || "caderno.pdf")}>Abrir Caderno</Button>
+                        <Button variant="outline" size="sm" disabled={preparandoDownload} onClick={() => void handleProtectedMaterialDownload(c.url_pdf, c.titulo || "caderno.pdf")}>{preparandoDownload ? "Preparando..." : "Abrir Caderno"}</Button>
                       </div>
                     ))}
                   </div>

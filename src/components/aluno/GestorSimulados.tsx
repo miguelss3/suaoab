@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { downloadProtectedPDF } from "@/lib/pdfService";
 
 type GestorSimuladosProps = {
   modalPreparacao: any;
@@ -50,6 +49,9 @@ export const GestorSimulados = ({ modalPreparacao, setModalPreparacao, alunoNome
     setModalPreparacao(null);
 
     try {
+      // Import dinâmico: pdfService (pdf-lib) só é baixado quando o aluno realmente
+      // inicia um simulado, em vez de entrar no bundle inicial da rota /aluno.
+      const { downloadProtectedPDF } = await import("@/lib/pdfService");
       await downloadProtectedPDF({
         originalPdfUrl: materialUrl,
         alunoNome,
