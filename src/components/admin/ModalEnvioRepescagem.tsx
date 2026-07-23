@@ -10,10 +10,11 @@ const DIAS_ANTI_SPAM = 14;
 interface ModalEnvioRepescagemProps {
   alunos: AlunoParaRepescagem[];
   linkRepescagem: string;
+  extensaoEmailAtiva: boolean;
   onClose: () => void;
 }
 
-const ModalEnvioRepescagem = ({ alunos, linkRepescagem, onClose }: ModalEnvioRepescagemProps) => {
+const ModalEnvioRepescagem = ({ alunos, linkRepescagem, extensaoEmailAtiva, onClose }: ModalEnvioRepescagemProps) => {
   const [enviando, setEnviando] = useState(false);
   const [incluirRecentes, setIncluirRecentes] = useState(false);
 
@@ -73,6 +74,16 @@ const ModalEnvioRepescagem = ({ alunos, linkRepescagem, onClose }: ModalEnvioRep
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4">
+          {!extensaoEmailAtiva && (
+            <div className="flex items-start gap-3 bg-accent/10 border border-accent/30 rounded-lg p-4 text-sm text-accent">
+              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+              <span>
+                A extensão de e-mail do Firebase ainda não foi confirmada como configurada (aba Ciclos e Prazos). O
+                pedido vai ficar registrado, mas <strong>nenhum e-mail sairá de fato</strong> até isso ser resolvido.
+              </span>
+            </div>
+          )}
+
           {!linkRepescagem && (
             <div className="flex items-start gap-3 bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-sm text-destructive">
               <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -151,7 +162,11 @@ const ModalEnvioRepescagem = ({ alunos, linkRepescagem, onClose }: ModalEnvioRep
             disabled={enviando || !linkRepescagem || prontos.length === 0}
           >
             <Send className="h-4 w-4" />
-            {enviando ? "Enviando..." : `Confirmar Envio (${prontos.length})`}
+            {enviando
+              ? "Enviando..."
+              : extensaoEmailAtiva
+                ? `Confirmar Envio (${prontos.length})`
+                : `Registrar Pedido (${prontos.length}) — e-mail não sai ainda`}
           </Button>
         </div>
       </div>

@@ -49,6 +49,7 @@ const AlunosCRM = () => {
   const [busca, setBusca] = useState("");
   const [alunoSelecionado, setAlunoSelecionado] = useState<AlunoCRM | null>(null);
   const [linkRepescagem, setLinkRepescagem] = useState("");
+  const [extensaoEmailAtiva, setExtensaoEmailAtiva] = useState(false);
   const [filaRepescagem, setFilaRepescagem] = useState<AlunoParaRepescagem[] | null>(null);
 
   useEffect(() => {
@@ -64,11 +65,13 @@ const AlunosCRM = () => {
     return () => unsub();
   }, []);
 
-  // Link de repescagem (50% OFF) vem das mesmas configurações usadas em Ciclos e Prazos.
+  // Link de repescagem (50% OFF) e status da extensão de e-mail vêm das mesmas
+  // configurações usadas em Ciclos e Prazos.
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "configuracoes", "oferta_atual"), (snap) => {
       const data = snap.data();
       setLinkRepescagem(typeof data?.link_repescagem === "string" ? data.link_repescagem : "");
+      setExtensaoEmailAtiva(data?.extensao_email_ativa === true);
     });
     return () => unsub();
   }, []);
@@ -473,19 +476,30 @@ const AlunosCRM = () => {
               const inativos = filtrarAlunos('inativos');
               const elegiveisEnvioMassa = inativos.filter((a) => !!a.email);
               return (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-6 border-b border-border bg-muted/10">
-                  <p className="text-xs text-muted-foreground">
-                    {inativos.length} {inativos.length === 1 ? 'aluno inativo' : 'alunos inativos'}. Use a repescagem para tentar reverter a saída.
-                  </p>
-                  <Button
-                    variant="hero"
-                    size="sm"
-                    className="font-bold gap-2"
-                    disabled={elegiveisEnvioMassa.length === 0}
-                    onClick={() => setFilaRepescagem(inativos.map(paraAlunoRepescagem))}
-                  >
-                    <Mail className="h-4 w-4" /> Enviar para todos os inativos ({elegiveisEnvioMassa.length})
-                  </Button>
+                <div className="border-b border-border bg-muted/10">
+                  {!extensaoEmailAtiva && (
+                    <div className="flex items-start gap-2 px-4 sm:px-6 pt-3 text-xs text-accent">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>
+                        A extensão de e-mail ainda não foi confirmada em Ciclos e Prazos. O pedido de repescagem fica
+                        registrado, mas nenhum e-mail sai de fato até isso ser configurado.
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-6">
+                    <p className="text-xs text-muted-foreground">
+                      {inativos.length} {inativos.length === 1 ? 'aluno inativo' : 'alunos inativos'}. Use a repescagem para tentar reverter a saída.
+                    </p>
+                    <Button
+                      variant="hero"
+                      size="sm"
+                      className="font-bold gap-2"
+                      disabled={elegiveisEnvioMassa.length === 0}
+                      onClick={() => setFilaRepescagem(inativos.map(paraAlunoRepescagem))}
+                    >
+                      <Mail className="h-4 w-4" /> Enviar para todos os inativos ({elegiveisEnvioMassa.length})
+                    </Button>
+                  </div>
                 </div>
               );
             })()}
@@ -584,6 +598,7 @@ const AlunosCRM = () => {
         <ModalEnvioRepescagem
           alunos={filaRepescagem}
           linkRepescagem={linkRepescagem}
+          extensaoEmailAtiva={extensaoEmailAtiva}
           onClose={() => setFilaRepescagem(null)}
         />
       )}

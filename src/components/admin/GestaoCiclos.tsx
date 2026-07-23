@@ -1,14 +1,15 @@
 // src/components/admin/GestaoCiclos.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from "firebase/firestore";
-import { CalendarDays, Save, AlertTriangle, Clock, Target, Users, Tag, Link as LinkIcon } from "lucide-react";
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, addDoc, onSnapshot } from "firebase/firestore";
+import { CalendarDays, Save, AlertTriangle, CheckCircle2, Clock, Mail, Target, Users, Tag, Link as LinkIcon, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { calcularTetoComDecaimento, calcularVagasVisiveis, countAlunosPremium, JANELA_DECAIMENTO_VAGAS_DIAS } from "@/lib/ciclo";
 import { DEFAULT_HOTMART_CHECKOUT_URL } from "@/lib/hotmart";
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 const GestaoCiclos = () => {
   const cicloRef = doc(db, "configuracoes", "ciclo_atual");
@@ -27,6 +28,10 @@ const GestaoCiclos = () => {
   const [tetoVagasExibidas, setTetoVagasExibidas] = useState<string>("");
   const [decaimentoAtivo, setDecaimentoAtivo] = useState(false);
   const [vagasMinimasDecaimento, setVagasMinimasDecaimento] = useState<string>("1");
+
+  const [extensaoEmailAtiva, setExtensaoEmailAtiva] = useState(false);
+  const [testeEmailStatus, setTesteEmailStatus] = useState<"idle" | "aguardando" | "sucesso" | "erro" | "timeout">("idle");
+  const [testeEmailErro, setTesteEmailErro] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -96,6 +101,7 @@ const GestaoCiclos = () => {
           if (oferta.preco_atual) setPrecoAtual(oferta.preco_atual);
           if (oferta.link_checkout) setLinkCheckout(oferta.link_checkout);
           if (oferta.link_repescagem) setLinkRepescagem(oferta.link_repescagem);
+          setExtensaoEmailAtiva(oferta.extensao_email_ativa === true);
         } else {
           if (data.preco_original) setPrecoOriginal(data.preco_original);
           if (data.preco_atual) setPrecoAtual(data.preco_atual);
@@ -169,10 +175,11 @@ const GestaoCiclos = () => {
         preco_original: precoOriginal,
         preco_atual: precoAtual,
         link_checkout: linkCheckout,
-        link_repescagem: linkRepescagem, 
+        link_repescagem: linkRepescagem,
+        extensao_email_ativa: extensaoEmailAtiva,
         atualizado_em: new Date()
       }, { merge: true });
-      
+
       toast.success("Configurações atualizadas! A Landing Page já reflete as vagas reais.");
     } catch (error) {
       toast.error("Erro ao guardar as configurações no banco de dados.");
@@ -187,6 +194,51 @@ const GestaoCiclos = () => {
     const d = new Date(dataProva + "T12:00:00");
     d.setDate(d.getDate() + 5);
     return d.toLocaleDateString('pt-BR');
+  };
+
+  // Verificação em app do Prompt 0: grava um documento de teste na coleção `mail`
+  // e observa o campo `delivery` que a extensão "Trigger Email from Firestore"
+  // escreve de volta no próprio documento após tentar o envio.
+  const handleEnviarEmailTeste = async () => {
+    setTesteEmailStatus("aguardando");
+    setTesteEmailErro("");
+
+    let unsub = () => {};
+
+    try {
+      const mailRef = await addDoc(collection(db, "mail"), {
+        to: [ADMIN_EMAIL],
+        message: {
+          subject: "SuaOAB - Teste de configuração de e-mail",
+          html: "<p>Se você recebeu este e-mail, a extensão \"Trigger Email from Firestore\" está configurada corretamente. Pode habilitar o envio de repescagem com confiança.</p>",
+          text: "Se você recebeu este e-mail, a extensão de disparo está configurada corretamente.",
+        },
+      });
+
+      const timeoutId = window.setTimeout(() => {
+        unsub();
+        setTesteEmailStatus((atual) => (atual === "aguardando" ? "timeout" : atual));
+      }, 30000);
+
+      unsub = onSnapshot(mailRef, (snap) => {
+        const delivery = snap.data()?.delivery as { state?: string; error?: string } | undefined;
+        if (!delivery?.state || delivery.state === "PENDING" || delivery.state === "PROCESSING") return;
+
+        window.clearTimeout(timeoutId);
+        unsub();
+
+        if (delivery.state === "SUCCESS") {
+          setTesteEmailStatus("sucesso");
+        } else {
+          setTesteEmailStatus("erro");
+          setTesteEmailErro(delivery.error || "Erro desconhecido ao enviar.");
+        }
+      });
+    } catch (error) {
+      console.error("Erro ao criar documento de teste em 'mail':", error);
+      setTesteEmailStatus("erro");
+      setTesteEmailErro("Não foi possível gravar o documento de teste no Firestore.");
+    }
   };
 
   return (
@@ -265,6 +317,68 @@ const GestaoCiclos = () => {
                 className="font-mono text-sm h-10" 
               />
               <p className="text-xs text-muted-foreground mt-1">Este link aparece apenas para alunos bloqueados pelo encerramento do ciclo ou em repescagem.</p>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-border">
+            <h3 className="text-lg font-bold text-primary flex items-center gap-2 mb-4">
+              <Mail className="h-5 w-5 text-accent"/> Envio de E-mail (Repescagem e Ofertas)
+            </h3>
+            <div className="space-y-4 bg-muted/20 p-4 rounded-xl border border-border">
+              <p className="text-xs text-muted-foreground">
+                O envio de e-mail (repescagem de inativos, ofertas) depende da extensão do Firebase{" "}
+                <strong>"Trigger Email from Firestore"</strong>, instalada e configurada separadamente no{" "}
+                <a
+                  href="https://console.firebase.google.com/project/_/extensions"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline text-accent"
+                >
+                  Console do Firebase
+                </a>{" "}
+                (não neste painel — as credenciais de SMTP nunca passam pelo app). Grave um e-mail de teste abaixo para
+                confirmar que a extensão está funcionando antes de habilitar o envio para alunos de verdade.
+              </p>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <Button type="button" variant="outline" onClick={handleEnviarEmailTeste} disabled={testeEmailStatus === "aguardando"} className="gap-2">
+                  <Mail className="h-4 w-4" />
+                  {testeEmailStatus === "aguardando" ? "Aguardando confirmação..." : `Enviar e-mail de teste para ${ADMIN_EMAIL}`}
+                </Button>
+
+                {testeEmailStatus === "sucesso" && (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-bold text-success">
+                    <CheckCircle2 className="h-4 w-4" /> Entregue! Verifique sua caixa de entrada.
+                  </span>
+                )}
+                {testeEmailStatus === "erro" && (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-bold text-destructive">
+                    <XCircle className="h-4 w-4" /> Falhou: {testeEmailErro}
+                  </span>
+                )}
+                {testeEmailStatus === "timeout" && (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-bold text-muted-foreground">
+                    <AlertTriangle className="h-4 w-4" /> Sem resposta em 30s — a extensão provavelmente ainda não está instalada.
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-start gap-2 pt-2 border-t border-border/60">
+                <input
+                  type="checkbox"
+                  id="extensaoEmailAtiva"
+                  className="mt-1 h-4 w-4 accent-accent cursor-pointer"
+                  checked={extensaoEmailAtiva}
+                  onChange={(e) => setExtensaoEmailAtiva(e.target.checked)}
+                />
+                <Label htmlFor="extensaoEmailAtiva" className="text-sm font-bold cursor-pointer">
+                  Já testei e confirmo que a extensão de e-mail está funcionando
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enquanto isso não for marcado, o Alunos CRM avisa o professor de que o pedido de repescagem será
+                registrado mas o e-mail não sairá de fato.
+              </p>
             </div>
           </div>
 
