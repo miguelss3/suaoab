@@ -3,7 +3,7 @@ import { lazy, Suspense, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, PlayCircle, Eye } from "lucide-react";
+import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, PlayCircle, Eye, TrendingUp } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -11,6 +11,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 // Cada motor do painel admin só é baixado quando a respectiva aba é aberta
 // (só o professor acessa isso, mas mesmo assim evita travar a aba ativa
 // esperando o parse/execução de motores que ele nem abriu nesta sessão).
+const PainelVendas = lazy(() => import("@/components/admin/PainelVendas"));
 const AlunosCRM = lazy(() => import("@/components/admin/AlunosCRM"));
 const FilaCorrecao = lazy(() => import("@/components/admin/FilaCorrecao"));
 const BancoQuestoes = lazy(() => import("@/components/admin/BancoQuestoes"));
@@ -65,10 +66,14 @@ const Painel = () => {
       </header>
 
       <main className="container py-8 max-w-7xl">
-        <Tabs defaultValue="sandbox" className="w-full">
-          
+        <Tabs defaultValue="vendas" className="w-full">
+
           <TabsList className="w-full flex flex-wrap h-auto gap-2 bg-transparent mb-8 justify-start p-0">
-            <TabsTrigger value="sandbox" className="font-bold flex gap-2 border border-accent/30 bg-accent/5 text-accent data-[state=active]:bg-accent data-[state=active]:text-white transition-colors">
+            <TabsTrigger value="vendas" className="font-bold flex gap-2 border border-accent/30 bg-accent/5 text-accent data-[state=active]:bg-accent data-[state=active]:text-white transition-colors">
+              <TrendingUp className="h-4 w-4"/> Painel de Vendas
+            </TabsTrigger>
+
+            <TabsTrigger value="sandbox" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <Eye className="h-4 w-4"/> Visão do Aluno
             </TabsTrigger>
 
@@ -110,6 +115,7 @@ const Painel = () => {
           </TabsList>
 
           <Suspense fallback={<AbaFallback />}>
+            <TabsContent value="vendas"><PainelVendas /></TabsContent>
             <TabsContent value="sandbox"><VisaoAluno /></TabsContent>
             <TabsContent value="crm"><AlunosCRM /></TabsContent>
             <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>

@@ -6,6 +6,37 @@ interface AlunoComStatus {
 
 export const normalizeAlunoStatus = (status?: string | null) => status?.trim().toLowerCase() ?? "";
 
+// Aluno de Graduação tem acesso vitalício: nunca entra em degustação, auto-inativação
+// ou nas métricas de Premium/Leads (tem funil e aba próprios no CRM).
+export const alunoEhGraduacao = (aluno: { faseEstudo?: string; acessoVitalicio?: boolean }) => {
+  if (aluno.acessoVitalicio === true) return true;
+  const fase = aluno.faseEstudo?.trim().toLowerCase();
+  return fase === "estudante de graduação" || fase === "graduacao";
+};
+
+export const MOTIVOS_INATIVIDADE = [
+  { value: "ciclo_expirado", label: "Ciclo expirado" },
+  { value: "nao_renovou", label: "Não renovou" },
+  { value: "sem_engajamento", label: "Sem engajamento" },
+  { value: "outro", label: "Outro" },
+] as const;
+
+export type MotivoInatividade = (typeof MOTIVOS_INATIVIDADE)[number]["value"];
+
+// Converte campos de data do Firestore (Timestamp, Date ou string) para Date, ou null se ausente/inválido.
+export const paraData = (valor: unknown): Date | null => {
+  if (!valor) return null;
+  if (valor instanceof Date) return valor;
+  if (typeof valor === "string") {
+    const d = new Date(valor);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof valor === "object" && "toDate" in (valor as Record<string, unknown>) && typeof (valor as { toDate: () => Date }).toDate === "function") {
+    return (valor as { toDate: () => Date }).toDate();
+  }
+  return null;
+};
+
 export const isAlunoSandbox = (aluno: Pick<AlunoComStatus, "id" | "email">) => {
   const email = aluno.email?.trim().toLowerCase();
 

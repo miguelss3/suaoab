@@ -82,6 +82,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ─── Fila de e-mail (extensão "Trigger Email from Firestore") ───────────
+    // Só o admin pode criar (ex.: oferta de repescagem); a extensão processa e
+    // atualiza o documento via Admin SDK, que ignora estas regras.
+    match /mail/{docId} {
+      allow create: if isAdmin() &&
+        request.resource.data.to is list &&
+        request.resource.data.message is map;
+      allow read, update, delete: if isAdmin();
+    }
+
     // ─── Fallback — nega tudo que não esteja explicitamente permitido ────────
     match /{document=**} {
       allow read, write: if false;

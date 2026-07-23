@@ -85,6 +85,8 @@ const atualizarStatusAlunosHotmart = async (
         email_normalizado: emailNormalizado,
         ultimo_evento_hotmart: ultimoEvento,
         atualizado_em_hotmart: admin.firestore.FieldValue.serverTimestamp(),
+        // Usado pelo Painel de Vendas para o gráfico de evolução de matrículas Premium.
+        ...(status === "premium" ? { data_conversao_premium: admin.firestore.FieldValue.serverTimestamp() } : {}),
       },
       { merge: true }
     );

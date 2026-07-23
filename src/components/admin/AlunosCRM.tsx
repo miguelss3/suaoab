@@ -2,14 +2,16 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc, writeBatch } from "firebase/firestore";
-import { Search, AlertCircle, Ban, Trash2 } from "lucide-react";
+import { Search, AlertCircle, Ban, Trash2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { calcularVagasVisiveis, countAlunosPremium, normalizeAlunoStatus } from "@/lib/ciclo";
-import DossieAluno from "./DossieAluno"; 
+import { alunoEhGraduacao, calcularVagasVisiveis, countAlunosPremium, MOTIVOS_INATIVIDADE, normalizeAlunoStatus, paraData } from "@/lib/ciclo";
+import { AlunoParaRepescagem } from "@/lib/repescagem";
+import ModalEnvioRepescagem from "./ModalEnvioRepescagem";
+import DossieAluno from "./DossieAluno";
 
 type MetaStatus = "bloqueada" | "liberada" | "concluida" | "pulada";
 
@@ -35,21 +37,19 @@ interface AlunoCRM {
   status?: string;
   data_cadastro?: Date | { toDate: () => Date } | string;
   data_expiracao?: Date | { toDate: () => Date } | string;
+  data_conversao_premium?: Date | { toDate: () => Date } | string;
   acessoVitalicio?: boolean;
   metas?: Meta[];
+  motivo_inatividade?: string;
+  ultimo_envio_repescagem?: Date | { toDate: () => Date } | string;
 }
-
-// Aluno de Graduação tem acesso vitalício: não entra em degustação nem em auto-inativação.
-const alunoEhGraduacao = (aluno: { faseEstudo?: string; acessoVitalicio?: boolean }) => {
-  if (aluno.acessoVitalicio === true) return true;
-  const fase = aluno.faseEstudo?.trim().toLowerCase();
-  return fase === "estudante de graduação" || fase === "graduacao";
-};
 
 const AlunosCRM = () => {
   const [alunos, setAlunos] = useState<AlunoCRM[]>([]);
   const [busca, setBusca] = useState("");
   const [alunoSelecionado, setAlunoSelecionado] = useState<AlunoCRM | null>(null);
+  const [linkRepescagem, setLinkRepescagem] = useState("");
+  const [filaRepescagem, setFilaRepescagem] = useState<AlunoParaRepescagem[] | null>(null);
 
   useEffect(() => {
     const qAlunos = query(collection(db, "alunos"), orderBy("data_cadastro", "desc"));
@@ -60,6 +60,15 @@ const AlunosCRM = () => {
         if (!atual) return atual;
         return data.find(a => a.id === atual.id) ?? atual;
       });
+    });
+    return () => unsub();
+  }, []);
+
+  // Link de repescagem (50% OFF) vem das mesmas configurações usadas em Ciclos e Prazos.
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuracoes", "oferta_atual"), (snap) => {
+      const data = snap.data();
+      setLinkRepescagem(typeof data?.link_repescagem === "string" ? data.link_repescagem : "");
     });
     return () => unsub();
   }, []);
@@ -115,6 +124,8 @@ const AlunosCRM = () => {
           const novaData = new Date();
           novaData.setDate(novaData.getDate() + 90);
           dadosAtualizacao.data_expiracao = novaData.toISOString().split('T')[0];
+          // Usado pelo Painel de Vendas para o gráfico de evolução de matrículas Premium.
+          dadosAtualizacao.data_conversao_premium = new Date();
         }
 
         await updateDoc(doc(db, "alunos", id), dadosAtualizacao);
@@ -142,6 +153,27 @@ const AlunosCRM = () => {
       console.error("Erro ao excluir aluno:", error);
       toast.error("Erro ao excluir aluno. Tente novamente.");
     }
+  };
+
+  const handleMudarMotivoInatividade = async (id: string, motivo: string) => {
+    try {
+      await updateDoc(doc(db, "alunos", id), { motivo_inatividade: motivo });
+    } catch (e) {
+      toast.error("Erro ao salvar o motivo de inatividade.");
+    }
+  };
+
+  const paraAlunoRepescagem = (aluno: AlunoCRM) => ({
+    id: aluno.id,
+    nome: aluno.nome,
+    email: aluno.email,
+    motivo_inatividade: aluno.motivo_inatividade,
+    ultimoEnvio: paraData(aluno.ultimo_envio_repescagem),
+  });
+
+  const formatarUltimoEnvio = (aluno: AlunoCRM) => {
+    const data = paraData(aluno.ultimo_envio_repescagem);
+    return data ? data.toLocaleDateString("pt-BR") : "Nunca enviado";
   };
 
   const filtrarAlunos = (filtro: 'premium' | 'leads' | 'inativos' | 'graduacao') => {
@@ -441,35 +473,107 @@ const AlunosCRM = () => {
 
         <TabsContent value="inativos" className="p-0">
           <div className="w-full">
+            {(() => {
+              const inativos = filtrarAlunos('inativos');
+              const elegiveisEnvioMassa = inativos.filter((a) => !!a.email);
+              return (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-6 border-b border-border bg-muted/10">
+                  <p className="text-xs text-muted-foreground">
+                    {inativos.length} {inativos.length === 1 ? 'aluno inativo' : 'alunos inativos'}. Use a repescagem para tentar reverter a saída.
+                  </p>
+                  <Button
+                    variant="hero"
+                    size="sm"
+                    className="font-bold gap-2"
+                    disabled={elegiveisEnvioMassa.length === 0}
+                    onClick={() => setFilaRepescagem(inativos.map(paraAlunoRepescagem))}
+                  >
+                    <Mail className="h-4 w-4" /> Enviar para todos os inativos ({elegiveisEnvioMassa.length})
+                  </Button>
+                </div>
+              );
+            })()}
             <table className="w-full text-sm">
               <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground">
                 <tr>
                   <th className="px-4 sm:px-6 py-4 text-left">Aluno</th>
                   <th className="hidden sm:table-cell px-6 py-4 text-left">Matéria</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-left">Motivo</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-left">Repescagem</th>
                   <th className="hidden sm:table-cell px-6 py-4 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {filtrarAlunos('inativos').map(aluno => (
-                    <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors opacity-60 grayscale">
+                    <tr key={aluno.id} className="border-b border-border hover:bg-muted/5 transition-colors opacity-60 grayscale hover:grayscale-0 hover:opacity-100">
                       <td className="px-4 sm:px-6 py-4 align-top">
                         <div className="font-bold text-primary">{aluno.nome}</div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 mb-2">{aluno.email}</div>
                         {renderPerfilBadge(aluno.faseEstudo)}
-                        
-                        <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-3">
+
+                        <div className="sm:hidden text-[10px] font-bold text-muted-foreground mb-2">
                           Matéria: {aluno.materia}
                         </div>
-                        <div className="flex sm:hidden mt-2 w-full gap-2">
+                        <div className="sm:hidden mb-3 space-y-2">
+                          <select
+                            className="w-full h-8 text-xs border border-input rounded-md px-2 bg-background"
+                            value={aluno.motivo_inatividade || ""}
+                            onChange={(e) => handleMudarMotivoInatividade(aluno.id, e.target.value)}
+                          >
+                            <option value="">Motivo não informado</option>
+                            {MOTIVOS_INATIVIDADE.map((m) => (
+                              <option key={m.value} value={m.value}>{m.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-[10px] text-muted-foreground">Última oferta: {formatarUltimoEnvio(aluno)}</p>
+                        </div>
+                        <div className="flex sm:hidden mt-2 w-full gap-2 flex-wrap">
                           <Button variant="outline" size="sm" className="h-8 text-xs flex-1" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar Aluno</Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-3 text-accent hover:bg-accent/10"
+                            disabled={!aluno.email}
+                            onClick={() => setFilaRepescagem([paraAlunoRepescagem(aluno)])}
+                            title="Enviar oferta de repescagem"
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="sm" className="h-8 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       </td>
-                      
+
                       <td className="hidden sm:table-cell px-6 py-4 font-bold align-top">{aluno.materia}</td>
-                      
+
+                      <td className="hidden sm:table-cell px-6 py-4 align-top">
+                        <select
+                          className="h-8 text-xs border border-input rounded-md px-2 bg-background"
+                          value={aluno.motivo_inatividade || ""}
+                          onChange={(e) => handleMudarMotivoInatividade(aluno.id, e.target.value)}
+                        >
+                          <option value="">Não informado</option>
+                          {MOTIVOS_INATIVIDADE.map((m) => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                      </td>
+
+                      <td className="hidden sm:table-cell px-6 py-4 align-top text-[11px] text-muted-foreground">
+                        {formatarUltimoEnvio(aluno)}
+                      </td>
+
                       <td className="hidden sm:table-cell px-6 py-4 text-right space-x-2 align-top">
                         <Button variant="outline" size="sm" onClick={() => handleMudarStatus(aluno.id, "premium")}>Reativar</Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-accent hover:bg-accent/10"
+                          disabled={!aluno.email}
+                          onClick={() => setFilaRepescagem([paraAlunoRepescagem(aluno)])}
+                          title="Enviar oferta de repescagem"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcluirAluno(aluno.id, aluno.nome)} title="Excluir Aluno"><Trash2 className="h-4 w-4" /></Button>
                       </td>
                     </tr>
@@ -479,6 +583,14 @@ const AlunosCRM = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {filaRepescagem && (
+        <ModalEnvioRepescagem
+          alunos={filaRepescagem}
+          linkRepescagem={linkRepescagem}
+          onClose={() => setFilaRepescagem(null)}
+        />
+      )}
 
       {alunoSelecionado && (
         <DossieAluno 
