@@ -1,7 +1,7 @@
 // src/components/admin/AlunosCRM.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { Search, AlertCircle, Ban, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -50,20 +50,19 @@ const AlunosCRM = () => {
   const [alunos, setAlunos] = useState<AlunoCRM[]>([]);
   const [busca, setBusca] = useState("");
   const [alunoSelecionado, setAlunoSelecionado] = useState<AlunoCRM | null>(null);
-  const [modalConfirmacao, setModalConfirmacao] = useState({ isOpen: false, titulo: "", mensagem: "", acao: () => {} });
 
   useEffect(() => {
     const qAlunos = query(collection(db, "alunos"), orderBy("data_cadastro", "desc"));
     const unsub = onSnapshot(qAlunos, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AlunoCRM, 'id'>) })) as AlunoCRM[];
       setAlunos(data);
-      if (alunoSelecionado) {
-        const atualizado = data.find(a => a.id === alunoSelecionado.id);
-        if (atualizado) setAlunoSelecionado(atualizado);
-      }
+      setAlunoSelecionado((atual) => {
+        if (!atual) return atual;
+        return data.find(a => a.id === atual.id) ?? atual;
+      });
     });
     return () => unsub();
-  }, [alunoSelecionado]);
+  }, []);
 
   const calcularProgresso = (metas: Meta[] | undefined) => {
     if (!metas || metas.length === 0) return 0;
@@ -222,12 +221,14 @@ const AlunosCRM = () => {
         // 1. Varrer alunos expirados para inativar (Proteção)
         //    Graduação (acessoVitalicio) NUNCA é inativado por expiração.
         const alunosParaVerificar = alunos.filter(a => a.status !== "inativo" && !alunoEhGraduacao(a));
-        for (const aluno of alunosParaVerificar) {
-          const expiracao = calcularExpiracaoLead(aluno);
-          if (expiracao.expirado) {
-            await updateDoc(doc(db, "alunos", aluno.id), { status: "inativo" });
-            console.log(`[AUTOMAÇÃO] Aluno ${aluno.nome} inativado por expiração.`);
-          }
+        const alunosExpirados = alunosParaVerificar.filter(a => calcularExpiracaoLead(a).expirado);
+        if (alunosExpirados.length > 0) {
+          const batch = writeBatch(db);
+          alunosExpirados.forEach((aluno) => {
+            batch.update(doc(db, "alunos", aluno.id), { status: "inativo" });
+          });
+          await batch.commit();
+          console.log(`[AUTOMAÇÃO] ${alunosExpirados.length} aluno(s) inativado(s) por expiração.`);
         }
 
         // 2. Sincronizar matriculados e vagas exibidas na landing
@@ -484,20 +485,6 @@ const AlunosCRM = () => {
           aluno={alunoSelecionado} 
           onClose={() => setAlunoSelecionado(null)} 
         />
-      )}
-
-      {modalConfirmacao.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
-          <div className="bg-card border border-border w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center">
-            <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-8 h-8 text-destructive" /></div>
-            <h3 className="text-xl font-display font-bold text-primary mb-2">{modalConfirmacao.titulo}</h3>
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">{modalConfirmacao.mensagem}</p>
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setModalConfirmacao({ ...modalConfirmacao, isOpen: false })}>Cancelar</Button>
-              <Button variant="destructive" className="flex-1 font-bold" onClick={modalConfirmacao.acao}>Sim, Confirmar</Button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 // src/pages/Painel.tsx
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -8,17 +8,23 @@ import { auth } from "@/lib/firebase";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
-// Importação de todos os Motores (Componentes)
-import AlunosCRM from "@/components/admin/AlunosCRM";
-import FilaCorrecao from "@/components/admin/FilaCorrecao";
-import BancoQuestoes from "@/components/admin/BancoQuestoes";
-import MotorGerador from "@/components/admin/MotorGerador";
-import GestaoMateriais from "@/components/admin/GestaoMateriais";
-import GestaoPecas from "@/components/admin/GestaoPecas";
-import GestaoCiclos from "@/components/admin/GestaoCiclos"; 
-import GestaoAulas from "@/components/admin/GestaoAulas"; 
-import VisaoAluno from "@/components/admin/VisaoAluno";
-import AdminGraduacao from "@/components/admin/AdminGraduacao";
+// Cada motor do painel admin só é baixado quando a respectiva aba é aberta
+// (só o professor acessa isso, mas mesmo assim evita travar a aba ativa
+// esperando o parse/execução de motores que ele nem abriu nesta sessão).
+const AlunosCRM = lazy(() => import("@/components/admin/AlunosCRM"));
+const FilaCorrecao = lazy(() => import("@/components/admin/FilaCorrecao"));
+const BancoQuestoes = lazy(() => import("@/components/admin/BancoQuestoes"));
+const MotorGerador = lazy(() => import("@/components/admin/MotorGerador"));
+const GestaoMateriais = lazy(() => import("@/components/admin/GestaoMateriais"));
+const GestaoPecas = lazy(() => import("@/components/admin/GestaoPecas"));
+const GestaoCiclos = lazy(() => import("@/components/admin/GestaoCiclos"));
+const GestaoAulas = lazy(() => import("@/components/admin/GestaoAulas"));
+const VisaoAluno = lazy(() => import("@/components/admin/VisaoAluno"));
+const AdminGraduacao = lazy(() => import("@/components/admin/AdminGraduacao"));
+
+const AbaFallback = () => (
+  <div className="p-10 text-center text-sm text-muted-foreground font-bold">Carregando...</div>
+);
 
 const Painel = () => {
   const navigate = useNavigate();
@@ -103,16 +109,18 @@ const Painel = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="sandbox"><VisaoAluno /></TabsContent>
-          <TabsContent value="crm"><AlunosCRM /></TabsContent>
-          <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>
-          <TabsContent value="aulas"><GestaoAulas /></TabsContent>
-          <TabsContent value="questoes"><BancoQuestoes /></TabsContent>
-          <TabsContent value="pecas"><GestaoPecas /></TabsContent>
-          <TabsContent value="motor"><MotorGerador /></TabsContent>
-          <TabsContent value="materiais"><GestaoMateriais /></TabsContent>
-          <TabsContent value="ciclos"><GestaoCiclos /></TabsContent>
-          <TabsContent value="graduacao"><AdminGraduacao /></TabsContent>
+          <Suspense fallback={<AbaFallback />}>
+            <TabsContent value="sandbox"><VisaoAluno /></TabsContent>
+            <TabsContent value="crm"><AlunosCRM /></TabsContent>
+            <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>
+            <TabsContent value="aulas"><GestaoAulas /></TabsContent>
+            <TabsContent value="questoes"><BancoQuestoes /></TabsContent>
+            <TabsContent value="pecas"><GestaoPecas /></TabsContent>
+            <TabsContent value="motor"><MotorGerador /></TabsContent>
+            <TabsContent value="materiais"><GestaoMateriais /></TabsContent>
+            <TabsContent value="ciclos"><GestaoCiclos /></TabsContent>
+            <TabsContent value="graduacao"><AdminGraduacao /></TabsContent>
+          </Suspense>
 
         </Tabs>
       </main>

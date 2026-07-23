@@ -45,8 +45,10 @@ const MotorGerador = () => {
       let imgOab: HTMLImageElement | null = null;
       let imgSuaOab: HTMLImageElement | null = null;
       try {
-        imgOab = await carregarImagem("https://raw.githubusercontent.com/miguelss3/suaoab/2337d5382123ff3f2db2ad7637a364ab6b6ca1eb/OABlogo.png");
-        imgSuaOab = await carregarImagem("https://raw.githubusercontent.com/miguelss3/suaoab/7e28a9712547ab2eb527663768a4662a304b619c/suaoab.png");
+        [imgOab, imgSuaOab] = await Promise.all([
+          carregarImagem("https://raw.githubusercontent.com/miguelss3/suaoab/2337d5382123ff3f2db2ad7637a364ab6b6ca1eb/OABlogo.png"),
+          carregarImagem("https://raw.githubusercontent.com/miguelss3/suaoab/7e28a9712547ab2eb527663768a4662a304b619c/suaoab.png"),
+        ]);
       } catch (err) {
         console.warn("Aviso: Falha ao carregar logotipos.");
       }
