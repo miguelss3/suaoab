@@ -110,7 +110,7 @@ export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno
                       <div className="flex flex-wrap gap-3 mt-4">
                         {m.link && (
                           <Button variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
-                            <a href={m.link} target="_blank" rel="noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> Acessar Link</a>
+                            <a href={m.link} target="_blank" rel="noopener noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> Acessar Link</a>
                           </Button>
                         )}
                         {m.arquivo_url && (

@@ -406,7 +406,7 @@ const Index = () => {
               </div>
 
               <Button variant="outline" className="w-full h-16 text-lg border-accent text-accent hover:bg-accent/10 mt-auto" asChild>
-                <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá Professor! Fiquei de repescagem no último exame e gostaria de enviar meu comprovante para receber o link com 50% de desconto na SuaOAB.")}`} target="_blank" rel="noreferrer">Validar no WhatsApp</a>
+                <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá Professor! Fiquei de repescagem no último exame e gostaria de enviar meu comprovante para receber o link com 50% de desconto na SuaOAB.")}`} target="_blank" rel="noopener noreferrer">Validar no WhatsApp</a>
               </Button>
             </motion.div>
           </div>
@@ -426,7 +426,7 @@ const Index = () => {
         </div>
       </footer>
 
-      <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} target="_blank" rel="noreferrer" className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl">
+      <a href={`https://wa.me/${meuWhatsApp}?text=${encodeURIComponent("Olá! Gostaria de tirar uma dúvida sobre a matrícula na SuaOAB.")}`} target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-50 flex items-center justify-center hover:scale-110 transition-transform duration-300 drop-shadow-2xl">
         <img src="https://raw.githubusercontent.com/miguelss3/suaoab/0ce289c50dd729e287ddf50ca8c319257aa2970e/whatsapp-removebg.png" alt="WhatsApp" className="w-12 h-12 sm:w-20 sm:h-20 object-contain" />
       </a>
 

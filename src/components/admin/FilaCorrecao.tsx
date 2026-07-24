@@ -242,12 +242,12 @@ const FilaCorrecao = () => {
 
                       {/* Ficheiros Mobile */}
                       <div className="flex flex-col gap-2 bg-muted/10 p-3 rounded-lg border border-border mt-1">
-                        <a href={p.url_documento} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-accent hover:text-accent/80 transition-colors">
+                        <a href={p.url_documento} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-accent hover:text-accent/80 transition-colors">
                           <DownloadCloud className="h-4 w-4" /> Peça do Aluno
                         </a>
                         
                         {p.url_arquivo_corrigido && (
-                          <a href={p.url_arquivo_corrigido} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-success hover:text-success/80 transition-colors">
+                          <a href={p.url_arquivo_corrigido} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-success hover:text-success/80 transition-colors">
                             <CheckCircle className="h-4 w-4" /> PDF Corrigido
                           </a>
                         )}
@@ -276,12 +276,12 @@ const FilaCorrecao = () => {
                   {/* COLUNA 3: Ficheiros (Apenas PC) */}
                   <td className="hidden sm:table-cell px-6 py-4 space-y-2 align-top">
                     <span className="block font-bold text-primary text-xs mb-1 truncate max-w-[150px]" title={p.nome_documento}>{p.nome_documento}</span>
-                    <a href={p.url_documento} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-accent bg-accent/10 px-2 py-1 rounded w-max hover:bg-accent/20 transition-colors">
+                    <a href={p.url_documento} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-accent bg-accent/10 px-2 py-1 rounded w-max hover:bg-accent/20 transition-colors">
                       <DownloadCloud className="h-3 w-3" /> Original
                     </a>
                     
                     {p.url_arquivo_corrigido && (
-                      <a href={p.url_arquivo_corrigido} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-success bg-success/10 px-2 py-1 rounded w-max hover:bg-success/20 transition-colors">
+                      <a href={p.url_arquivo_corrigido} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] font-bold text-success bg-success/10 px-2 py-1 rounded w-max hover:bg-success/20 transition-colors">
                         <CheckCircle className="h-3 w-3" /> Rasurado
                       </a>
                     )}

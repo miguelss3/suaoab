@@ -417,9 +417,17 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
 
                   {!isLogin && (
                     <div className="flex items-start gap-2 mt-4 pt-2 border-t border-border/50">
-                      <input type="checkbox" id="termos" className="mt-1 h-4 w-4 accent-accent cursor-pointer flex-shrink-0" checked={aceitouTermos} onChange={(e) => setAceitouTermos(e.target.checked)} />
+                      <input type="checkbox" id="termos" required className="mt-1 h-4 w-4 accent-accent cursor-pointer flex-shrink-0" checked={aceitouTermos} onChange={(e) => setAceitouTermos(e.target.checked)} />
                       <Label htmlFor="termos" className="text-[11px] text-muted-foreground leading-relaxed cursor-pointer font-normal">
-                        Concordo com os Termos de Uso, Política de Privacidade e aceito receber comunicações.
+                        Concordo com os{" "}
+                        <a href="/termos-de-uso" target="_blank" rel="noopener noreferrer" className="text-accent underline hover:text-accent/80">
+                          Termos de Uso
+                        </a>{" "}
+                        e a{" "}
+                        <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer" className="text-accent underline hover:text-accent/80">
+                          Política de Privacidade
+                        </a>{" "}
+                        e aceito receber comunicações.
                       </Label>
                     </div>
                   )}

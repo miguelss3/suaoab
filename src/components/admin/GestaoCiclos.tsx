@@ -331,7 +331,7 @@ const GestaoCiclos = () => {
                 <a
                   href="https://console.firebase.google.com/project/_/extensions"
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="underline text-accent"
                 >
                   Console do Firebase

@@ -432,8 +432,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                         <p className="text-xs mt-1 opacity-70 whitespace-pre-line">{m.orientacoes}</p>
                         {(m.link || m.arquivo_url) && (
                           <div className="flex gap-3 mt-3">
-                            {m.link && <a href={m.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 px-2 py-1 rounded"><LinkIcon className="h-3 w-3"/> Link</a>}
-                            {m.arquivo_url && <a href={m.arquivo_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-success bg-success/10 px-2 py-1 rounded"><FileText className="h-3 w-3"/> {m.arquivo_nome || "Anexo"}</a>}
+                            {m.link && <a href={m.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 px-2 py-1 rounded"><LinkIcon className="h-3 w-3"/> Link</a>}
+                            {m.arquivo_url && <a href={m.arquivo_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-success bg-success/10 px-2 py-1 rounded"><FileText className="h-3 w-3"/> {m.arquivo_nome || "Anexo"}</a>}
                           </div>
                         )}
                       </div>

@@ -276,7 +276,7 @@ const GestaoMateriais = () => {
                           className="h-8 font-bold text-xs shrink-0"
                           asChild
                         >
-                          <a href={m.url_pdf} target="_blank" rel="noreferrer">
+                          <a href={m.url_pdf} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="h-3 w-3 mr-1" /> PDF
                           </a>
                         </Button>

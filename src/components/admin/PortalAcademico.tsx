@@ -738,7 +738,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
             <div className="mt-4 sm:mt-6 flex flex-row flex-nowrap items-center gap-2 sm:gap-3">
               {usuarioEhGraduacao ? (
                 <Button asChild size="lg" className="gap-2 flex-1 sm:flex-initial min-w-0 h-11 sm:h-11 text-xs sm:text-base px-3 sm:px-6">
-                  <a href={linkWhatsAppGraduacao} target="_blank" rel="noreferrer">
+                  <a href={linkWhatsAppGraduacao} target="_blank" rel="noopener noreferrer">
                     <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                     <span className="truncate">Garantir Meu Desconto de Aluno</span>
                   </a>
@@ -753,7 +753,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
               <a
                 href={linkInstagram}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 aria-label="Abrir Instagram @prof.luizmiguel"
                 title="Instagram @prof.luizmiguel"
                 className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all hover:scale-105"

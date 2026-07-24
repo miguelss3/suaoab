@@ -17,6 +17,8 @@ const Aula = lazyWithReload(() => import("./pages/Aula.tsx"));
 const Painel = lazyWithReload(() => import("./pages/Painel.tsx"));
 const RedefinirSenha = lazyWithReload(() => import("./pages/RedefinirSenha.tsx"));
 const PortalGraduacao = lazyWithReload(() => import("./pages/PortalGraduacao.tsx"));
+const TermosDeUso = lazyWithReload(() => import("./pages/TermosDeUso.tsx"));
+const PoliticaDePrivacidade = lazyWithReload(() => import("./pages/PoliticaDePrivacidade.tsx"));
 const NotFound = lazyWithReload(() => import("./pages/NotFound.tsx"));
 
 const queryClient = new QueryClient();
@@ -42,6 +44,8 @@ const router = createBrowserRouter(
     { path: "/painel", element: withSuspense(<Painel />) },
     { path: "/portal-graduacao", element: withSuspense(<PortalGraduacao />) },
     { path: "/redefinir-senha", element: withSuspense(<RedefinirSenha />) },
+    { path: "/termos-de-uso", element: withSuspense(<TermosDeUso />) },
+    { path: "/politica-de-privacidade", element: withSuspense(<PoliticaDePrivacidade />) },
     { path: "*", element: withSuspense(<NotFound />) },
   ],
   {

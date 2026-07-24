@@ -169,7 +169,7 @@ const GestaoPecas = () => {
                         <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">ID {idx}</span>
                         <h4 className="font-bold text-sm leading-tight text-primary">{peca.nome}</h4>
                         {peca.url_pdf ? (
-                          <a href={peca.url_pdf} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-success hover:underline">Ver Esqueleto PDF</a>
+                          <a href={peca.url_pdf} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-success hover:underline">Ver Esqueleto PDF</a>
                         ) : (
                           <span className="text-[10px] font-bold text-warning">Sem arquivo anexado</span>
                         )}
