@@ -2,6 +2,7 @@
 // Fonte única das disciplinas de 2ª Fase (Administrativo, Penal, Tributário) e de
 // quais estão habilitadas para novos cadastros. O professor hoje só consegue
 // atender Direito Penal; as outras ficam "Em breve" até serem habilitadas.
+import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -44,6 +45,39 @@ export const escutarDisciplinasAtivas = (callback: (ativas: DisciplinasAtivasMap
     (snap) => callback(parseDisciplinasAtivas(snap.data())),
     () => callback(DISCIPLINAS_ATIVAS_PADRAO)
   );
+};
+
+// Hook para telas do admin que precisam saber quais disciplinas estão habilitadas
+// (ex.: esconder disciplinas desligadas de qualquer seletor de publicação de conteúdo).
+export const useDisciplinasSegundaFaseAtivas = () => {
+  const [ativas, setAtivas] = useState<DisciplinasAtivasMap>(DISCIPLINAS_ATIVAS_PADRAO);
+
+  useEffect(() => {
+    const unsub = escutarDisciplinasAtivas(setAtivas);
+    return () => unsub();
+  }, []);
+
+  return ativas;
+};
+
+// Só as disciplinas habilitadas — usar em qualquer <select>/lista de matéria dentro
+// do admin que sirva para PUBLICAR conteúdo (materiais, peças, videoaulas, questões,
+// cronograma). Disciplina desligada não deve aparecer para publicação de nada.
+export const disciplinasSegundaFaseDisponiveis = (ativas: DisciplinasAtivasMap) =>
+  DISCIPLINAS_SEGUNDA_FASE.filter(({ codigo }) => ativas[codigo]);
+
+// Mesma lista, mas preservando o valor atualmente selecionado mesmo que a
+// disciplina tenha sido desligada nesse meio-tempo — evita que um formulário de
+// edição de conteúdo antigo (de uma disciplina hoje desabilitada) fique com o
+// <select> em branco/inválido. Um formulário vazio (`valorAtual` "" ou não
+// reconhecido) só oferece as habilitadas.
+export const disciplinasParaSelect = (ativas: DisciplinasAtivasMap, valorAtual?: string) => {
+  const disponiveis = disciplinasSegundaFaseDisponiveis(ativas);
+  if (valorAtual && !disponiveis.some((d) => d.codigo === valorAtual)) {
+    const atual = DISCIPLINAS_SEGUNDA_FASE.find((d) => d.codigo === valorAtual);
+    if (atual) return [...disponiveis, atual];
+  }
+  return disponiveis;
 };
 
 const formatarListaPt = (nomes: string[]) => {

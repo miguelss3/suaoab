@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
+import { disciplinasParaSelect, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 const carregarImagem = (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
@@ -21,6 +22,7 @@ const carregarImagem = (url: string): Promise<HTMLImageElement> => {
 };
 
 const MotorGerador = () => {
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
   const [questoes, setQuestoes] = useState<any[]>([]);
   const [buildTipo, setBuildTipo] = useState("Caderno");
   const [buildMateria, setBuildMateria] = useState("");
@@ -191,7 +193,10 @@ const MotorGerador = () => {
         <div className="space-y-2">
           <Label className="font-bold">2. Disciplina Alvo</Label>
           <select className="w-full h-10 border rounded-md px-3 bg-background" value={buildMateria} onChange={(e) => {setBuildMateria(e.target.value); setBuildQuestoes([]);}}>
-            <option value="">Selecione...</option><option value="DADM">DADM</option><option value="DPEN">DPEN</option><option value="DTRI">DTRI</option>
+            <option value="">Selecione...</option>
+            {disciplinasParaSelect(disciplinasAtivas, buildMateria).map(({ codigo }) => (
+              <option key={codigo} value={codigo}>{codigo}</option>
+            ))}
           </select>
         </div>
         <div className="space-y-2">

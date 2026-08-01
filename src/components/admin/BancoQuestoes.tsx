@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { disciplinasParaSelect, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 const BancoQuestoes = () => {
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
   const [questoes, setQuestoes] = useState<any[]>([]);
   
   // Filtros
@@ -202,7 +204,10 @@ const BancoQuestoes = () => {
               <div className="space-y-1">
                 <Label>Matéria</Label>
                 <select className="w-full h-10 border rounded-md px-3 bg-background" value={materia} onChange={e => setMateria(e.target.value)}>
-                   <option value="">Selecione...</option><option value="DADM">DADM</option><option value="DPEN">DPEN</option><option value="DTRI">DTRI</option>
+                   <option value="">Selecione...</option>
+                   {disciplinasParaSelect(disciplinasAtivas, materia).map(({ codigo }) => (
+                     <option key={codigo} value={codigo}>{codigo}</option>
+                   ))}
                 </select>
               </div>
               <div className="space-y-1">
@@ -237,7 +242,9 @@ const BancoQuestoes = () => {
               <div className="space-y-1">
                 <Label>Matéria</Label>
                 <select className="w-full h-10 border rounded-md px-3 bg-background" value={editMateria} onChange={e => setEditMateria(e.target.value)}>
-                   <option value="DADM">DADM</option><option value="DPEN">DPEN</option><option value="DTRI">DTRI</option>
+                   {disciplinasParaSelect(disciplinasAtivas, editMateria).map(({ codigo }) => (
+                     <option key={codigo} value={codigo}>{codigo}</option>
+                   ))}
                 </select>
               </div>
               <div className="space-y-1">

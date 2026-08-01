@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AulaGlobal } from "@/lib/aulas";
+import { disciplinasParaSelect, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 import { toast } from "sonner";
 
 const mapDocToAula = (docSnap: { id: string; data: () => Record<string, unknown> }): AulaGlobal => {
@@ -26,6 +27,7 @@ const mapDocToAula = (docSnap: { id: string; data: () => Record<string, unknown>
 };
 
 const GestaoAulas = () => {
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
   const [aulas, setAulas] = useState<AulaGlobal[]>([]);
   const [filtroMateria, setFiltroMateria] = useState("");
   const [erroCarregamento, setErroCarregamento] = useState("");
@@ -181,9 +183,9 @@ const GestaoAulas = () => {
             <Label className="text-xs uppercase font-black text-muted-foreground">Disciplina</Label>
             <select className="w-full h-10 border rounded-md px-3 bg-background text-sm" value={materia} onChange={e => setMateria(e.target.value)}>
               <option value="">Selecione...</option>
-              <option value="DADM">DADM</option>
-              <option value="DPEN">DPEN</option>
-              <option value="DTRI">DTRI</option>
+              {disciplinasParaSelect(disciplinasAtivas, materia).map(({ codigo }) => (
+                <option key={codigo} value={codigo}>{codigo}</option>
+              ))}
             </select>
           </div>
 

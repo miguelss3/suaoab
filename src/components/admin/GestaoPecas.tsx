@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { disciplinasParaSelect, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 const GestaoPecas = () => {
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
   const [materia, setMateria] = useState("");
   const [pecas, setPecas] = useState<any[]>([]);
   
@@ -135,9 +137,9 @@ const GestaoPecas = () => {
           <Label className="text-[10px] uppercase font-black text-muted-foreground">Disciplina Alvo</Label>
           <select className="w-full h-8 bg-transparent text-sm font-bold border-none focus:ring-0" value={materia} onChange={e => setMateria(e.target.value)}>
             <option value="">Selecione para carregar...</option>
-            <option value="DADM">DADM</option>
-            <option value="DPEN">DPEN</option>
-            <option value="DTRI">DTRI</option>
+            {disciplinasParaSelect(disciplinasAtivas, materia).map(({ codigo }) => (
+              <option key={codigo} value={codigo}>{codigo}</option>
+            ))}
           </select>
         </div>
       </div>

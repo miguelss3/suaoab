@@ -3,7 +3,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, CalendarRange, PlayCircle, Eye, TrendingUp } from "lucide-react";
+import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, CalendarRange, Upload, Eye, TrendingUp } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -19,12 +19,10 @@ const AlunosCRM = lazyWithReload(() => import("@/components/admin/AlunosCRM"));
 const FilaCorrecao = lazyWithReload(() => import("@/components/admin/FilaCorrecao"));
 const BancoQuestoes = lazyWithReload(() => import("@/components/admin/BancoQuestoes"));
 const MotorGerador = lazyWithReload(() => import("@/components/admin/MotorGerador"));
-const GestaoMateriais = lazyWithReload(() => import("@/components/admin/GestaoMateriais"));
-const GestaoPecas = lazyWithReload(() => import("@/components/admin/GestaoPecas"));
+const PublicarMaterial = lazyWithReload(() => import("@/components/admin/PublicarMaterial"));
 const GestaoCronograma = lazyWithReload(() => import("@/components/admin/GestaoCronograma"));
 const GestaoMaterialProcessual = lazyWithReload(() => import("@/components/admin/GestaoMaterialProcessual"));
 const GestaoCiclos = lazyWithReload(() => import("@/components/admin/GestaoCiclos"));
-const GestaoAulas = lazyWithReload(() => import("@/components/admin/GestaoAulas"));
 const VisaoAluno = lazyWithReload(() => import("@/components/admin/VisaoAluno"));
 const AdminGraduacao = lazyWithReload(() => import("@/components/admin/AdminGraduacao"));
 
@@ -98,24 +96,16 @@ const Painel = () => {
               <FileText className="h-4 w-4"/> Fila de Correção
             </TabsTrigger>
 
-            <TabsTrigger value="aulas" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <PlayCircle className="h-4 w-4"/> Videoaulas
+            <TabsTrigger value="publicar" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
+              <Upload className="h-4 w-4"/> Publicar Material
             </TabsTrigger>
-            
-            <TabsTrigger value="pecas" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <Scale className="h-4 w-4"/> Laboratório de Peças
-            </TabsTrigger>
-            
+
             <TabsTrigger value="questoes" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <PenTool className="h-4 w-4"/> Banco de Questões
             </TabsTrigger>
-            
+
             <TabsTrigger value="motor" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <Cog className="h-4 w-4"/> Motor PDF
-            </TabsTrigger>
-            
-            <TabsTrigger value="materiais" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <BookOpen className="h-4 w-4"/> Publicados
             </TabsTrigger>
 
             <TabsTrigger value="ciclos" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
@@ -134,11 +124,9 @@ const Painel = () => {
             <TabsContent value="cronograma"><GestaoCronograma /></TabsContent>
             <TabsContent value="material-processual"><GestaoMaterialProcessual /></TabsContent>
             <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>
-            <TabsContent value="aulas"><GestaoAulas /></TabsContent>
+            <TabsContent value="publicar"><PublicarMaterial /></TabsContent>
             <TabsContent value="questoes"><BancoQuestoes /></TabsContent>
-            <TabsContent value="pecas"><GestaoPecas /></TabsContent>
             <TabsContent value="motor"><MotorGerador /></TabsContent>
-            <TabsContent value="materiais"><GestaoMateriais /></TabsContent>
             <TabsContent value="ciclos"><GestaoCiclos /></TabsContent>
             <TabsContent value="graduacao"><AdminGraduacao /></TabsContent>
           </Suspense>

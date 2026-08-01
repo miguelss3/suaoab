@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { CodigoDisciplinaSegundaFase, DISCIPLINAS_SEGUNDA_FASE } from "@/lib/disciplinasSegundaFase";
+import { CodigoDisciplinaSegundaFase, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 type MetaTemplate = {
   atividade: string;
@@ -24,10 +24,25 @@ const DOC_CRONOGRAMA_TEMPLATES = doc(db, "configuracoes", "cronograma_templates"
 const metaVazia = (): MetaTemplate => ({ atividade: "", orientacoes: "", diaRelativo: 1 });
 
 const GestaoCronograma = () => {
-  const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<CodigoDisciplinaSegundaFase>("DPEN");
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
+  const disciplinasDisponiveis = disciplinasSegundaFaseDisponiveis(disciplinasAtivas);
+
+  const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<CodigoDisciplinaSegundaFase | "">("");
   const [templates, setTemplates] = useState<Record<string, MetaTemplate[]>>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
+
+  // Garante que a disciplina selecionada é sempre uma habilitada: se a atual foi
+  // desligada (ou nenhuma foi escolhida ainda), cai para a primeira disponível.
+  useEffect(() => {
+    if (disciplinasDisponiveis.length === 0) {
+      setDisciplinaSelecionada("");
+      return;
+    }
+    setDisciplinaSelecionada((atual) =>
+      disciplinasDisponiveis.some((d) => d.codigo === atual) ? atual : disciplinasDisponiveis[0].codigo
+    );
+  }, [disciplinasDisponiveis]);
 
   useEffect(() => {
     const carregar = async () => {
@@ -74,6 +89,10 @@ const GestaoCronograma = () => {
   };
 
   const handleSalvar = async () => {
+    if (!disciplinaSelecionada) {
+      toast.error("Nenhuma disciplina habilitada para montar cronograma.");
+      return;
+    }
     setSalvando(true);
     try {
       await setDoc(DOC_CRONOGRAMA_TEMPLATES, { [disciplinaSelecionada]: metasAtuais }, { merge: true });
@@ -106,29 +125,35 @@ const GestaoCronograma = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-6">
-          {DISCIPLINAS_SEGUNDA_FASE.map(({ codigo, nome }) => (
-            <button
-              key={codigo}
-              type="button"
-              onClick={() => setDisciplinaSelecionada(codigo)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
-                disciplinaSelecionada === codigo ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
-              }`}
-            >
-              {nome}
-            </button>
-          ))}
-        </div>
+        {disciplinasDisponiveis.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic text-center py-10">
+            Nenhuma disciplina habilitada em Ciclos e Prazos ainda.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2 mb-6">
+              {disciplinasDisponiveis.map(({ codigo, nome }) => (
+                <button
+                  key={codigo}
+                  type="button"
+                  onClick={() => setDisciplinaSelecionada(codigo)}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
+                    disciplinaSelecionada === codigo ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
+                  }`}
+                >
+                  {nome}
+                </button>
+              ))}
+            </div>
 
-        <div className="space-y-4">
-          {metasAtuais.length === 0 && (
-            <p className="text-sm text-muted-foreground italic text-center py-6">
-              Nenhuma meta no cronograma-modelo desta disciplina ainda.
-            </p>
-          )}
+            <div className="space-y-4">
+              {metasAtuais.length === 0 && (
+                <p className="text-sm text-muted-foreground italic text-center py-6">
+                  Nenhuma meta no cronograma-modelo desta disciplina ainda.
+                </p>
+              )}
 
-          {metasAtuais.map((meta, indice) => (
+              {metasAtuais.map((meta, indice) => (
             <div key={indice} className="p-4 rounded-xl border-2 border-border bg-background space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black uppercase tracking-widest text-accent bg-accent/10 px-2 py-1 rounded">
@@ -175,15 +200,17 @@ const GestaoCronograma = () => {
             </div>
           ))}
 
-          <Button type="button" variant="outline" className="w-full gap-2" onClick={adicionarMeta}>
-            <Plus className="h-4 w-4" /> Adicionar Meta ao Cronograma-Modelo
-          </Button>
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={adicionarMeta}>
+                <Plus className="h-4 w-4" /> Adicionar Meta ao Cronograma-Modelo
+              </Button>
 
-          <Button variant="hero" size="lg" className="w-full h-12" onClick={handleSalvar} disabled={salvando}>
-            <Save className="h-5 w-5 mr-2" />
-            {salvando ? "Salvando..." : "Salvar Cronograma-Modelo"}
-          </Button>
-        </div>
+              <Button variant="hero" size="lg" className="w-full h-12" onClick={handleSalvar} disabled={salvando}>
+                <Save className="h-5 w-5 mr-2" />
+                {salvando ? "Salvando..." : "Salvar Cronograma-Modelo"}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
