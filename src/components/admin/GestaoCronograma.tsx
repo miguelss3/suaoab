@@ -1,0 +1,192 @@
+// src/components/admin/GestaoCronograma.tsx
+// Cronograma-modelo por disciplina: o professor monta manualmente, uma vez, a
+// lista de metas padrão de uma disciplina inteira. Serve de referência/base ao
+// montar o cronograma real de cada aluno (Dossiê → Gerar Rota), em vez de
+// depender só do gerador automático.
+import { useEffect, useState } from "react";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { CalendarRange, GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { CodigoDisciplinaSegundaFase, DISCIPLINAS_SEGUNDA_FASE } from "@/lib/disciplinasSegundaFase";
+
+type MetaTemplate = {
+  atividade: string;
+  orientacoes: string;
+  diaRelativo: number;
+};
+
+const DOC_CRONOGRAMA_TEMPLATES = doc(db, "configuracoes", "cronograma_templates");
+
+const metaVazia = (): MetaTemplate => ({ atividade: "", orientacoes: "", diaRelativo: 1 });
+
+const GestaoCronograma = () => {
+  const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<CodigoDisciplinaSegundaFase>("DPEN");
+  const [templates, setTemplates] = useState<Record<string, MetaTemplate[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    const carregar = async () => {
+      try {
+        const snap = await getDoc(DOC_CRONOGRAMA_TEMPLATES);
+        if (snap.exists()) {
+          setTemplates(snap.data() as Record<string, MetaTemplate[]>);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar cronogramas-modelo:", error);
+        toast.error("Erro ao carregar os cronogramas-modelo.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    carregar();
+  }, []);
+
+  const metasAtuais = templates[disciplinaSelecionada] ?? [];
+
+  const atualizarMetas = (novasMetas: MetaTemplate[]) => {
+    setTemplates((prev) => ({ ...prev, [disciplinaSelecionada]: novasMetas }));
+  };
+
+  const adicionarMeta = () => {
+    atualizarMetas([...metasAtuais, metaVazia()]);
+  };
+
+  const editarMeta = (indice: number, campo: keyof MetaTemplate, valor: string | number) => {
+    const novasMetas = metasAtuais.map((meta, i) => (i === indice ? { ...meta, [campo]: valor } : meta));
+    atualizarMetas(novasMetas);
+  };
+
+  const removerMeta = (indice: number) => {
+    atualizarMetas(metasAtuais.filter((_, i) => i !== indice));
+  };
+
+  const moverMeta = (indice: number, direcao: -1 | 1) => {
+    const destino = indice + direcao;
+    if (destino < 0 || destino >= metasAtuais.length) return;
+    const novasMetas = [...metasAtuais];
+    [novasMetas[indice], novasMetas[destino]] = [novasMetas[destino], novasMetas[indice]];
+    atualizarMetas(novasMetas);
+  };
+
+  const handleSalvar = async () => {
+    setSalvando(true);
+    try {
+      await setDoc(DOC_CRONOGRAMA_TEMPLATES, { [disciplinaSelecionada]: metasAtuais }, { merge: true });
+      toast.success("Cronograma-modelo salvo com sucesso.");
+    } catch (error) {
+      console.error("Erro ao salvar cronograma-modelo:", error);
+      toast.error("Erro ao salvar o cronograma-modelo.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-10 text-center text-sm text-muted-foreground font-bold">Carregando...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
+        <div className="flex items-center gap-3 mb-6 border-b border-border pb-4">
+          <div className="p-3 bg-accent/10 rounded-lg text-accent">
+            <CalendarRange className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-primary italic">Montagem de Cronograma</h2>
+            <p className="text-sm text-muted-foreground">
+              Monte manualmente o cronograma-modelo (metas padrão) de cada disciplina, para usar como base ao montar o
+              cronograma real de um aluno.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          {DISCIPLINAS_SEGUNDA_FASE.map(({ codigo, nome }) => (
+            <button
+              key={codigo}
+              type="button"
+              onClick={() => setDisciplinaSelecionada(codigo)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
+                disciplinaSelecionada === codigo ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
+              }`}
+            >
+              {nome}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          {metasAtuais.length === 0 && (
+            <p className="text-sm text-muted-foreground italic text-center py-6">
+              Nenhuma meta no cronograma-modelo desta disciplina ainda.
+            </p>
+          )}
+
+          {metasAtuais.map((meta, indice) => (
+            <div key={indice} className="p-4 rounded-xl border-2 border-border bg-background space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-widest text-accent bg-accent/10 px-2 py-1 rounded">
+                  Meta {indice + 1}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => moverMeta(indice, -1)} disabled={indice === 0} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
+                    <GripVertical className="h-4 w-4 rotate-90" />
+                  </button>
+                  <button type="button" onClick={() => moverMeta(indice, 1)} disabled={indice === metasAtuais.length - 1} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
+                    <GripVertical className="h-4 w-4 -rotate-90" />
+                  </button>
+                  <button type="button" onClick={() => removerMeta(indice)} className="p-1 text-destructive hover:bg-destructive/10 rounded">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-[1fr_120px] gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Título da Atividade</Label>
+                  <Input value={meta.atividade} onChange={(e) => editarMeta(indice, "atividade", e.target.value)} placeholder="Ex: Leitura dirigida — Preliminares" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Dia (a partir do início)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={meta.diaRelativo}
+                    onChange={(e) => editarMeta(indice, "diaRelativo", Number(e.target.value) || 1)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
+                <textarea
+                  value={meta.orientacoes}
+                  onChange={(e) => editarMeta(indice, "orientacoes", e.target.value)}
+                  className="flex min-h-[70px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed"
+                  placeholder="Instruções para o aluno..."
+                />
+              </div>
+            </div>
+          ))}
+
+          <Button type="button" variant="outline" className="w-full gap-2" onClick={adicionarMeta}>
+            <Plus className="h-4 w-4" /> Adicionar Meta ao Cronograma-Modelo
+          </Button>
+
+          <Button variant="hero" size="lg" className="w-full h-12" onClick={handleSalvar} disabled={salvando}>
+            <Save className="h-5 w-5 mr-2" />
+            {salvando ? "Salvando..." : "Salvar Cronograma-Modelo"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GestaoCronograma;

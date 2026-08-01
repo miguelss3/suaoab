@@ -7,6 +7,7 @@ import { Target, Scale, BarChart3, CheckCircle2, ArrowRight, Shield, Clock, Star
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 import { calcularVagasVisiveis } from "@/lib/ciclo";
+import { DISCIPLINAS_ATIVAS_PADRAO, DisciplinasAtivasMap, escutarDisciplinasAtivas, montarTextoFocoDisciplinas } from "@/lib/disciplinasSegundaFase";
 import heroBg from "@/assets/hero-bg.jpg";
 
 import { AuthModal } from "@/components/index/AuthModal";
@@ -57,6 +58,12 @@ const Index = () => {
   const [vagasRestantes, setVagasRestantes] = useState<number | null>(null);
   const [precoOriginal, setPrecoOriginal] = useState("899");
   const [precoAtual, setPrecoAtual] = useState("599");
+  const [disciplinasAtivas, setDisciplinasAtivas] = useState<DisciplinasAtivasMap>(DISCIPLINAS_ATIVAS_PADRAO);
+
+  useEffect(() => {
+    const unsub = escutarDisciplinasAtivas(setDisciplinasAtivas);
+    return () => unsub();
+  }, []);
 
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   const [currentBottomIndex, setCurrentBottomIndex] = useState(0);
@@ -185,7 +192,7 @@ const Index = () => {
             
             <motion.div variants={fadeUp} custom={0} className="w-full max-w-4xl mx-auto mb-2 px-2 sm:px-0">
               <p className="text-primary-foreground/90 text-sm sm:text-lg leading-relaxed text-justify border-l-2 border-accent pl-4 italic">
-                Olá, futuro colega de profissão! Respira fundo. Eu sei que a pressão da prova parece gigantesca agora, mas você não está sozinho nessa. Desenhei esta mentoria para ser o seu porto seguro: um acompanhamento artesanal, lado a lado, onde pego literalmente na sua mão. O nosso foco é total na <strong className="text-accent font-black">2ª Fase em Direito Tributário, Administrativo e Penal</strong>. Chega de ansiedade e de se sentir perdido com cursos de massa. Vamos blindar a sua peça, corrigir os mínimos detalhes e comemorar juntos quando o seu nome sair na lista de aprovados. Vai dar certo!
+                Olá, futuro colega de profissão! Respira fundo. Eu sei que a pressão da prova parece gigantesca agora, mas você não está sozinho nessa. Desenhei esta mentoria para ser o seu porto seguro: um acompanhamento artesanal, lado a lado, onde pego literalmente na sua mão. O nosso foco é total na <strong className="text-accent font-black">{montarTextoFocoDisciplinas(disciplinasAtivas)}</strong>. Chega de ansiedade e de se sentir perdido com cursos de massa. Vamos blindar a sua peça, corrigir os mínimos detalhes e comemorar juntos quando o seu nome sair na lista de aprovados. Vai dar certo!
               </p>
             </motion.div>
 

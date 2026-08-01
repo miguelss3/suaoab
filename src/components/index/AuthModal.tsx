@@ -13,6 +13,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswor
 import { collection, doc, getDoc, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { normalizarEmail } from "@/lib/hotmart";
+import { DISCIPLINAS_ATIVAS_PADRAO, DISCIPLINAS_SEGUNDA_FASE, DisciplinasAtivasMap, escutarDisciplinasAtivas } from "@/lib/disciplinasSegundaFase";
 import { toast } from "sonner";
 
 // Máscara do Telefone
@@ -49,6 +50,7 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
   const [materia, setMateria] = useState("");
   const [disciplinaGraduacaoId, setDisciplinaGraduacaoId] = useState("");
   const [disciplinasGraduacao, setDisciplinasGraduacao] = useState<Disciplina[]>([]);
+  const [disciplinasSegundaFaseAtivas, setDisciplinasSegundaFaseAtivas] = useState<DisciplinasAtivasMap>(DISCIPLINAS_ATIVAS_PADRAO);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
@@ -79,6 +81,11 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
     );
 
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsub = escutarDisciplinasAtivas(setDisciplinasSegundaFaseAtivas);
+    return () => unsub();
   }, []);
 
   const faseEstudoEhGraduacao = (fase?: string) =>
@@ -371,9 +378,11 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                           <BookOpen className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                           <select className="w-full h-10 border border-input rounded-md pl-10 pr-3 bg-background text-sm focus:ring-2 focus:ring-accent" value={materia} onChange={(e) => setMateria(e.target.value)} required>
                             <option value="">Selecione sua matéria...</option>
-                            <option value="DADM">Direito Administrativo</option>
-                            <option value="DPEN">Direito Penal</option>
-                            <option value="DTRI">Direito Tributário</option>
+                            {DISCIPLINAS_SEGUNDA_FASE.map(({ codigo, nome }) => (
+                              <option key={codigo} value={codigo} disabled={!disciplinasSegundaFaseAtivas[codigo]}>
+                                {nome}{!disciplinasSegundaFaseAtivas[codigo] ? " (Em breve)" : ""}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>

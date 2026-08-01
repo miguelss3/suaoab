@@ -78,7 +78,9 @@ service cloud.firestore {
     // A landing (Index) precisa ler ciclo_atual e oferta_atual sem login.
     // Qualquer escrita continua restrita ao admin.
     match /configuracoes/{docId} {
-      allow read: if docId in ["ciclo_atual", "oferta_atual"] || isAdmin();
+      // disciplinas_segunda_fase precisa ser lida sem login: landing page e
+      // cadastro decidem o que mostrar/travar com base nela.
+      allow read: if docId in ["ciclo_atual", "oferta_atual", "disciplinas_segunda_fase"] || isAdmin();
       allow write: if isAdmin();
     }
 

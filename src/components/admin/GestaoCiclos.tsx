@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, addDoc, onSnapshot } from "firebase/firestore";
-import { CalendarDays, Save, AlertTriangle, CheckCircle2, Clock, Mail, Target, Users, Tag, Link as LinkIcon, XCircle } from "lucide-react";
+import { CalendarDays, Save, AlertTriangle, BookOpen, CheckCircle2, Clock, Mail, Target, Users, Tag, Link as LinkIcon, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,14 @@ import { toast } from "sonner";
 import { calcularTetoComDecaimento, calcularVagasVisiveis, countAlunosPremium, JANELA_DECAIMENTO_VAGAS_DIAS } from "@/lib/ciclo";
 import { DEFAULT_HOTMART_CHECKOUT_URL } from "@/lib/hotmart";
 import { ADMIN_EMAIL } from "@/lib/constants";
+import {
+  DISCIPLINAS_ATIVAS_PADRAO,
+  DISCIPLINAS_SEGUNDA_FASE,
+  CodigoDisciplinaSegundaFase,
+  DisciplinasAtivasMap,
+  DOC_DISCIPLINAS_SEGUNDA_FASE,
+  escutarDisciplinasAtivas,
+} from "@/lib/disciplinasSegundaFase";
 
 const GestaoCiclos = () => {
   const cicloRef = doc(db, "configuracoes", "ciclo_atual");
@@ -32,6 +40,8 @@ const GestaoCiclos = () => {
   const [extensaoEmailAtiva, setExtensaoEmailAtiva] = useState(false);
   const [testeEmailStatus, setTesteEmailStatus] = useState<"idle" | "aguardando" | "sucesso" | "erro" | "timeout">("idle");
   const [testeEmailErro, setTesteEmailErro] = useState("");
+
+  const [disciplinasAtivas, setDisciplinasAtivas] = useState<DisciplinasAtivasMap>(DISCIPLINAS_ATIVAS_PADRAO);
 
   const [loading, setLoading] = useState(false);
 
@@ -134,6 +144,25 @@ const GestaoCiclos = () => {
 
     fetchCiclo();
   }, []);
+
+  useEffect(() => {
+    const unsub = escutarDisciplinasAtivas(setDisciplinasAtivas);
+    return () => unsub();
+  }, []);
+
+  const handleToggleDisciplina = async (codigo: CodigoDisciplinaSegundaFase, ativa: boolean) => {
+    const anterior = disciplinasAtivas;
+    const novo = { ...disciplinasAtivas, [codigo]: ativa };
+    setDisciplinasAtivas(novo);
+    try {
+      await setDoc(DOC_DISCIPLINAS_SEGUNDA_FASE, novo, { merge: true });
+      toast.success(`${DISCIPLINAS_SEGUNDA_FASE.find((d) => d.codigo === codigo)?.nome} ${ativa ? "habilitada" : "marcada como Em Breve"}.`);
+    } catch (error) {
+      console.error("Erro ao atualizar disciplina:", error);
+      toast.error("Erro ao atualizar a disciplina.");
+      setDisciplinasAtivas(anterior);
+    }
+  };
 
   const handleSalvar = async () => {
     if (!exame || !dataProva) {
@@ -269,6 +298,37 @@ const GestaoCiclos = () => {
                 <CalendarDays className="h-4 w-4 text-muted-foreground"/> Data da 2ª Fase
               </Label>
               <Input type="date" value={dataProva} onChange={(e) => setDataProva(e.target.value)} className="h-12 text-lg" />
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-border">
+            <h3 className="text-lg font-bold text-primary flex items-center gap-2 mb-4">
+              <BookOpen className="h-5 w-5 text-accent"/> Disciplinas da 2ª Fase
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Disciplinas desligadas aparecem como "Em breve" na página de vendas e ficam travadas no cadastro — o site
+              inteiro se adapta automaticamente a essa configuração.
+            </p>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {DISCIPLINAS_SEGUNDA_FASE.map(({ codigo, nome }) => {
+                const ativa = disciplinasAtivas[codigo];
+                return (
+                  <button
+                    key={codigo}
+                    type="button"
+                    onClick={() => handleToggleDisciplina(codigo, !ativa)}
+                    className={`text-left p-4 rounded-xl border-2 transition-colors ${ativa ? "border-success bg-success/5" : "border-border bg-muted/10"}`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-primary">{nome}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${ativa ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
+                        {ativa ? "Habilitada" : "Em breve"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Clique para {ativa ? "desabilitar" : "habilitar"}.</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
