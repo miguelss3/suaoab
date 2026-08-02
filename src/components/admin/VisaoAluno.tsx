@@ -1,14 +1,15 @@
 // src/components/admin/VisaoAluno.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, query, where, setDoc, updateDoc } from "firebase/firestore";
-import { Eye, BookOpen, Clock, Briefcase, PenTool, Timer, PlayCircle, X } from "lucide-react";
+import { doc, onSnapshot, collection, query, where, setDoc } from "firebase/firestore";
+import { Eye, BookOpen, Clock, Briefcase, PenTool, Timer, PlayCircle, X, AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { AulaGlobal, DisciplinaCodigo, getTimestampMillis, HistoricoPeca, MaterialPublicado, MetaAluno, PecaLaboratorio } from "@/lib/aulas";
 import { compararPorOrdem } from "@/lib/utils";
 import { disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
+import { isAlunoSandbox } from "@/lib/ciclo";
 
 // Importamos os mesmos componentes que o aluno real utiliza
 import { GestorMetas } from "@/components/aluno/GestorMetas";
@@ -105,27 +106,47 @@ const VisaoAluno = () => {
   const [aulaSandboxVisivel, setAulaSandboxVisivel] = useState(false);
   const [aulaAtiva, setAulaAtiva] = useState<AulaGlobal | null>(null);
 
-  // 1. Inicializa ou Ouve o Perfil Fantasma no Firestore
-  useEffect(() => {
-    const docRef = doc(db, "alunos", UID_SANDBOX);
-    
-    const inicializarSandbox = async () => {
-      try {
-        await setDoc(docRef, {
-          nome: "Modo Sandbox (Professor)",
-          email: "sandbox@suaoab.com.br",
-          materia: disciplinaAtiva,
-          status: "premium",
-          matricula: "000000",
-          metaZeroConcluida: true,
-          metas: []
-        }, { merge: true });
-      } catch (error) {
-        console.error("Erro ao inicializar sandbox", error);
-      }
-    };
+  // 0. Descobre se já existe um aluno REAL (não-sandbox) matriculado nesta
+  // disciplina. Se existir, o simulador passa a mostrar e editar os dados dele
+  // de verdade em vez do perfil fantasma — útil pra conferir exatamente o que
+  // o seu aluno real está vendo agora. Sem aluno real ainda, cai no fantasma.
+  const [uidAlvo, setUidAlvo] = useState<string>(UID_SANDBOX);
+  const usandoAlunoReal = uidAlvo !== UID_SANDBOX;
 
-    inicializarSandbox();
+  useEffect(() => {
+    if (!disciplinaAtiva) return;
+    const qAlunoReal = query(collection(db, "alunos"), where("materia", "==", disciplinaAtiva));
+    const unsub = onSnapshot(
+      qAlunoReal,
+      (snap) => {
+        const alunoReal = snap.docs.find((d) => !isAlunoSandbox({ id: d.id, email: d.data().email }));
+        setUidAlvo(alunoReal ? alunoReal.id : UID_SANDBOX);
+      },
+      (error) => {
+        console.error("Erro ao procurar aluno real da disciplina:", error);
+        setUidAlvo(UID_SANDBOX);
+      }
+    );
+    return () => unsub();
+  }, [disciplinaAtiva]);
+
+  // 1. Inicializa/Ouve o perfil exibido: fantasma (sandbox) OU aluno real.
+  useEffect(() => {
+    const docRef = doc(db, "alunos", uidAlvo);
+
+    // O perfil fantasma só é criado/mantido quando NÃO há aluno real na
+    // disciplina — nunca sobrescrever os dados de um aluno de verdade aqui.
+    if (uidAlvo === UID_SANDBOX) {
+      setDoc(docRef, {
+        nome: "Modo Sandbox (Professor)",
+        email: "sandbox@suaoab.com.br",
+        materia: disciplinaAtiva,
+        status: "premium",
+        matricula: "000000",
+        metaZeroConcluida: true,
+        metas: []
+      }, { merge: true }).catch((error) => console.error("Erro ao inicializar sandbox", error));
+    }
 
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -137,14 +158,11 @@ const VisaoAluno = () => {
     });
 
     return () => unsub();
-  }, [disciplinaAtiva]);
+  }, [uidAlvo, disciplinaAtiva]);
 
   // 2. Ouve os Materiais, Aulas e Histórico da Disciplina Selecionada
   useEffect(() => {
     if (!disciplinaAtiva) return;
-
-    // Atualiza a matéria no perfil fantasma para garantir sincronia
-    updateDoc(doc(db, "alunos", UID_SANDBOX), { materia: disciplinaAtiva }).catch(() => {});
 
     // Puxa Materiais
     const qMateriais = query(collection(db, "materiais_publicados"), where("materia", "==", disciplinaAtiva));
@@ -165,7 +183,7 @@ const VisaoAluno = () => {
     });
 
     // Puxa Histórico de Envios
-    const qHist = query(collection(db, "historico_pecas"), where("aluno_id", "==", UID_SANDBOX));
+    const qHist = query(collection(db, "historico_pecas"), where("aluno_id", "==", uidAlvo));
     const unsubHist = onSnapshot(qHist, (snap) => {
       const hist = snap.docs.map(mapDocToHistorico);
       setHistorico(hist.sort((a, b) => getTimestampMillis(b.data_envio) - getTimestampMillis(a.data_envio)));
@@ -195,7 +213,7 @@ const VisaoAluno = () => {
     );
 
     return () => { unsubMateriais(); unsubLab(); unsubHist(); unsubAulas(); };
-  }, [disciplinaAtiva]);
+  }, [disciplinaAtiva, uidAlvo]);
 
   if (loading) return <div className="p-8 text-center text-muted-foreground font-bold">A carregar Ambiente Seguro...</div>;
 
@@ -213,9 +231,9 @@ const VisaoAluno = () => {
         </div>
         <div className="w-full md:w-64">
           <Label className="text-[10px] uppercase font-black text-muted-foreground mb-1 block">Escolher Disciplina de Teste</Label>
-          <select 
-            className="w-full h-10 border-2 border-accent/40 rounded-lg px-3 bg-background text-sm font-bold text-primary focus:ring-accent cursor-pointer" 
-            value={disciplinaAtiva} 
+          <select
+            className="w-full h-10 border-2 border-accent/40 rounded-lg px-3 bg-background text-sm font-bold text-primary focus:ring-accent cursor-pointer"
+            value={disciplinaAtiva}
             onChange={e => setDisciplinaAtiva(e.target.value as DisciplinaCodigo)}
           >
             {disciplinasDisponiveis.map(({ codigo, nome }) => (
@@ -224,6 +242,20 @@ const VisaoAluno = () => {
           </select>
         </div>
       </div>
+
+      {usandoAlunoReal && (
+        <div className="bg-destructive/10 border-2 border-destructive/30 p-4 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-destructive text-sm">
+              Atenção: você está vendo e editando os dados REAIS de {perfilFantasma?.nome || "um aluno matriculado"} nesta disciplina.
+            </p>
+            <p className="text-xs text-destructive/80">
+              Não é mais uma simulação — concluir uma meta, apagar um envio, etc. aqui altera o progresso real dele.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* CLONE DO PORTAL DO ALUNO */}
       <div className="bg-background border border-border p-6 rounded-2xl shadow-inner">

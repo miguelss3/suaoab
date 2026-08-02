@@ -30,7 +30,7 @@ const PublicarMaterial = () => {
             <BookOpen className="h-4 w-4" /> Publicados
           </TabsTrigger>
           <TabsTrigger value="material-processual" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-            <Scale className="h-4 w-4" /> Material e Processual
+            <Scale className="h-4 w-4" /> Direito Material e Processual
           </TabsTrigger>
           <TabsTrigger value="pecas" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
             <Scale className="h-4 w-4" /> Laboratório de Peças
