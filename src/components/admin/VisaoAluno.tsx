@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, collection, query, where, setDoc } from "firebase/firestore";
-import { Eye, BookOpen, Clock, Briefcase, PenTool, Timer, PlayCircle, X, AlertTriangle } from "lucide-react";
+import { Eye, BookOpen, Clock, Briefcase, PenTool, Timer, PlayCircle, X, AlertTriangle, Scale, Landmark, Gavel } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,9 @@ const VisaoAluno = () => {
   const [cadernos, setCadernos] = useState<MaterialPublicado[]>([]);
   const [simulados, setSimulados] = useState<MaterialPublicado[]>([]);
   const [laboratorio, setLaboratorio] = useState<PecaLaboratorio[]>([]);
+  const [materialTeorico, setMaterialTeorico] = useState<PecaLaboratorio[]>([]);
+  const [processualTeorico, setProcessualTeorico] = useState<PecaLaboratorio[]>([]);
+  const [categoriaTeorico, setCategoriaTeorico] = useState<"material" | "processual">("material");
   const [historico, setHistorico] = useState<HistoricoPeca[]>([]);
   const [aulas, setAulas] = useState<AulaGlobal[]>([]);
   const [erroAulas, setErroAulas] = useState("");
@@ -173,13 +176,18 @@ const VisaoAluno = () => {
       setSimulados(docs.filter((docItem) => docItem.tipo === "Simulado"));
     });
 
-    // Puxa Laboratório de Peças
+    // Puxa Laboratório de Peças e o acervo de Direito Material e Processual
     const unsubLab = onSnapshot(doc(db, "disciplinas", disciplinaAtiva), (docSnap) => {
       if (docSnap.exists()) {
-        const pecas = docSnap.data().pecas;
-        setLaboratorio(Array.isArray(pecas) ? (pecas as PecaLaboratorio[]) : []);
+        const data = docSnap.data();
+        setLaboratorio(Array.isArray(data.pecas) ? (data.pecas as PecaLaboratorio[]) : []);
+        setMaterialTeorico(Array.isArray(data.materialTeorico) ? (data.materialTeorico as PecaLaboratorio[]) : []);
+        setProcessualTeorico(Array.isArray(data.processualTeorico) ? (data.processualTeorico as PecaLaboratorio[]) : []);
+      } else {
+        setLaboratorio([]);
+        setMaterialTeorico([]);
+        setProcessualTeorico([]);
       }
-      else setLaboratorio([]);
     });
 
     // Puxa Histórico de Envios
@@ -262,8 +270,9 @@ const VisaoAluno = () => {
         <div className="grid lg:grid-cols-3 gap-8 opacity-95">
           <div className="lg:col-span-2 space-y-8">
             <Tabs defaultValue="metas" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-4">
+              <TabsList className="flex flex-wrap w-full h-auto gap-2 mb-4">
                 <TabsTrigger value="metas">Cronograma</TabsTrigger>
+                <TabsTrigger value="materialProcessual">Direito Material e Processual</TabsTrigger>
                 <TabsTrigger value="laboratorio">Laboratório</TabsTrigger>
                 <TabsTrigger value="cadernos">Discursivas</TabsTrigger>
                 <TabsTrigger value="simulados">Simulados</TabsTrigger>
@@ -272,6 +281,41 @@ const VisaoAluno = () => {
               <TabsContent value="metas" className="bg-card p-6 rounded-xl border border-border shadow-sm">
                 <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Clock className="h-5 w-5 text-accent" /> Minhas Metas</h3>
                 <GestorMetas perfilAluno={perfilFantasma} setPerfilAluno={setPerfilFantasma} metas={metas} setMetas={setMetas} />
+              </TabsContent>
+
+              <TabsContent value="materialProcessual" className="bg-card p-6 rounded-xl border border-border shadow-sm">
+                <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Scale className="h-5 w-5 text-accent" /> Direito Material e Processual</h3>
+                <div className="flex gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setCategoriaTeorico("material")}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold border-2 flex items-center gap-2 transition-colors ${
+                      categoriaTeorico === "material" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    <Landmark className="h-4 w-4" /> Direito Material
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCategoriaTeorico("processual")}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold border-2 flex items-center gap-2 transition-colors ${
+                      categoriaTeorico === "processual" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    <Gavel className="h-4 w-4" /> Direito Processual
+                  </button>
+                </div>
+                <div className="grid gap-3">
+                  {(categoriaTeorico === "material" ? materialTeorico : processualTeorico).length === 0 && (
+                    <p className="text-sm italic text-muted-foreground">Nenhum conteúdo cadastrado.</p>
+                  )}
+                  {(categoriaTeorico === "material" ? materialTeorico : processualTeorico).map((item, idx) => (
+                    <div key={idx} className="p-4 rounded-lg border border-border flex justify-between items-center bg-muted/5">
+                      <span className="font-bold text-sm block text-primary">{item.nome}</span>
+                      <Button variant="outline" size="sm" onClick={() => window.open(item.url_pdf, "_blank")}>Abrir Material</Button>
+                    </div>
+                  ))}
+                </div>
               </TabsContent>
 
               <TabsContent value="laboratorio" className="bg-card p-6 rounded-xl border border-border shadow-sm">

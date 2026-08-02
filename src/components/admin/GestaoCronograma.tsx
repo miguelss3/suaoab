@@ -109,7 +109,7 @@ const GestaoCronograma = () => {
     setAnexandoIdx(indice);
     try {
       const safeName = arquivo.name.replace(/[^a-zA-Z0-9.]/g, "_");
-      const fileRef = ref(storage, `cronograma_templates/${disciplinaSelecionada}/${Date.now()}_${safeName}`);
+      const fileRef = ref(storage, `materiais_alunos/${disciplinaSelecionada}/cronograma_templates/${Date.now()}_${safeName}`);
       const snapshot = await uploadBytes(fileRef, arquivo);
       const url = await getDownloadURL(snapshot.ref);
       const novasMetas = metasAtuais.map((meta, i) =>
