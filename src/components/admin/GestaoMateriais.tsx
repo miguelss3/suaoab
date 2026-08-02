@@ -8,6 +8,7 @@ import {
   doc,
   deleteDoc,
   orderBy,
+  updateDoc,
   writeBatch,
 } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
@@ -16,6 +17,7 @@ import {
   ExternalLink,
   Filter,
   BookOpen,
+  Scale,
   Timer,
   ChevronDown,
   ChevronRight,
@@ -35,7 +37,11 @@ interface Material {
   url_pdf?: string;
   data_publicacao?: any;
   ordem?: number;
+  /** "peca" = item vindo do Laboratório de Peças (disciplinas/{materia}.pecas), só leitura/exclusão aqui. */
+  origem?: "peca";
 }
+
+const PREFIXO_ID_PECA = "peca::";
 
 interface GestaoMateriaisProps {
   /** Quando definido, mostra só materiais desse tipo — usado pelo atalho "Simulados" dentro de Publicar Material. */
@@ -46,6 +52,7 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
   const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
   const disciplinasDisponiveis = disciplinasSegundaFaseDisponiveis(disciplinasAtivas);
   const [materiais, setMateriais] = useState<Material[]>([]);
+  const [pecasPorDisciplina, setPecasPorDisciplina] = useState<Record<string, { nome: string; url_pdf?: string }[]>>({});
   const [filtroMateria, setFiltroMateria] = useState("");
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -63,7 +70,43 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
     });
   }, []);
 
+  // "Publicados" deve mostrar tudo sobre a disciplina, incluindo as peças do
+  // Laboratório (guardadas à parte, em disciplinas/{materia}.pecas) — exceto no
+  // atalho "Simulados", onde uma peça nunca se encaixaria.
+  useEffect(() => {
+    if (tipoFiltro) return;
+    const unsub = onSnapshot(collection(db, "disciplinas"), (snap) => {
+      const mapa: Record<string, { nome: string; url_pdf?: string }[]> = {};
+      snap.docs.forEach((d) => {
+        const pecas = d.data().pecas;
+        if (Array.isArray(pecas)) mapa[d.id] = pecas;
+      });
+      setPecasPorDisciplina(mapa);
+    });
+    return unsub;
+  }, [tipoFiltro]);
+
   const excluir = async (id: string) => {
+    if (id.startsWith(PREFIXO_ID_PECA)) {
+      const [, materiaAlvo, indiceStr] = id.split("::");
+      const indice = Number(indiceStr);
+      if (!confirm("Atenção: Deseja apagar esta peça permanentemente do Laboratório?")) return;
+      try {
+        const listaAtual = pecasPorDisciplina[materiaAlvo] || [];
+        const peca = listaAtual[indice];
+        if (peca?.url_pdf) {
+          const fileRef = ref(storage, peca.url_pdf);
+          await deleteObject(fileRef).catch((e) => console.log("Ficheiro já não existia no storage.", e));
+        }
+        const novaLista = listaAtual.filter((_, i) => i !== indice);
+        await updateDoc(doc(db, "disciplinas", materiaAlvo), { pecas: novaLista });
+        toast.success("Peça removida com sucesso.");
+      } catch (e) {
+        toast.error("Erro ao excluir a peça.");
+      }
+      return;
+    }
+
     if (
       !confirm(
         "Atenção: Deseja apagar este material permanentemente da área de todos os alunos?"
@@ -91,8 +134,23 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
       (m) => (!filtroMateria || m.materia === filtroMateria) && (!tipoFiltro || m.tipo === tipoFiltro)
     );
 
+    const pecasComoMateriais: Material[] = tipoFiltro
+      ? []
+      : Object.entries(pecasPorDisciplina)
+          .filter(([materiaCodigo]) => !filtroMateria || materiaCodigo === filtroMateria)
+          .flatMap(([materiaCodigo, lista]) =>
+            lista.map((peca, indice) => ({
+              id: `${PREFIXO_ID_PECA}${materiaCodigo}::${indice}`,
+              titulo: peca.nome || "Peça sem nome",
+              materia: materiaCodigo,
+              tipo: "Peça",
+              url_pdf: peca.url_pdf,
+              origem: "peca" as const,
+            }))
+          );
+
     const map = new Map<string, Material[]>();
-    for (const m of filtrados) {
+    for (const m of [...filtrados, ...pecasComoMateriais]) {
       const chave = m.materia || "Sem disciplina";
       if (!map.has(chave)) map.set(chave, []);
       map.get(chave)!.push(m);
@@ -106,7 +164,7 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
     }
 
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [materiais, filtroMateria, tipoFiltro]);
+  }, [materiais, pecasPorDisciplina, filtroMateria, tipoFiltro]);
 
   const toggleGrupo = (materia: string) => {
     setAbertos((prev) => ({ ...prev, [materia]: !prev[materia] }));
@@ -136,16 +194,20 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
     const dragged = draggedRef.current;
     draggedRef.current = null;
     if (!dragged || dragged.id === alvoId) return;
+    // Peças do Laboratório entram na mesma lista só para exibição — não têm campo
+    // `ordem` nem vivem em `materiais_publicados`, então não podem ser reordenadas aqui.
+    if (dragged.id.startsWith(PREFIXO_ID_PECA) || alvoId.startsWith(PREFIXO_ID_PECA)) return;
     if (dragged.materia !== materia) {
       toast.error("Só é possível reordenar dentro da mesma disciplina.");
       return;
     }
 
-    const fromIdx = lista.findIndex((m) => m.id === dragged.id);
-    const toIdx = lista.findIndex((m) => m.id === alvoId);
+    const listaReordenavel = lista.filter((m) => m.origem !== "peca");
+    const fromIdx = listaReordenavel.findIndex((m) => m.id === dragged.id);
+    const toIdx = listaReordenavel.findIndex((m) => m.id === alvoId);
     if (fromIdx === -1 || toIdx === -1) return;
 
-    const novaLista = [...lista];
+    const novaLista = [...listaReordenavel];
     const [movido] = novaLista.splice(fromIdx, 1);
     novaLista.splice(toIdx, 0, movido);
 
@@ -236,30 +298,39 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
                 <div className="p-4 border-t border-border bg-background/40 space-y-2">
                   {lista.map((m) => {
                     const isHover = dragOverId === m.id;
+                    const isPeca = m.origem === "peca";
                     return (
                       <div
                         key={m.id}
-                        draggable
-                        onDragStart={() => handleDragStart(m.id, materia)}
-                        onDragOver={(e) => handleDragOver(e, m.id)}
+                        draggable={!isPeca}
+                        onDragStart={() => !isPeca && handleDragStart(m.id, materia)}
+                        onDragOver={(e) => !isPeca && handleDragOver(e, m.id)}
                         onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, m.id, materia, lista)}
-                        className={`group flex items-center gap-3 bg-card border rounded-lg px-3 py-3 transition-all cursor-move ${
+                        onDrop={(e) => !isPeca && handleDrop(e, m.id, materia, lista)}
+                        className={`group flex items-center gap-3 bg-card border rounded-lg px-3 py-3 transition-all ${isPeca ? "" : "cursor-move"} ${
                           isHover
                             ? "border-accent ring-2 ring-accent/40"
                             : "border-border hover:border-accent/60"
                         }`}
                       >
-                        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-primary" />
+                        {isPeca ? (
+                          <div className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-primary" />
+                        )}
 
                         <div
                           className={`p-2 rounded-lg shrink-0 ${
-                            m.tipo === "Simulado"
-                              ? "bg-orange-500/10 text-orange-600"
-                              : "bg-blue-500/10 text-blue-600"
+                            isPeca
+                              ? "bg-purple-500/10 text-purple-600"
+                              : m.tipo === "Simulado"
+                                ? "bg-orange-500/10 text-orange-600"
+                                : "bg-blue-500/10 text-blue-600"
                           }`}
                         >
-                          {m.tipo === "Simulado" ? (
+                          {isPeca ? (
+                            <Scale className="h-4 w-4" />
+                          ) : m.tipo === "Simulado" ? (
                             <Timer className="h-4 w-4" />
                           ) : (
                             <BookOpen className="h-4 w-4" />
@@ -271,10 +342,7 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
                             {m.titulo}
                           </h4>
                           <p className="text-[10px] font-black uppercase text-muted-foreground">
-                            {m.materia} •{" "}
-                            {m.data_publicacao?.toDate?.().toLocaleDateString(
-                              "pt-BR"
-                            )}
+                            {m.materia} • {isPeca ? "Peça (Laboratório)" : m.data_publicacao?.toDate?.().toLocaleDateString("pt-BR")}
                           </p>
                         </div>
 

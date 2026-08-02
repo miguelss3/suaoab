@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, orderBy, query, updateDoc } from "firebase/firestore";
 import { Scale } from "lucide-react";
 import { toast } from "sonner";
-import { DISCIPLINAS_SEGUNDA_FASE } from "@/lib/disciplinasSegundaFase";
+import { deveExibirOpcaoTodasDisciplinas, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 type CategoriaConteudo = "material" | "processual" | "";
 
@@ -26,6 +26,8 @@ const OPCOES_CATEGORIA: { valor: CategoriaConteudo; label: string }[] = [
 ];
 
 const GestaoMaterialProcessual = () => {
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
+  const disciplinasDisponiveis = disciplinasSegundaFaseDisponiveis(disciplinasAtivas);
   const [materiais, setMateriais] = useState<MaterialPublicado[]>([]);
   const [filtroMateria, setFiltroMateria] = useState("");
   const [loading, setLoading] = useState(true);
@@ -82,16 +84,18 @@ const GestaoMaterialProcessual = () => {
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => setFiltroMateria("")}
-            className={`px-4 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
-              filtroMateria === "" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
-            }`}
-          >
-            Todas
-          </button>
-          {DISCIPLINAS_SEGUNDA_FASE.map(({ codigo, nome }) => (
+          {deveExibirOpcaoTodasDisciplinas(disciplinasAtivas) && (
+            <button
+              type="button"
+              onClick={() => setFiltroMateria("")}
+              className={`px-4 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
+                filtroMateria === "" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
+              }`}
+            >
+              Todas
+            </button>
+          )}
+          {disciplinasDisponiveis.map(({ codigo, nome }) => (
             <button
               key={codigo}
               type="button"
