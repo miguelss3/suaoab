@@ -3,11 +3,11 @@
 // Processual — mesma estrutura do Laboratório de Peças (lista à esquerda +
 // formulário de adicionar à direita), guardado em disciplinas/{materia} nos
 // campos `materialTeorico` e `processualTeorico`.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db, storage } from "@/lib/firebase";
 import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { Scale, Plus, Trash2, FileText, UploadCloud, Pencil, X, CheckCircle2, Gavel, Landmark } from "lucide-react";
+import { Scale, Plus, Trash2, FileText, UploadCloud, Pencil, X, CheckCircle2, Gavel, Landmark, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +43,10 @@ const GestaoMaterialProcessual = () => {
   const [editNome, setEditNome] = useState("");
   const [editArquivo, setEditArquivo] = useState<File | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Estados para drag-and-drop (reordenar o acervo)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const draggedIdxRef = useRef<number | null>(null);
 
   const campo = CAMPO_POR_CATEGORIA[categoria];
 
@@ -148,6 +152,38 @@ const GestaoMaterialProcessual = () => {
     }
   };
 
+  // --- DRAG AND DROP (HTML5) ---
+  const handleDragStart = (idx: number) => {
+    draggedIdxRef.current = idx;
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  };
+
+  const handleDragLeave = () => setDragOverIdx(null);
+
+  const handleDrop = async (e: React.DragEvent, alvoIdx: number) => {
+    e.preventDefault();
+    setDragOverIdx(null);
+
+    const fromIdx = draggedIdxRef.current;
+    draggedIdxRef.current = null;
+    if (fromIdx === null || fromIdx === alvoIdx) return;
+
+    const novaLista = [...itens];
+    const [movido] = novaLista.splice(fromIdx, 1);
+    novaLista.splice(alvoIdx, 0, movido);
+
+    setItens(novaLista);
+    try {
+      await updateDoc(doc(db, "disciplinas", materia), { [campo]: novaLista });
+    } catch (e) {
+      toast.error("Erro ao salvar a nova ordem.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
@@ -214,8 +250,19 @@ const GestaoMaterialProcessual = () => {
                   </div>
                 ) : (
                   itens.map((item, idx) => (
-                    <div key={idx} className="p-3 border rounded-lg flex justify-between items-center bg-background hover:border-accent transition-colors">
+                    <div
+                      key={idx}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      className={`p-3 border rounded-lg flex justify-between items-center bg-background hover:border-accent transition-colors cursor-move ${
+                        dragOverIdx === idx ? "border-accent ring-2 ring-accent/40" : ""
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
+                        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
                         <div className="bg-muted p-2 rounded-lg">
                           <FileText className={`h-5 w-5 ${item.url_pdf ? "text-success" : "text-muted-foreground"}`} />
                         </div>

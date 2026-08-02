@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { Disciplina, MaterialAcademico } from "@/lib/academico";
 import { downloadProtectedPDF } from "@/lib/pdfService";
 import { compararPorOrdem } from "@/lib/utils";
+import { sanitizeRichText } from "@/lib/sanitizeHtml";
 
 interface PortalAcademicoProps {
   setShowAuthModal?: (value: boolean) => void;
@@ -559,7 +560,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                             {mat.conteudoTexto && (
                               <div
                                 className="text-base md:text-lg leading-relaxed text-gray-700 line-clamp-3 prose prose-sm max-w-none [&_h2]:text-base [&_h2]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6"
-                                dangerouslySetInnerHTML={{ __html: mat.conteudoTexto }}
+                                dangerouslySetInnerHTML={{ __html: sanitizeRichText(mat.conteudoTexto) }}
                               />
                             )}
                             <div className="mt-4 flex gap-2">
@@ -657,7 +658,7 @@ export const PortalAcademico = ({ setShowAuthModal }: PortalAcademicoProps) => {
                 className="max-w-none leading-relaxed text-gray-700 select-none text-lg md:text-xl prose prose-lg max-w-none [&_h2]:text-2xl [&_h2]:font-bold [&_blockquote]:border-l-4 [&_blockquote]:border-muted [&_blockquote]:pl-4 [&_blockquote]:italic [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6"
                 onCopy={(e) => e.preventDefault()}
                 onContextMenu={(e) => e.preventDefault()}
-                dangerouslySetInnerHTML={{ __html: materialLeituraSelecionado.conteudoTexto ?? "" }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichText(materialLeituraSelecionado.conteudoTexto ?? "") }}
               />
 
               {materialLeituraSelecionado.urlDownload && (

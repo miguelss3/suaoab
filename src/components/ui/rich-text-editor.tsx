@@ -1,11 +1,21 @@
 // src/components/ui/rich-text-editor.tsx
-// Editor rich-text minimalista baseado em contentEditable + document.execCommand.
-// Suficiente para Negrito/Itálico/Sublinhado, alinhamentos, listas e títulos.
-import { useEffect, useRef } from "react";
+// Editor rich-text baseado em Tiptap/ProseMirror: negrito, itálico, sublinhado,
+// riscado, títulos, citação, listas e alinhamento — com paste "tipo Word" já
+// tratado pelo próprio Tiptap (normaliza o HTML colado do Word/Google Docs).
+// Como a extensão de imagem não está registrada, qualquer <img> colada é
+// automaticamente descartada pelo schema do editor (sem suporte a imagem
+// nesta versão, por decisão de produto).
+import { useEffect } from "react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import TextAlign from "@tiptap/extension-text-align";
+import Placeholder from "@tiptap/extension-placeholder";
 import {
   Bold,
   Italic,
-  Underline,
+  Underline as UnderlineIcon,
+  Strikethrough,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -25,59 +35,69 @@ type Props = {
   className?: string;
 };
 
-type CommandButton = {
-  cmd: string;
-  arg?: string;
-  icon: React.ComponentType<{ className?: string }>;
+type ToolbarButton = {
   label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isActive: (editor: Editor) => boolean;
+  run: (editor: Editor) => void;
 };
 
-const COMMANDS: CommandButton[] = [
-  { cmd: "bold", icon: Bold, label: "Negrito (Ctrl+B)" },
-  { cmd: "italic", icon: Italic, label: "Itálico (Ctrl+I)" },
-  { cmd: "underline", icon: Underline, label: "Sublinhado (Ctrl+U)" },
-  { cmd: "formatBlock", arg: "H2", icon: Heading2, label: "Título" },
-  { cmd: "formatBlock", arg: "BLOCKQUOTE", icon: Quote, label: "Citação" },
-  { cmd: "insertUnorderedList", icon: List, label: "Lista" },
-  { cmd: "insertOrderedList", icon: ListOrdered, label: "Lista numerada" },
-  { cmd: "justifyLeft", icon: AlignLeft, label: "Alinhar à esquerda" },
-  { cmd: "justifyCenter", icon: AlignCenter, label: "Centralizar" },
-  { cmd: "justifyRight", icon: AlignRight, label: "Alinhar à direita" },
-  { cmd: "justifyFull", icon: AlignJustify, label: "Justificar" },
-  { cmd: "removeFormat", icon: Eraser, label: "Limpar formatação" },
+const TOOLBAR: ToolbarButton[] = [
+  { label: "Negrito (Ctrl+B)", icon: Bold, isActive: (e) => e.isActive("bold"), run: (e) => e.chain().focus().toggleBold().run() },
+  { label: "Itálico (Ctrl+I)", icon: Italic, isActive: (e) => e.isActive("italic"), run: (e) => e.chain().focus().toggleItalic().run() },
+  { label: "Sublinhado (Ctrl+U)", icon: UnderlineIcon, isActive: (e) => e.isActive("underline"), run: (e) => e.chain().focus().toggleUnderline().run() },
+  { label: "Riscado", icon: Strikethrough, isActive: (e) => e.isActive("strike"), run: (e) => e.chain().focus().toggleStrike().run() },
+  { label: "Título", icon: Heading2, isActive: (e) => e.isActive("heading", { level: 2 }), run: (e) => e.chain().focus().toggleHeading({ level: 2 }).run() },
+  { label: "Citação", icon: Quote, isActive: (e) => e.isActive("blockquote"), run: (e) => e.chain().focus().toggleBlockquote().run() },
+  { label: "Lista", icon: List, isActive: (e) => e.isActive("bulletList"), run: (e) => e.chain().focus().toggleBulletList().run() },
+  { label: "Lista numerada", icon: ListOrdered, isActive: (e) => e.isActive("orderedList"), run: (e) => e.chain().focus().toggleOrderedList().run() },
+  { label: "Alinhar à esquerda", icon: AlignLeft, isActive: (e) => e.isActive({ textAlign: "left" }), run: (e) => e.chain().focus().setTextAlign("left").run() },
+  { label: "Centralizar", icon: AlignCenter, isActive: (e) => e.isActive({ textAlign: "center" }), run: (e) => e.chain().focus().setTextAlign("center").run() },
+  { label: "Alinhar à direita", icon: AlignRight, isActive: (e) => e.isActive({ textAlign: "right" }), run: (e) => e.chain().focus().setTextAlign("right").run() },
+  { label: "Justificar", icon: AlignJustify, isActive: (e) => e.isActive({ textAlign: "justify" }), run: (e) => e.chain().focus().setTextAlign("justify").run() },
+  { label: "Limpar formatação", icon: Eraser, isActive: () => false, run: (e) => e.chain().focus().clearNodes().unsetAllMarks().run() },
 ];
 
 export const RichTextEditor = ({ value, onChange, placeholder, className }: Props) => {
-  const editorRef = useRef<HTMLDivElement>(null);
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Placeholder.configure({ placeholder }),
+    ],
+    content: value || "",
+    onUpdate: ({ editor: e }) => onChange(e.getHTML()),
+    editorProps: {
+      attributes: {
+        class: cn(
+          "min-h-[140px] w-full rounded-b-md px-3 py-2 text-sm leading-relaxed outline-none",
+          "prose prose-sm max-w-none",
+          "[&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-2",
+          "[&_blockquote]:border-l-4 [&_blockquote]:border-muted [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground",
+          "[&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6",
+        ),
+      },
+    },
+  });
 
   // Sincroniza valor externo apenas quando o conteúdo é realmente diferente
   // (para não atrapalhar a posição do cursor enquanto o usuário digita).
   useEffect(() => {
-    const el = editorRef.current;
-    if (!el) return;
-    if (el.innerHTML !== value) {
-      el.innerHTML = value || "";
+    if (!editor) return;
+    if (editor.getHTML() !== value) {
+      editor.commands.setContent(value || "", { emitUpdate: false });
     }
-  }, [value]);
+  }, [value, editor]);
 
-  const exec = (cmd: string, arg?: string) => {
-    editorRef.current?.focus();
-    document.execCommand(cmd, false, arg);
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML);
-    }
-  };
-
-  const handleInput = () => {
-    if (editorRef.current) onChange(editorRef.current.innerHTML);
-  };
+  if (!editor) return null;
 
   return (
-    <div className={cn("rounded-md border border-input bg-background", className)}>
+    <div className={cn("rounded-md border border-input bg-background [&_.is-editor-empty:before]:content-[attr(data-placeholder)] [&_.is-editor-empty:before]:text-muted-foreground/60 [&_.is-editor-empty:before]:float-left [&_.is-editor-empty:before]:pointer-events-none [&_.is-editor-empty:before]:h-0", className)}>
       <div className="flex flex-wrap items-center gap-1 border-b border-input bg-muted/30 px-2 py-1.5">
-        {COMMANDS.map(({ cmd, arg, icon: Icon, label }) => (
+        {TOOLBAR.map(({ label, icon: Icon, isActive, run }) => (
           <button
-            key={`${cmd}-${arg ?? ""}`}
+            key={label}
             type="button"
             title={label}
             aria-label={label}
@@ -85,28 +105,17 @@ export const RichTextEditor = ({ value, onChange, placeholder, className }: Prop
               // Evita perder a seleção ao clicar no botão
               e.preventDefault();
             }}
-            onClick={() => exec(cmd, arg)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent/10 hover:text-primary"
+            onClick={() => run(editor)}
+            className={cn(
+              "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent/10 hover:text-primary",
+              isActive(editor) && "bg-accent/10 text-accent"
+            )}
           >
             <Icon className="h-4 w-4" />
           </button>
         ))}
       </div>
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        onInput={handleInput}
-        data-placeholder={placeholder}
-        className={cn(
-          "min-h-[140px] w-full rounded-b-md px-3 py-2 text-sm leading-relaxed outline-none",
-          "prose prose-sm max-w-none",
-          "[&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-2",
-          "[&_blockquote]:border-l-4 [&_blockquote]:border-muted [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground",
-          "[&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6",
-          "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/60",
-        )}
-      />
+      <EditorContent editor={editor} />
     </div>
   );
 };

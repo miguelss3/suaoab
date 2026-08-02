@@ -8,6 +8,7 @@ import { Lock, Link as LinkIcon, FileText, FastForward } from "lucide-react";
 import { toast } from "sonner";
 import { MetaAluno, PerfilAlunoPortalBase } from "@/lib/aulas";
 import { downloadProtectedPDF } from "@/lib/pdfService";
+import { sanitizeRichText } from "@/lib/sanitizeHtml";
 
 type GestorMetasProps<TPerfil extends PerfilAlunoPortalBase> = {
   perfilAluno: TPerfil | null;
@@ -104,7 +105,10 @@ export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno
                     <h4 className={`font-bold text-lg flex items-center gap-2 ${isConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"} ${isPulada ? "text-yellow-600" : ""}`}>
                       Meta {currentMetaNum}: {m.atividade}
                     </h4>
-                    <p className={`text-sm mt-1 leading-relaxed ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}>{m.orientacoes}</p>
+                    <div
+                      className={`text-sm mt-1 leading-relaxed prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichText(m.orientacoes) }}
+                    />
                     
                     {(m.link || m.arquivo_url) && !isConcluida && (
                       <div className="flex flex-wrap gap-3 mt-4">

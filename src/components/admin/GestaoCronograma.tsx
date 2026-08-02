@@ -6,10 +6,11 @@
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, setDoc, where, writeBatch } from "firebase/firestore";
-import { AlertTriangle, CalendarRange, GripVertical, Plus, Save, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CalendarRange, Plus, Save, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { toast } from "sonner";
 import { CodigoDisciplinaSegundaFase, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 import { isAlunoSandbox } from "@/lib/ciclo";
@@ -78,14 +79,6 @@ const GestaoCronograma = () => {
 
   const removerMeta = (indice: number) => {
     atualizarMetas(metasAtuais.filter((_, i) => i !== indice));
-  };
-
-  const moverMeta = (indice: number, direcao: -1 | 1) => {
-    const destino = indice + direcao;
-    if (destino < 0 || destino >= metasAtuais.length) return;
-    const novasMetas = [...metasAtuais];
-    [novasMetas[indice], novasMetas[destino]] = [novasMetas[destino], novasMetas[indice]];
-    atualizarMetas(novasMetas);
   };
 
   const handleSalvar = async () => {
@@ -206,12 +199,6 @@ const GestaoCronograma = () => {
                   Meta {indice + 1}
                 </span>
                 <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => moverMeta(indice, -1)} disabled={indice === 0} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
-                    <GripVertical className="h-4 w-4 rotate-90" />
-                  </button>
-                  <button type="button" onClick={() => moverMeta(indice, 1)} disabled={indice === metasAtuais.length - 1} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
-                    <GripVertical className="h-4 w-4 -rotate-90" />
-                  </button>
                   <button type="button" onClick={() => removerMeta(indice)} className="p-1 text-destructive hover:bg-destructive/10 rounded">
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -236,10 +223,9 @@ const GestaoCronograma = () => {
 
               <div className="space-y-1">
                 <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
-                <textarea
+                <RichTextEditor
                   value={meta.orientacoes}
-                  onChange={(e) => editarMeta(indice, "orientacoes", e.target.value)}
-                  className="flex min-h-[70px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed"
+                  onChange={(html) => editarMeta(indice, "orientacoes", html)}
                   placeholder="Instruções para o aluno..."
                 />
               </div>

@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { toast } from "sonner";
 
 type MetaStatus = "bloqueada" | "liberada" | "concluida" | "pulada";
@@ -385,7 +387,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                   <div className="grid md:grid-cols-[1fr_150px] gap-4">
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
-                      <Input placeholder="Instruções para o aluno..." value={novaMetaDescricao} onChange={e => setNovaMetaDescricao(e.target.value)} />
+                      <RichTextEditor value={novaMetaDescricao} onChange={setNovaMetaDescricao} placeholder="Instruções para o aluno..." />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo Limite</Label>
@@ -429,7 +431,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                           {m.data_sugerida && <span className="ml-2 font-bold opacity-70 border-l pl-2 border-current"><Calendar className="h-3 w-3 inline mr-1 mb-0.5"/>{new Date(m.data_sugerida).toLocaleDateString('pt-BR')}</span>}
                         </span>
                         <h4 className={`font-bold mt-1 ${style.text}`}>{m.atividade}</h4>
-                        <p className="text-xs mt-1 opacity-70 whitespace-pre-line">{m.orientacoes}</p>
+                        <div className="text-xs mt-1 opacity-70 prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4" dangerouslySetInnerHTML={{ __html: sanitizeRichText(m.orientacoes) }} />
                         {(m.link || m.arquivo_url) && (
                           <div className="flex gap-3 mt-3">
                             {m.link && <a href={m.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 px-2 py-1 rounded"><LinkIcon className="h-3 w-3"/> Link</a>}
@@ -467,7 +469,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                   <div className="space-y-1"><Label className="text-xs">Título</Label><Input value={editMetaTitulo} onChange={e => setEditMetaTitulo(e.target.value)} /></div>
                   <div className="space-y-1"><Label className="text-xs">Prazo Limite</Label><Input type="date" value={editMetaPrazo} onChange={e => setEditMetaPrazo(e.target.value)} /></div>
                 </div>
-                <div className="space-y-1"><Label className="text-xs">Orientações</Label><textarea className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editMetaDescricao} onChange={e => setEditMetaDescricao(e.target.value)} /></div>
+                <div className="space-y-1"><Label className="text-xs">Orientações</Label><RichTextEditor value={editMetaDescricao} onChange={setEditMetaDescricao} /></div>
                 <div className="space-y-1"><Label className="text-xs">Link (Opcional)</Label><Input value={editMetaLink} onChange={e => setEditMetaLink(e.target.value)} /></div>
                 <div className="space-y-2 bg-muted/10 p-4 rounded-lg border border-border">
                   <Label className="block mb-2 text-xs">Anexo (Opcional)</Label>
@@ -548,7 +550,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                                   <Input type="date" value={m.data_sugerida ? String(m.data_sugerida).split('T')[0] : ''} onChange={(e) => { const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : ""; handleEditPreviewMeta(i, 'data_sugerida', val); }} />
                                 </div>
                               </div>
-                              <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label><textarea value={m.orientacoes} onChange={(e) => handleEditPreviewMeta(i, 'orientacoes', e.target.value)} className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed" /></div>
+                              <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label><RichTextEditor value={m.orientacoes} onChange={(html) => handleEditPreviewMeta(i, 'orientacoes', html)} /></div>
                               <div className="grid md:grid-cols-2 gap-4 mt-2 p-3 bg-muted/10 rounded-lg border border-dashed border-border">
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Link</Label><Input value={m.link || ""} onChange={(e) => handleEditPreviewMeta(i, 'link', e.target.value)} className="h-9 text-xs" /></div>
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo</Label>
