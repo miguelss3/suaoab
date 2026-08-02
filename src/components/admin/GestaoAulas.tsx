@@ -163,12 +163,24 @@ const GestaoAulas = () => {
 
   return (
     <div className="space-y-6">
-      
-      {/* PAINEL DE CRIAÇÃO / EDIÇÃO */}
-      <div className={`p-6 rounded-xl border shadow-sm transition-colors ${editandoId ? 'bg-accent/5 border-accent' : 'bg-card border-border'}`}>
+      <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
+        <div className="flex items-center gap-3 mb-6 border-b border-border pb-4">
+          <div className="p-3 bg-accent/10 rounded-lg text-accent">
+            <PlayCircle className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-primary italic">Videoaulas</h2>
+            <p className="text-sm text-muted-foreground">
+              Publique videoaulas do YouTube por disciplina e gerencie o acervo já publicado.
+            </p>
+          </div>
+        </div>
+
+        {/* PAINEL DE CRIAÇÃO / EDIÇÃO */}
+        <div className={`p-6 rounded-xl border-2 shadow-sm transition-colors mb-6 ${editandoId ? 'bg-accent/5 border-accent' : 'bg-muted/10 border-border'}`}>
         <div className="flex justify-between items-center mb-4">
           <h3 className={`text-lg font-display font-bold flex items-center gap-2 ${editandoId ? 'text-accent' : 'text-primary'}`}>
-            {editandoId ? <Pencil className="h-5 w-5" /> : <PlayCircle className="h-5 w-5 text-accent"/>} 
+            {editandoId ? <Pencil className="h-5 w-5" /> : <PlayCircle className="h-5 w-5 text-accent"/>}
             {editandoId ? "Modo de Edição de Aula" : "Adicionar Nova Aula no Acervo"}
           </h3>
           {editandoId && (
@@ -177,10 +189,10 @@ const GestaoAulas = () => {
             </Button>
           )}
         </div>
-        
+
         <div className="grid md:grid-cols-3 gap-6 mb-4">
-          <div className="space-y-2">
-            <Label className="text-xs uppercase font-black text-muted-foreground">Disciplina</Label>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-black text-muted-foreground">Disciplina</Label>
             <select className="w-full h-10 border rounded-md px-3 bg-background text-sm" value={materia} onChange={e => setMateria(e.target.value)}>
               <option value="">Selecione...</option>
               {disciplinasParaSelect(disciplinasAtivas, materia).map(({ codigo }) => (
@@ -189,38 +201,38 @@ const GestaoAulas = () => {
             </select>
           </div>
 
-          <div className="space-y-2 md:col-span-2">
-            <Label className="text-xs uppercase font-black text-muted-foreground">Título da Aula</Label>
+          <div className="space-y-1 md:col-span-2">
+            <Label className="text-[10px] uppercase font-black text-muted-foreground">Título da Aula</Label>
             <Input placeholder="Ex: Resposta à Acusação (Completo)" value={titulo} onChange={e => setTitulo(e.target.value)} />
           </div>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 items-start">
-          <div className="space-y-2 md:col-span-2">
-            <Label className="text-xs uppercase font-black text-muted-foreground">Descrição / Dicas (Opcional)</Label>
-            <Textarea 
-              placeholder="Digite o resumo da aula, base legal, artigos importantes..." 
+          <div className="space-y-1 md:col-span-2">
+            <Label className="text-[10px] uppercase font-black text-muted-foreground">Descrição / Dicas (Opcional)</Label>
+            <Textarea
+              placeholder="Digite o resumo da aula, base legal, artigos importantes..."
               className="min-h-[100px]"
-              value={desc} 
-              onChange={e => setDesc(e.target.value)} 
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
             />
           </div>
 
-          <div className="space-y-2 flex flex-col h-full justify-between">
-            <div className="space-y-2">
-              <Label className="text-xs uppercase font-black text-muted-foreground flex items-center gap-1">
+          <div className="space-y-1 flex flex-col h-full justify-between">
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-black text-muted-foreground flex items-center gap-1">
                 <Youtube className="h-4 w-4 text-destructive" /> Link ou ID do YouTube
               </Label>
               <Input placeholder="Cole o link ou apenas o código" value={youtubeInput} onChange={e => setYoutubeInput(e.target.value)} />
               <p className="text-[10px] text-muted-foreground">O sistema extrai o ID automaticamente.</p>
             </div>
-            
+
             <Button variant={editandoId ? "accent" : "hero"} className="w-full mt-auto h-12" onClick={handleSalvarAula} disabled={isPublishing}>
               {isPublishing ? "A gravar..." : (editandoId ? <><Save className="h-4 w-4 mr-2"/> Salvar Alterações</> : <><Plus className="h-4 w-4 mr-2"/> Publicar Aula</>)}
             </Button>
           </div>
         </div>
-      </div>
+        </div>
 
       {/* LISTAGEM E FILTRO */}
       <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
@@ -230,11 +242,11 @@ const GestaoAulas = () => {
             <h3 className="font-bold text-primary">Acervo de Aulas Globais</h3>
             <span className="text-xs font-black bg-primary/10 text-primary px-2 py-1 rounded ml-2">{aulasFiltradas.length} VÍDEOS</span>
           </div>
-          
-          <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 w-full sm:w-auto">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <select 
-              className="bg-transparent border-none text-sm outline-none w-full sm:w-auto font-bold text-primary cursor-pointer"
+
+          <div className="bg-muted/10 border border-border rounded-xl p-3 flex items-center gap-3 w-full sm:w-64">
+            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+            <select
+              className="w-full h-8 bg-transparent text-sm font-bold border-none focus:ring-0"
               value={filtroMateria}
               onChange={(e) => setFiltroMateria(e.target.value)}
             >
@@ -245,7 +257,7 @@ const GestaoAulas = () => {
             </select>
           </div>
         </div>
-        
+
         <div className="w-full">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/30 text-[10px] uppercase font-bold text-muted-foreground border-b border-border">
@@ -334,6 +346,7 @@ const GestaoAulas = () => {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   );

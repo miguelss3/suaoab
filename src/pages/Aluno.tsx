@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Clock, PenTool, Timer, Briefcase, Lock, AlertCircle, User } from "lucide-react";
+import { LogOut, Clock, PenTool, Timer, Briefcase, Lock, AlertCircle, User, Scale, Landmark, Gavel } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot, collection, query, where, getDoc } from "firebase/firestore";
@@ -58,6 +58,12 @@ type MaterialPublicado = {
 };
 
 type LaboratorioPeca = {
+  nome?: string;
+  url_pdf?: string;
+  [key: string]: unknown;
+};
+
+type ItemTeorico = {
   nome?: string;
   url_pdf?: string;
   [key: string]: unknown;
@@ -122,6 +128,9 @@ const Aluno = () => {
   const [cadernos, setCadernos] = useState<MaterialPublicado[]>([]);
   const [simulados, setSimulados] = useState<MaterialPublicado[]>([]);
   const [laboratorio, setLaboratorio] = useState<LaboratorioPeca[]>([]);
+  const [materialTeorico, setMaterialTeorico] = useState<ItemTeorico[]>([]);
+  const [processualTeorico, setProcessualTeorico] = useState<ItemTeorico[]>([]);
+  const [categoriaTeorico, setCategoriaTeorico] = useState<"material" | "processual">("material");
   const [historico, setHistorico] = useState<HistoricoPeca[]>([]);
   const [progresso, setProgresso] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -245,10 +254,16 @@ const Aluno = () => {
 
     const unsubLab = onSnapshot(doc(db, "disciplinas", materiaAluno), (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as { pecas?: LaboratorioPeca[] };
+        const data = docSnap.data() as { pecas?: LaboratorioPeca[]; materialTeorico?: ItemTeorico[]; processualTeorico?: ItemTeorico[] };
         setLaboratorio(Array.isArray(data.pecas) ? data.pecas : []);
+        setMaterialTeorico(Array.isArray(data.materialTeorico) ? data.materialTeorico : []);
+        setProcessualTeorico(Array.isArray(data.processualTeorico) ? data.processualTeorico : []);
       }
-      else setLaboratorio([]);
+      else {
+        setLaboratorio([]);
+        setMaterialTeorico([]);
+        setProcessualTeorico([]);
+      }
     });
 
     return () => { unsubMateriais(); unsubLab(); };
@@ -405,6 +420,7 @@ const Aluno = () => {
                 {/* ADAPTAÇÃO DAS ABAS PARA SUPORTAR 5 OPÇÕES BEM ALINHADAS */}
                 <TabsList className="flex flex-wrap w-full h-auto mb-4 gap-2 justify-start bg-transparent p-0">
                   <TabsTrigger value="metas" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Cronograma</TabsTrigger>
+                  <TabsTrigger value="materialProcessual" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Direito Material e Processual</TabsTrigger>
                   <TabsTrigger value="laboratorio" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Laboratório</TabsTrigger>
                   <TabsTrigger value="cadernos" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Discursivas</TabsTrigger>
                   <TabsTrigger value="simulados" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border bg-card">Simulados</TabsTrigger>
@@ -414,6 +430,42 @@ const Aluno = () => {
                 <TabsContent value="metas" className="bg-card p-6 rounded-xl border border-border">
                   <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Clock className="h-5 w-5 text-accent" /> Minhas Metas</h3>
                   <GestorMetas perfilAluno={perfilAluno} setPerfilAluno={setPerfilAluno} metas={metas} setMetas={setMetas} />
+                </TabsContent>
+
+                <TabsContent value="materialProcessual" className="bg-card p-6 rounded-xl border border-border">
+                  <h3 className="text-lg font-bold text-primary mb-4 italic flex items-center gap-2"><Scale className="h-5 w-5 text-accent" /> Direito Material e Processual</h3>
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setCategoriaTeorico("material")}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold border-2 flex items-center gap-2 transition-colors ${
+                        categoriaTeorico === "material" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      <Landmark className="h-4 w-4" /> Direito Material
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCategoriaTeorico("processual")}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold border-2 flex items-center gap-2 transition-colors ${
+                        categoriaTeorico === "processual" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground"
+                      }`}
+                    >
+                      <Gavel className="h-4 w-4" /> Direito Processual
+                    </button>
+                  </div>
+                  <div className="grid gap-3">
+                    {(categoriaTeorico === "material" ? materialTeorico : processualTeorico).length === 0 ? (
+                      <p className="text-sm text-muted-foreground italic text-center py-6">Nenhum conteúdo disponível ainda.</p>
+                    ) : (
+                      (categoriaTeorico === "material" ? materialTeorico : processualTeorico).map((item, idx) => (
+                        <div key={idx} className="p-4 rounded-lg border border-border flex justify-between items-center">
+                          <div><span className="font-bold text-sm block text-primary">{item.nome}</span></div>
+                          <Button variant="outline" size="sm" disabled={preparandoDownload} onClick={() => void handleProtectedMaterialDownload(item.url_pdf, item.nome || "material.pdf")}>{preparandoDownload ? "Preparando..." : "Abrir Material"}</Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="laboratorio" className="bg-card p-6 rounded-xl border border-border">

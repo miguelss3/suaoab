@@ -4,9 +4,10 @@
 // montar o cronograma real de cada aluno (Dossiê → Gerar Rota), em vez de
 // depender só do gerador automático.
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, setDoc, where, writeBatch } from "firebase/firestore";
-import { AlertTriangle, CalendarRange, Plus, Save, Trash2, Users } from "lucide-react";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { AlertTriangle, CalendarRange, Link as LinkIcon, Plus, Save, Trash2, UploadCloud, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,28 @@ const GestaoCronograma = () => {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
+  const [anexandoIdx, setAnexandoIdx] = useState<number | null>(null);
+
+  // Data de referência só para exibir/editar o "dia relativo" num minicalendário
+  // (fixada ao abrir a tela): as datas mostradas equivalem a "se o aluno
+  // começasse hoje". O que é salvo continua sendo o dia relativo, não a data.
+  const [dataReferencia] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+
+  const diaParaData = (dia: number) => {
+    const d = new Date(dataReferencia);
+    d.setDate(d.getDate() + dia);
+    return d.toISOString().split("T")[0];
+  };
+
+  const dataParaDia = (dataStr: string) => {
+    const d = new Date(dataStr + "T00:00:00");
+    const diffMs = d.getTime() - dataReferencia.getTime();
+    return Math.round(diffMs / (1000 * 60 * 60 * 24));
+  };
 
   // Garante que a disciplina selecionada é sempre uma habilitada: se a atual foi
   // desligada (ou nenhuma foi escolhida ainda), cai para a primeira disponível.
@@ -79,6 +102,26 @@ const GestaoCronograma = () => {
 
   const removerMeta = (indice: number) => {
     atualizarMetas(metasAtuais.filter((_, i) => i !== indice));
+  };
+
+  const handleAnexarArquivo = async (indice: number, arquivo: File | null) => {
+    if (!arquivo || !disciplinaSelecionada) return;
+    setAnexandoIdx(indice);
+    try {
+      const safeName = arquivo.name.replace(/[^a-zA-Z0-9.]/g, "_");
+      const fileRef = ref(storage, `cronograma_templates/${disciplinaSelecionada}/${Date.now()}_${safeName}`);
+      const snapshot = await uploadBytes(fileRef, arquivo);
+      const url = await getDownloadURL(snapshot.ref);
+      const novasMetas = metasAtuais.map((meta, i) =>
+        i === indice ? { ...meta, arquivo_url: url, arquivo_nome: arquivo.name } : meta
+      );
+      atualizarMetas(novasMetas);
+    } catch (error) {
+      console.error("Erro ao anexar arquivo à meta-modelo:", error);
+      toast.error("Erro ao anexar o arquivo.");
+    } finally {
+      setAnexandoIdx(null);
+    }
   };
 
   const handleSalvar = async () => {
@@ -211,15 +254,17 @@ const GestaoCronograma = () => {
                   <Input value={meta.atividade} onChange={(e) => editarMeta(indice, "atividade", e.target.value)} placeholder="Ex: Leitura dirigida — Preliminares" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Dia (a partir do início)</Label>
+                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Data da Meta</Label>
                   <Input
-                    type="number"
-                    min={1}
-                    value={meta.diaRelativo}
-                    onChange={(e) => editarMeta(indice, "diaRelativo", Number(e.target.value) || 1)}
+                    type="date"
+                    value={diaParaData(meta.diaRelativo)}
+                    onChange={(e) => e.target.value && editarMeta(indice, "diaRelativo", dataParaDia(e.target.value))}
                   />
                 </div>
               </div>
+              <p className="text-[10px] text-muted-foreground -mt-2">
+                Considerando início hoje ({dataReferencia.toLocaleDateString("pt-BR")}) — o que importa é o espaçamento entre as metas, não a data exata.
+              </p>
 
               <div className="space-y-1">
                 <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
@@ -229,6 +274,38 @@ const GestaoCronograma = () => {
                   placeholder="Instruções para o aluno..."
                 />
               </div>
+
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Link (Opcional)</Label>
+                  <Input
+                    value={meta.link || ""}
+                    onChange={(e) => editarMeta(indice, "link", e.target.value)}
+                    placeholder="Link de apoio"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo (Opcional)</Label>
+                  <div className="relative w-full">
+                    <input
+                      type="file"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={(e) => handleAnexarArquivo(indice, e.target.files?.[0] || null)}
+                    />
+                    <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${meta.arquivo_url ? "bg-success/10 border-success/30 text-success font-bold" : "bg-background text-muted-foreground"}`}>
+                      <UploadCloud className="h-4 w-4 mr-2" />
+                      <span className="truncate">
+                        {anexandoIdx === indice ? "Enviando..." : meta.arquivo_nome || meta.arquivo_url ? meta.arquivo_nome || "Anexo salvo" : "Anexar arquivo"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {meta.link && (
+                <a href={meta.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent hover:underline">
+                  <LinkIcon className="h-3 w-3" /> {meta.link}
+                </a>
+              )}
             </div>
           ))}
 

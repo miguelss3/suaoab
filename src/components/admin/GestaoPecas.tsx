@@ -131,102 +131,114 @@ const GestaoPecas = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-card p-4 rounded-xl border border-border flex items-center gap-4 max-w-sm">
-        <Scale className="h-5 w-5 text-muted-foreground" />
-        <div className="flex-1">
-          <Label className="text-[10px] uppercase font-black text-muted-foreground">Disciplina Alvo</Label>
-          <select className="w-full h-8 bg-transparent text-sm font-bold border-none focus:ring-0" value={materia} onChange={e => setMateria(e.target.value)}>
-            <option value="">Selecione para carregar...</option>
-            {disciplinasParaSelect(disciplinasAtivas, materia).map(({ codigo }) => (
-              <option key={codigo} value={codigo}>{codigo}</option>
-            ))}
-          </select>
+      <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
+        <div className="flex items-center gap-3 mb-6 border-b border-border pb-4">
+          <div className="p-3 bg-accent/10 rounded-lg text-accent">
+            <FileSignature className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-primary italic">Laboratório de Peças</h2>
+            <p className="text-sm text-muted-foreground">
+              Publique modelos de peças práticas (PDF) para a disciplina selecionada.
+            </p>
+          </div>
         </div>
+
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="bg-muted/10 border border-border rounded-xl p-3 flex items-center gap-3 sm:w-64">
+            <Label className="text-[10px] uppercase font-black text-muted-foreground shrink-0">Disciplina</Label>
+            <select className="w-full h-8 bg-transparent text-sm font-bold border-none focus:ring-0" value={materia} onChange={e => setMateria(e.target.value)}>
+              <option value="">Selecione...</option>
+              {disciplinasParaSelect(disciplinasAtivas, materia).map(({ codigo }) => (
+                <option key={codigo} value={codigo}>{codigo}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {materia ? (
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-card rounded-xl border border-border flex flex-col min-h-[500px] overflow-hidden">
+              <div className="p-4 border-b bg-muted/10 flex justify-between items-center">
+                <h3 className="font-bold text-primary flex items-center gap-2">
+                  <FileSignature className="h-4 w-4 text-accent" /> Acervo de Peças ({materia})
+                </h3>
+                <span className="text-xs font-black bg-primary/10 text-primary px-2 py-1 rounded">{pecas.length} ITENS</span>
+              </div>
+
+              <div className="flex-1 p-4 overflow-y-auto space-y-2 custom-scrollbar">
+                {pecas.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
+                     <FileSignature className="h-12 w-12 mb-2" />
+                     <p className="font-bold">Nenhuma peça cadastrada para {materia}.</p>
+                  </div>
+                ) : (
+                  pecas.map((peca, idx) => (
+                    <div key={idx} className="p-3 border rounded-lg flex justify-between items-center bg-background hover:border-accent transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-muted p-2 rounded-lg">
+                          <FileText className={`h-5 w-5 ${peca.url_pdf ? 'text-success' : 'text-muted-foreground'}`} />
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">ID {idx}</span>
+                          <h4 className="font-bold text-sm leading-tight text-primary">{peca.nome}</h4>
+                          {peca.url_pdf ? (
+                            <a href={peca.url_pdf} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-success hover:underline">Ver Esqueleto PDF</a>
+                          ) : (
+                            <span className="text-[10px] font-bold text-warning">Sem arquivo anexado</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" className="border hover:bg-accent/10 hover:text-accent" onClick={() => abrirEdicaoPeca(idx, peca)} title="Editar Peça">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleExcluirPeca(idx)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="bg-muted/10 p-5 rounded-xl border border-border h-max sticky top-24">
+              <Label className="font-bold flex items-center gap-2 mb-4 text-primary">
+                <Plus className="h-4 w-4 text-accent"/> Adicionar Nova Peça
+              </Label>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-muted-foreground">Nome Oficial da Peça</Label>
+                  <Input placeholder="Ex: Recurso em Sentido Estrito" value={novaPecaNome} onChange={e => setNovaPecaNome(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-muted-foreground">Esqueleto / PDF (Opcional)</Label>
+                  <div className="relative w-full">
+                    <input type="file" id="pecaFileUpload" accept=".pdf" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setNovaPecaArquivo(e.target.files?.[0] || null)} />
+                    <div className={`h-12 border-2 border-dashed rounded-lg flex items-center px-3 text-sm transition-colors ${novaPecaArquivo ? 'bg-success/10 border-success/30 text-success font-bold' : 'bg-background border-border text-muted-foreground hover:border-accent'}`}>
+                      <UploadCloud className="h-4 w-4 mr-2"/>
+                      <span className="truncate">{novaPecaArquivo ? novaPecaArquivo.name : "Clique para anexar o modelo"}</span>
+                    </div>
+                  </div>
+                </div>
+                <Button className="w-full h-12 mt-2" variant="hero" onClick={handleAdicionarPeca} disabled={isUploading}>
+                  {isUploading ? "Gravando no Firebase..." : "Guardar no Acervo"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-muted/10 border-2 border-dashed rounded-2xl p-20 text-center">
+            <Scale className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
+            <p className="text-muted-foreground font-bold">Selecione uma disciplina no topo para gerir o acervo de peças.</p>
+          </div>
+        )}
       </div>
 
-      {materia ? (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-card rounded-xl border border-border flex flex-col min-h-[500px] overflow-hidden">
-            <div className="p-4 border-b bg-muted/10 flex justify-between items-center">
-              <h3 className="font-bold text-primary flex items-center gap-2">
-                <FileSignature className="h-4 w-4 text-accent" /> Acervo de Peças ({materia})
-              </h3>
-              <span className="text-xs font-black bg-primary/10 text-primary px-2 py-1 rounded">{pecas.length} ITENS</span>
-            </div>
-            
-            <div className="flex-1 p-4 overflow-y-auto space-y-2 custom-scrollbar">
-              {pecas.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
-                   <FileSignature className="h-12 w-12 mb-2" />
-                   <p className="font-bold">Nenhuma peça cadastrada para {materia}.</p>
-                </div>
-              ) : (
-                pecas.map((peca, idx) => (
-                  <div key={idx} className="p-3 border rounded-lg flex justify-between items-center bg-background hover:border-accent transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-muted p-2 rounded-lg">
-                        <FileText className={`h-5 w-5 ${peca.url_pdf ? 'text-success' : 'text-muted-foreground'}`} />
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">ID {idx}</span>
-                        <h4 className="font-bold text-sm leading-tight text-primary">{peca.nome}</h4>
-                        {peca.url_pdf ? (
-                          <a href={peca.url_pdf} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-success hover:underline">Ver Esqueleto PDF</a>
-                        ) : (
-                          <span className="text-[10px] font-bold text-warning">Sem arquivo anexado</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="ghost" className="border hover:bg-accent/10 hover:text-accent" onClick={() => abrirEdicaoPeca(idx, peca)} title="Editar Peça">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleExcluirPeca(idx)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="bg-muted/10 p-5 rounded-xl border border-border h-max sticky top-24">
-            <Label className="font-bold flex items-center gap-2 mb-4 text-primary">
-              <Plus className="h-4 w-4 text-accent"/> Adicionar Nova Peça
-            </Label>
-            
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground">Nome Oficial da Peça</Label>
-                <Input placeholder="Ex: Recurso em Sentido Estrito" value={novaPecaNome} onChange={e => setNovaPecaNome(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground">Esqueleto / PDF (Opcional)</Label>
-                <div className="relative w-full">
-                  <input type="file" id="pecaFileUpload" accept=".pdf" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => setNovaPecaArquivo(e.target.files?.[0] || null)} />
-                  <div className={`h-12 border-2 border-dashed rounded-lg flex items-center px-3 text-sm transition-colors ${novaPecaArquivo ? 'bg-success/10 border-success/30 text-success font-bold' : 'bg-background border-border text-muted-foreground hover:border-accent'}`}>
-                    <UploadCloud className="h-4 w-4 mr-2"/> 
-                    <span className="truncate">{novaPecaArquivo ? novaPecaArquivo.name : "Clique para anexar o modelo"}</span>
-                  </div>
-                </div>
-              </div>
-              <Button className="w-full h-12 mt-2" variant="hero" onClick={handleAdicionarPeca} disabled={isUploading}>
-                {isUploading ? "Gravando no Firebase..." : "Guardar no Acervo"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-muted/10 border-2 border-dashed rounded-2xl p-20 text-center">
-          <Scale className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
-          <p className="text-muted-foreground font-bold">Selecione uma disciplina no topo para gerir o acervo de peças.</p>
-        </div>
-      )}
-
-      {/* O BUG DE Z-INDEX FOI CORRIGIDO ABAIXO (z-) */}
       {pecaEditandoIdx !== null && (
-        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6">
             <div className="flex justify-between items-center mb-6 border-b pb-4">
               <h3 className="text-xl font-bold text-primary flex items-center gap-2"><Pencil className="h-5 w-5 text-accent"/> Editar Peça</h3>

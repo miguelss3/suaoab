@@ -237,28 +237,40 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
 
   return (
     <div className="space-y-6">
-      {/* FILTRO */}
-      <div className="bg-card p-4 rounded-xl border border-border flex items-center gap-4 max-w-sm">
-        <Filter className="h-4 w-4 text-muted-foreground" />
-        <div className="flex-1">
-          <Label className="text-[10px] uppercase font-black text-muted-foreground">
-            Filtrar por Disciplina
-          </Label>
-          <select
-            className="w-full h-8 bg-transparent text-sm font-bold border-none focus:ring-0"
-            value={filtroMateria}
-            onChange={(e) => setFiltroMateria(e.target.value)}
-          >
-            {deveExibirOpcaoTodasDisciplinas(disciplinasAtivas) && <option value="">Todas</option>}
-            {disciplinasDisponiveis.map(({ codigo }) => (
-              <option key={codigo} value={codigo}>{codigo}</option>
-            ))}
-          </select>
+      <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
+        <div className="flex items-center gap-3 mb-6 border-b border-border pb-4">
+          <div className="p-3 bg-accent/10 rounded-lg text-accent">
+            {tipoFiltro === "Simulado" ? <Timer className="h-6 w-6" /> : <BookOpen className="h-6 w-6" />}
+          </div>
+          <div>
+            <h2 className="text-2xl font-display font-bold text-primary italic">
+              {tipoFiltro === "Simulado" ? "Simulados" : "Publicados"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {tipoFiltro === "Simulado"
+                ? "Gerencie e reordene os simulados já publicados aos alunos."
+                : "Gerencie e reordene os materiais já publicados aos alunos, agrupados por disciplina."}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {/* ACORDEÃO POR MATÉRIA */}
-      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="bg-muted/10 border border-border rounded-xl p-3 flex items-center gap-3 sm:w-64">
+            <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+            <select
+              className="w-full h-8 bg-transparent text-sm font-bold border-none focus:ring-0"
+              value={filtroMateria}
+              onChange={(e) => setFiltroMateria(e.target.value)}
+            >
+              {deveExibirOpcaoTodasDisciplinas(disciplinasAtivas) && <option value="">Todas as disciplinas</option>}
+              {disciplinasDisponiveis.map(({ codigo }) => (
+                <option key={codigo} value={codigo}>{codigo}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-3">
         {grupos.length === 0 && (
           <p className="p-8 text-center text-muted-foreground italic">
             {tipoFiltro === "Simulado" ? "Nenhum simulado publicado encontrado." : "Nenhum material publicado encontrado."}
@@ -373,6 +385,7 @@ const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

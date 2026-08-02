@@ -10,12 +10,17 @@ export interface MetaTemplateItem {
   atividade: string;
   orientacoes: string;
   diaRelativo: number;
+  link?: string;
+  arquivo_url?: string;
+  arquivo_nome?: string;
 }
 
 export interface MetaGerada {
   atividade: string;
   orientacoes: string;
   link: string;
+  arquivo_url?: string;
+  arquivo_nome?: string;
   status: "liberada" | "bloqueada";
   concluida: boolean;
   data_sugerida: string;
@@ -45,7 +50,9 @@ export const gerarMetasDoTemplate = (template: MetaTemplateItem[], dataBase: Dat
     return {
       atividade: item.atividade,
       orientacoes: item.orientacoes,
-      link: "",
+      link: item.link || "",
+      arquivo_url: item.arquivo_url || "",
+      arquivo_nome: item.arquivo_nome || "",
       status: indice === 0 ? "liberada" : "bloqueada",
       concluida: false,
       data_sugerida: data.toISOString(),
