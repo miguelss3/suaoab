@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AulaGlobal } from "@/lib/aulas";
-import { disciplinasParaSelect, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
+import { deveExibirOpcaoTodasDisciplinas, disciplinasParaSelect, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 import { toast } from "sonner";
 
 const mapDocToAula = (docSnap: { id: string; data: () => Record<string, unknown> }): AulaGlobal => {
@@ -238,10 +238,10 @@ const GestaoAulas = () => {
               value={filtroMateria}
               onChange={(e) => setFiltroMateria(e.target.value)}
             >
-              <option value="">Todas as Matérias</option>
-              <option value="DADM">DADM</option>
-              <option value="DPEN">DPEN</option>
-              <option value="DTRI">DTRI</option>
+              {deveExibirOpcaoTodasDisciplinas(disciplinasAtivas) && <option value="">Todas as Matérias</option>}
+              {disciplinasSegundaFaseDisponiveis(disciplinasAtivas).map(({ codigo }) => (
+                <option key={codigo} value={codigo}>{codigo}</option>
+              ))}
             </select>
           </div>
         </div>

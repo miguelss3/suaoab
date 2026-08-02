@@ -3,7 +3,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, FileText, PenTool, Cog, BookOpen, Scale, CalendarDays, CalendarRange, Upload, Eye, TrendingUp } from "lucide-react";
+import { LogOut, Users, FileText, PenTool, Cog, BookOpen, CalendarDays, CalendarRange, Upload, Eye, TrendingUp } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -21,7 +21,6 @@ const BancoQuestoes = lazyWithReload(() => import("@/components/admin/BancoQuest
 const MotorGerador = lazyWithReload(() => import("@/components/admin/MotorGerador"));
 const PublicarMaterial = lazyWithReload(() => import("@/components/admin/PublicarMaterial"));
 const GestaoCronograma = lazyWithReload(() => import("@/components/admin/GestaoCronograma"));
-const GestaoMaterialProcessual = lazyWithReload(() => import("@/components/admin/GestaoMaterialProcessual"));
 const GestaoCiclos = lazyWithReload(() => import("@/components/admin/GestaoCiclos"));
 const VisaoAluno = lazyWithReload(() => import("@/components/admin/VisaoAluno"));
 const AdminGraduacao = lazyWithReload(() => import("@/components/admin/AdminGraduacao"));
@@ -88,10 +87,6 @@ const Painel = () => {
               <CalendarRange className="h-4 w-4"/> Montagem de Cronograma
             </TabsTrigger>
 
-            <TabsTrigger value="material-processual" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <Scale className="h-4 w-4"/> Material e Processual
-            </TabsTrigger>
-
             <TabsTrigger value="correcoes" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <FileText className="h-4 w-4"/> Fila de Correção
             </TabsTrigger>
@@ -122,7 +117,6 @@ const Painel = () => {
             <TabsContent value="sandbox"><VisaoAluno /></TabsContent>
             <TabsContent value="crm"><AlunosCRM /></TabsContent>
             <TabsContent value="cronograma"><GestaoCronograma /></TabsContent>
-            <TabsContent value="material-processual"><GestaoMaterialProcessual /></TabsContent>
             <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>
             <TabsContent value="publicar"><PublicarMaterial /></TabsContent>
             <TabsContent value="questoes"><BancoQuestoes /></TabsContent>

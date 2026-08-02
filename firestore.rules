@@ -80,7 +80,12 @@ service cloud.firestore {
     match /configuracoes/{docId} {
       // disciplinas_segunda_fase precisa ser lida sem login: landing page e
       // cadastro decidem o que mostrar/travar com base nela.
-      allow read: if docId in ["ciclo_atual", "oferta_atual", "disciplinas_segunda_fase"] || isAdmin();
+      // cronograma_templates precisa ser lido durante o cadastro (usuário já
+      // autenticado nesse ponto, mas ainda não é admin) para montar as metas
+      // iniciais do aluno a partir do cronograma-modelo da disciplina.
+      allow read: if docId in ["ciclo_atual", "oferta_atual", "disciplinas_segunda_fase"] ||
+        (docId == "cronograma_templates" && isSignedIn()) ||
+        isAdmin();
       allow write: if isAdmin();
     }
 

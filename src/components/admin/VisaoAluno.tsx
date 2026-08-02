@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { AulaGlobal, DisciplinaCodigo, getTimestampMillis, HistoricoPeca, MaterialPublicado, MetaAluno, PecaLaboratorio } from "@/lib/aulas";
 import { compararPorOrdem } from "@/lib/utils";
+import { disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 // Importamos os mesmos componentes que o aluno real utiliza
 import { GestorMetas } from "@/components/aluno/GestorMetas";
@@ -76,8 +77,19 @@ const mapDocToHistorico = (docSnap: { id: string; data: () => Record<string, unk
 };
 
 const VisaoAluno = () => {
-  const [disciplinaAtiva, setDisciplinaAtiva] = useState<DisciplinaCodigo>("DADM");
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
+  const disciplinasDisponiveis = disciplinasSegundaFaseDisponiveis(disciplinasAtivas);
+  const [disciplinaAtiva, setDisciplinaAtiva] = useState<DisciplinaCodigo>("DPEN");
   const [perfilFantasma, setPerfilFantasma] = useState<PerfilAluno | null>(null);
+
+  // Mantém a disciplina de teste sempre habilitada: se a atual foi desligada em
+  // Ciclos e Prazos (ou nenhuma ainda foi escolhida), cai para a primeira disponível.
+  useEffect(() => {
+    if (disciplinasDisponiveis.length === 0) return;
+    setDisciplinaAtiva((atual) =>
+      disciplinasDisponiveis.some((d) => d.codigo === atual) ? atual : (disciplinasDisponiveis[0].codigo as DisciplinaCodigo)
+    );
+  }, [disciplinasDisponiveis]);
   
   // Estados para os conteúdos da disciplina
   const [metas, setMetas] = useState<MetaAluno[]>([]);
@@ -206,9 +218,9 @@ const VisaoAluno = () => {
             value={disciplinaAtiva} 
             onChange={e => setDisciplinaAtiva(e.target.value as DisciplinaCodigo)}
           >
-            <option value="DADM">Direito Administrativo</option>
-            <option value="DPEN">Direito Penal</option>
-            <option value="DTRI">Direito Tributário</option>
+            {disciplinasDisponiveis.map(({ codigo, nome }) => (
+              <option key={codigo} value={codigo}>{nome}</option>
+            ))}
           </select>
         </div>
       </div>

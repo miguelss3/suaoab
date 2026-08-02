@@ -5,21 +5,20 @@
 // depender só do gerador automático.
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { CalendarRange, GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import { collection, doc, getDoc, getDocs, query, setDoc, where, writeBatch } from "firebase/firestore";
+import { AlertTriangle, CalendarRange, GripVertical, Plus, Save, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CodigoDisciplinaSegundaFase, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
+import { isAlunoSandbox } from "@/lib/ciclo";
+import { DOC_CRONOGRAMA_TEMPLATES, gerarMetasDoTemplate, MetaTemplateItem } from "@/lib/cronograma";
 
-type MetaTemplate = {
-  atividade: string;
-  orientacoes: string;
-  diaRelativo: number;
-};
+type MetaTemplate = MetaTemplateItem;
 
-const DOC_CRONOGRAMA_TEMPLATES = doc(db, "configuracoes", "cronograma_templates");
+// Limite de 500 operações por batch do Firestore.
+const TAMANHO_LOTE = 400;
 
 const metaVazia = (): MetaTemplate => ({ atividade: "", orientacoes: "", diaRelativo: 1 });
 
@@ -31,6 +30,7 @@ const GestaoCronograma = () => {
   const [templates, setTemplates] = useState<Record<string, MetaTemplate[]>>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
 
   // Garante que a disciplina selecionada é sempre uma habilitada: se a atual foi
   // desligada (ou nenhuma foi escolhida ainda), cai para a primeira disponível.
@@ -105,6 +105,52 @@ const GestaoCronograma = () => {
     }
   };
 
+  const handleAplicarAlunosAtivos = async () => {
+    if (!disciplinaSelecionada) return;
+    if (metasAtuais.length === 0) {
+      toast.error("Monte o cronograma-modelo antes de aplicar aos alunos.");
+      return;
+    }
+
+    setAplicando(true);
+    try {
+      const q = query(collection(db, "alunos"), where("materia", "==", disciplinaSelecionada));
+      const snap = await getDocs(q);
+      const alunosAlvo = snap.docs.filter((d) => !isAlunoSandbox({ id: d.id, email: d.data().email }));
+
+      if (alunosAlvo.length === 0) {
+        toast.error("Nenhum aluno encontrado nesta disciplina.");
+        return;
+      }
+
+      const nomeDisciplina = disciplinasDisponiveis.find((d) => d.codigo === disciplinaSelecionada)?.nome ?? disciplinaSelecionada;
+      const confirmou = window.confirm(
+        `Isso vai SUBSTITUIR o cronograma atual de ${alunosAlvo.length} aluno(s) de ${nomeDisciplina} pelo cronograma-modelo, ` +
+        `apagando o progresso de metas que eles já tinham marcado. Essa ação não pode ser desfeita. Confirmar?`
+      );
+      if (!confirmou) return;
+
+      const hoje = new Date();
+      const metasGeradas = gerarMetasDoTemplate(metasAtuais, hoje);
+
+      for (let i = 0; i < alunosAlvo.length; i += TAMANHO_LOTE) {
+        const lote = alunosAlvo.slice(i, i + TAMANHO_LOTE);
+        const batch = writeBatch(db);
+        lote.forEach((alunoDoc) => {
+          batch.update(doc(db, "alunos", alunoDoc.id), { metas: metasGeradas });
+        });
+        await batch.commit();
+      }
+
+      toast.success(`Cronograma aplicado a ${alunosAlvo.length} aluno(s) de ${nomeDisciplina}.`);
+    } catch (error) {
+      console.error("Erro ao aplicar cronograma retroativamente:", error);
+      toast.error("Erro ao aplicar o cronograma aos alunos.");
+    } finally {
+      setAplicando(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-10 text-center text-sm text-muted-foreground font-bold">Carregando...</div>;
   }
@@ -119,8 +165,8 @@ const GestaoCronograma = () => {
           <div>
             <h2 className="text-2xl font-display font-bold text-primary italic">Montagem de Cronograma</h2>
             <p className="text-sm text-muted-foreground">
-              Monte manualmente o cronograma-modelo (metas padrão) de cada disciplina, para usar como base ao montar o
-              cronograma real de um aluno.
+              Este é o cronograma-modelo oficial de cada disciplina: todo aluno novo já entra com ele carregado
+              automaticamente. Ajustes pontuais para um aluno específico continuam possíveis no Dossiê.
             </p>
           </div>
         </div>
@@ -208,6 +254,26 @@ const GestaoCronograma = () => {
                 <Save className="h-5 w-5 mr-2" />
                 {salvando ? "Salvando..." : "Salvar Cronograma-Modelo"}
               </Button>
+
+              <div className="pt-4 mt-2 border-t border-border space-y-3">
+                <div className="flex items-start gap-2 text-xs text-accent">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    A ação abaixo substitui o cronograma de alunos que já estão estudando esta disciplina — apaga o
+                    progresso de metas que eles já tinham marcado. Não pode ser desfeita.
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-12 gap-2 border-accent/40 text-accent hover:bg-accent/10"
+                  onClick={handleAplicarAlunosAtivos}
+                  disabled={aplicando || metasAtuais.length === 0}
+                >
+                  <Users className="h-4 w-4" />
+                  {aplicando ? "Aplicando..." : "Aplicar aos Alunos Ativos desta Disciplina"}
+                </Button>
+              </div>
             </div>
           </>
         )}

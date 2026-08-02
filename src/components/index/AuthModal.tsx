@@ -13,7 +13,8 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswor
 import { collection, doc, getDoc, onSnapshot, orderBy, query, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { normalizarEmail } from "@/lib/hotmart";
-import { DISCIPLINAS_ATIVAS_PADRAO, DISCIPLINAS_SEGUNDA_FASE, DisciplinasAtivasMap, escutarDisciplinasAtivas } from "@/lib/disciplinasSegundaFase";
+import { CodigoDisciplinaSegundaFase, DISCIPLINAS_ATIVAS_PADRAO, DISCIPLINAS_SEGUNDA_FASE, DisciplinasAtivasMap, escutarDisciplinasAtivas } from "@/lib/disciplinasSegundaFase";
+import { buscarCronogramaTemplate, gerarMetasDoTemplate } from "@/lib/cronograma";
 import { toast } from "sonner";
 
 // Máscara do Telefone
@@ -195,6 +196,30 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
         
         // --- LÓGICA DE NEGÓCIO: Estudante de Graduação tem acesso vitalício ---
         const isGraduacao = faseEstudo === "graduacao";
+        const dataCadastro = new Date();
+
+        // Meta 0 só faz sentido para alunos de 2ª Fase; Graduação não usa o motor de metas.
+        // A partir da Meta 0, o cronograma-modelo da disciplina (Montagem de Cronograma)
+        // já entra pronto — a Montagem de Cronograma é a fonte principal do cronograma do
+        // aluno; ajustes pontuais continuam possíveis depois, no Dossiê.
+        let metasIniciais: unknown[] = [];
+        if (!isGraduacao) {
+          metasIniciais = [{
+            atividade: "Meta 0: Boas-Vindas e Ambientação",
+            orientacoes: "Parabéns por chegar à 2ª Fase! Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural.",
+            link: "",
+            status: "liberada",
+            concluida: false
+          }];
+
+          if (faseEstudo === "segunda_fase" && materia) {
+            const template = await buscarCronogramaTemplate(materia as CodigoDisciplinaSegundaFase);
+            if (template.length > 0) {
+              metasIniciais = [...metasIniciais, ...gerarMetasDoTemplate(template, dataCadastro)];
+            }
+          }
+        }
+
         const dadosAluno: Record<string, unknown> = {
           nome: nome,
           whatsapp: whatsapp,
@@ -208,22 +233,13 @@ export const AuthModal = ({ showAuthModal, setShowAuthModal, isLogin, setIsLogin
                 ? materia
                 : "",
           disciplinaId: faseEstudo === "graduacao" ? disciplinaGraduacaoId : "",
-          matricula: novaMatricula, 
+          matricula: novaMatricula,
           status: isGraduacao ? "ativo" : "Lead",
           progresso: 0,
-          data_cadastro: new Date(),
-          termos_aceitos: true,             
-          data_aceite_termos: new Date(),   
-          // Meta 0 só faz sentido para alunos de 2ª Fase; Graduação não usa o motor de metas.
-          metas: isGraduacao
-            ? []
-            : [{
-                atividade: "Meta 0: Boas-Vindas e Ambientação",
-                orientacoes: "Parabéns por chegar à 2ª Fase! Hoje, o seu único objetivo é respirar fundo, preparar o seu ambiente de estudos e assistir à aula inaugural.",
-                link: "",
-                status: "liberada",
-                concluida: false
-              }]
+          data_cadastro: dataCadastro,
+          termos_aceitos: true,
+          data_aceite_termos: new Date(),
+          metas: metasIniciais
         };
 
         // Se for Estudante de Graduação, adiciona flag de acesso vitalício

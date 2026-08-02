@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { compararPorOrdem } from "@/lib/utils";
+import { deveExibirOpcaoTodasDisciplinas, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 interface Material {
   id: string;
@@ -36,7 +37,14 @@ interface Material {
   ordem?: number;
 }
 
-const GestaoMateriais = () => {
+interface GestaoMateriaisProps {
+  /** Quando definido, mostra só materiais desse tipo — usado pelo atalho "Simulados" dentro de Publicar Material. */
+  tipoFiltro?: "Caderno" | "Simulado";
+}
+
+const GestaoMateriais = ({ tipoFiltro }: GestaoMateriaisProps = {}) => {
+  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
+  const disciplinasDisponiveis = disciplinasSegundaFaseDisponiveis(disciplinasAtivas);
   const [materiais, setMateriais] = useState<Material[]>([]);
   const [filtroMateria, setFiltroMateria] = useState("");
   const [abertos, setAbertos] = useState<Record<string, boolean>>({});
@@ -79,9 +87,9 @@ const GestaoMateriais = () => {
 
   // --- AGRUPAMENTO POR MATÉRIA (com filtro aplicado) ---
   const grupos = useMemo(() => {
-    const filtrados = filtroMateria
-      ? materiais.filter((m) => m.materia === filtroMateria)
-      : materiais;
+    const filtrados = materiais.filter(
+      (m) => (!filtroMateria || m.materia === filtroMateria) && (!tipoFiltro || m.tipo === tipoFiltro)
+    );
 
     const map = new Map<string, Material[]>();
     for (const m of filtrados) {
@@ -98,7 +106,7 @@ const GestaoMateriais = () => {
     }
 
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [materiais, filtroMateria]);
+  }, [materiais, filtroMateria, tipoFiltro]);
 
   const toggleGrupo = (materia: string) => {
     setAbertos((prev) => ({ ...prev, [materia]: !prev[materia] }));
@@ -179,10 +187,10 @@ const GestaoMateriais = () => {
             value={filtroMateria}
             onChange={(e) => setFiltroMateria(e.target.value)}
           >
-            <option value="">Todas</option>
-            <option value="DADM">DADM</option>
-            <option value="DPEN">DPEN</option>
-            <option value="DTRI">DTRI</option>
+            {deveExibirOpcaoTodasDisciplinas(disciplinasAtivas) && <option value="">Todas</option>}
+            {disciplinasDisponiveis.map(({ codigo }) => (
+              <option key={codigo} value={codigo}>{codigo}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -191,7 +199,7 @@ const GestaoMateriais = () => {
       <div className="space-y-3">
         {grupos.length === 0 && (
           <p className="p-8 text-center text-muted-foreground italic">
-            Nenhum material publicado encontrado.
+            {tipoFiltro === "Simulado" ? "Nenhum simulado publicado encontrado." : "Nenhum material publicado encontrado."}
           </p>
         )}
 

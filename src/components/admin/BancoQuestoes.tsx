@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { disciplinasParaSelect, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
+import { deveExibirOpcaoTodasDisciplinas, disciplinasParaSelect, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 
 const BancoQuestoes = () => {
   const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
@@ -105,10 +105,10 @@ const BancoQuestoes = () => {
             <Label className="text-[10px] uppercase font-black text-muted-foreground">Matéria</Label>
             <select className="w-full h-10 border rounded-md px-3 bg-background text-sm" value={filtroMateria} onChange={e => setFiltroMateria(e.target.value)}>
               <option value="">Selecione...</option>
-              <option value="Todas">Todas as Matérias</option>
-              <option value="DADM">DADM</option>
-              <option value="DPEN">DPEN</option>
-              <option value="DTRI">DTRI</option>
+              {deveExibirOpcaoTodasDisciplinas(disciplinasAtivas) && <option value="Todas">Todas as Matérias</option>}
+              {disciplinasSegundaFaseDisponiveis(disciplinasAtivas).map(({ codigo }) => (
+                <option key={codigo} value={codigo}>{codigo}</option>
+              ))}
             </select>
           </div>
           <div className="w-full md:w-48 space-y-1">

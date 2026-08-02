@@ -80,6 +80,11 @@ export const disciplinasParaSelect = (ativas: DisciplinasAtivasMap, valorAtual?:
   return disponiveis;
 };
 
+// Um filtro "Todas as Matérias" só faz sentido quando há mais de uma disciplina
+// habilitada para escolher — com uma só, é redundante e só confunde.
+export const deveExibirOpcaoTodasDisciplinas = (ativas: DisciplinasAtivasMap) =>
+  disciplinasSegundaFaseDisponiveis(ativas).length > 1;
+
 const formatarListaPt = (nomes: string[]) => {
   if (nomes.length === 0) return "";
   if (nomes.length === 1) return nomes[0];
