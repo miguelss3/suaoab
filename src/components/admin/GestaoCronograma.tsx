@@ -6,8 +6,8 @@
 import { useEffect, useState } from "react";
 import { db, storage } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, setDoc, where, writeBatch } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { AlertTriangle, CalendarRange, Link as LinkIcon, Plus, Save, Trash2, UploadCloud, Users } from "lucide-react";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { AlertTriangle, CalendarRange, ChevronDown, ChevronRight, Link as LinkIcon, Plus, Save, Trash2, UploadCloud, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,7 @@ const GestaoCronograma = () => {
   const [salvando, setSalvando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [anexandoIdx, setAnexandoIdx] = useState<number | null>(null);
+  const [metasAbertas, setMetasAbertas] = useState<Record<number, boolean>>({});
 
   // Data de referência só para exibir/editar o "dia relativo" num minicalendário
   // (fixada ao abrir a tela): as datas mostradas equivalem a "se o aluno
@@ -93,7 +94,13 @@ const GestaoCronograma = () => {
   };
 
   const adicionarMeta = () => {
+    const novoIndice = metasAtuais.length;
     atualizarMetas([...metasAtuais, metaVazia()]);
+    setMetasAbertas((prev) => ({ ...prev, [novoIndice]: true }));
+  };
+
+  const toggleMetaAberta = (indice: number) => {
+    setMetasAbertas((prev) => ({ ...prev, [indice]: !prev[indice] }));
   };
 
   const editarMeta = (indice: number, campo: keyof MetaTemplate, valor: string | number) => {
@@ -128,6 +135,19 @@ const GestaoCronograma = () => {
     } finally {
       setAnexandoIdx(null);
     }
+  };
+
+  const removerAnexoMeta = async (indice: number) => {
+    const meta = metasAtuais[indice];
+    if (meta.arquivo_url) {
+      try {
+        await deleteObject(ref(storage, meta.arquivo_url));
+      } catch (error) {
+        console.log("Ignorado: arquivo já não existia no storage.", error);
+      }
+    }
+    const novasMetas = metasAtuais.map((m, i) => (i === indice ? { ...m, arquivo_url: "", arquivo_nome: "" } : m));
+    atualizarMetas(novasMetas);
   };
 
   const handleSalvar = async () => {
@@ -234,6 +254,26 @@ const GestaoCronograma = () => {
               ))}
             </div>
 
+            <div className="pb-6 mb-6 border-b border-border space-y-3">
+              <div className="flex items-start gap-2 text-xs text-accent">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  A ação abaixo substitui o cronograma de alunos que já estão estudando esta disciplina — apaga o
+                  progresso de metas que eles já tinham marcado. Não pode ser desfeita.
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 gap-2 border-accent/40 text-accent hover:bg-accent/10"
+                onClick={handleAplicarAlunosAtivos}
+                disabled={aplicando || metasAtuais.length === 0}
+              >
+                <Users className="h-4 w-4" />
+                {aplicando ? "Aplicando..." : "Aplicar aos Alunos Ativos desta Disciplina"}
+              </Button>
+            </div>
+
             <div className="space-y-4">
               {metasAtuais.length === 0 && (
                 <p className="text-sm text-muted-foreground italic text-center py-6">
@@ -241,78 +281,105 @@ const GestaoCronograma = () => {
                 </p>
               )}
 
-              {metasAtuais.map((meta, indice) => (
-            <div key={indice} className="p-4 rounded-xl border-2 border-border bg-background space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-widest text-accent bg-accent/10 px-2 py-1 rounded">
-                  Meta {indice + 1}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => removerMeta(indice)} className="p-1 text-destructive hover:bg-destructive/10 rounded">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+              {metasAtuais.map((meta, indice) => {
+                const aberta = !!metasAbertas[indice];
+                return (
+                  <div key={indice} className="rounded-xl border-2 border-border bg-background overflow-hidden">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleMetaAberta(indice)}
+                      onKeyDown={(e) => { if (e.key === "Enter") toggleMetaAberta(indice); }}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-accent/5 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {aberta ? <ChevronDown className="h-4 w-4 text-primary shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <span className="text-xs font-black uppercase tracking-widest text-accent bg-accent/10 px-2 py-1 rounded shrink-0">
+                          Meta {indice + 1}
+                        </span>
+                        <span className="font-bold text-sm text-primary truncate">{meta.atividade || "(sem título)"}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">{diaParaData(meta.diaRelativo).split("-").reverse().join("/")}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removerMeta(indice); }}
+                        className="p-1 text-destructive hover:bg-destructive/10 rounded shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
 
-              <div className="grid md:grid-cols-[1fr_120px] gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Título da Atividade</Label>
-                  <Input value={meta.atividade} onChange={(e) => editarMeta(indice, "atividade", e.target.value)} placeholder="Ex: Leitura dirigida — Preliminares" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Data da Meta</Label>
-                  <Input
-                    type="date"
-                    value={diaParaData(meta.diaRelativo)}
-                    onChange={(e) => e.target.value && editarMeta(indice, "diaRelativo", dataParaDia(e.target.value))}
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground -mt-2">
-                Considerando início hoje ({dataReferencia.toLocaleDateString("pt-BR")}) — o que importa é o espaçamento entre as metas, não a data exata.
-              </p>
+                    {aberta && (
+                      <div className="p-4 pt-0 space-y-3 border-t border-border">
+                        <div className="grid md:grid-cols-[1fr_120px] gap-3 pt-3">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-black text-muted-foreground">Título da Atividade</Label>
+                            <Input value={meta.atividade} onChange={(e) => editarMeta(indice, "atividade", e.target.value)} placeholder="Ex: Leitura dirigida — Preliminares" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-black text-muted-foreground">Data da Meta</Label>
+                            <Input
+                              type="date"
+                              value={diaParaData(meta.diaRelativo)}
+                              onChange={(e) => e.target.value && editarMeta(indice, "diaRelativo", dataParaDia(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground -mt-2">
+                          Considerando início hoje ({dataReferencia.toLocaleDateString("pt-BR")}) — o que importa é o espaçamento entre as metas, não a data exata.
+                        </p>
 
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
-                <RichTextEditor
-                  value={meta.orientacoes}
-                  onChange={(html) => editarMeta(indice, "orientacoes", html)}
-                  placeholder="Instruções para o aluno..."
-                />
-              </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
+                          <RichTextEditor
+                            value={meta.orientacoes}
+                            onChange={(html) => editarMeta(indice, "orientacoes", html)}
+                            placeholder="Instruções para o aluno..."
+                          />
+                        </div>
 
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-black text-muted-foreground">Links (Opcional)</Label>
-                <LinksEditor
-                  materia={disciplinaSelecionada}
-                  links={meta.links || []}
-                  onChange={(links) => atualizarLinksMeta(indice, links)}
-                />
-              </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-black text-muted-foreground">Links (Opcional)</Label>
+                          <LinksEditor
+                            materia={disciplinaSelecionada}
+                            links={meta.links || []}
+                            onChange={(links) => atualizarLinksMeta(indice, links)}
+                          />
+                        </div>
 
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo (Opcional)</Label>
-                <div className="relative w-full">
-                  <input
-                    type="file"
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    onChange={(e) => handleAnexarArquivo(indice, e.target.files?.[0] || null)}
-                  />
-                  <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${meta.arquivo_url ? "bg-success/10 border-success/30 text-success font-bold" : "bg-background text-muted-foreground"}`}>
-                    <UploadCloud className="h-4 w-4 mr-2" />
-                    <span className="truncate">
-                      {anexandoIdx === indice ? "Enviando..." : meta.arquivo_nome || meta.arquivo_url ? meta.arquivo_nome || "Anexo salvo" : "Anexar arquivo"}
-                    </span>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo (Opcional)</Label>
+                          <div className="flex items-center gap-2">
+                            <div className="relative w-full">
+                              <input
+                                type="file"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                onChange={(e) => handleAnexarArquivo(indice, e.target.files?.[0] || null)}
+                              />
+                              <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${meta.arquivo_url ? "bg-success/10 border-success/30 text-success font-bold" : "bg-background text-muted-foreground"}`}>
+                                <UploadCloud className="h-4 w-4 mr-2" />
+                                <span className="truncate">
+                                  {anexandoIdx === indice ? "Enviando..." : meta.arquivo_nome || meta.arquivo_url ? meta.arquivo_nome || "Anexo salvo" : "Anexar arquivo"}
+                                </span>
+                              </div>
+                            </div>
+                            {meta.arquivo_url && (
+                              <Button type="button" size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 shrink-0" onClick={() => removerAnexoMeta(indice)} title="Remover anexo">
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        {meta.link && (
+                          <a href={meta.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent hover:underline">
+                            <LinkIcon className="h-3 w-3" /> {meta.link}
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-              {meta.link && (
-                <a href={meta.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent hover:underline">
-                  <LinkIcon className="h-3 w-3" /> {meta.link}
-                </a>
-              )}
-            </div>
-          ))}
+                );
+              })}
 
               <Button type="button" variant="outline" className="w-full gap-2" onClick={adicionarMeta}>
                 <Plus className="h-4 w-4" /> Adicionar Meta ao Cronograma-Modelo
@@ -322,26 +389,6 @@ const GestaoCronograma = () => {
                 <Save className="h-5 w-5 mr-2" />
                 {salvando ? "Salvando..." : "Salvar Cronograma-Modelo"}
               </Button>
-
-              <div className="pt-4 mt-2 border-t border-border space-y-3">
-                <div className="flex items-start gap-2 text-xs text-accent">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                  <span>
-                    A ação abaixo substitui o cronograma de alunos que já estão estudando esta disciplina — apaga o
-                    progresso de metas que eles já tinham marcado. Não pode ser desfeita.
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-12 gap-2 border-accent/40 text-accent hover:bg-accent/10"
-                  onClick={handleAplicarAlunosAtivos}
-                  disabled={aplicando || metasAtuais.length === 0}
-                >
-                  <Users className="h-4 w-4" />
-                  {aplicando ? "Aplicando..." : "Aplicar aos Alunos Ativos desta Disciplina"}
-                </Button>
-              </div>
             </div>
           </>
         )}

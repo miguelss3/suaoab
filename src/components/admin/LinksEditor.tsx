@@ -1,12 +1,17 @@
 // src/components/admin/LinksEditor.tsx
-// Editor de múltiplos links para uma meta — cada link pode ser digitado à mão
-// ou escolhido a partir de material já publicado para a disciplina (acervo
-// teórico, laboratório de peças, publicados e videoaulas).
-import { Plus, Trash2 } from "lucide-react";
+// Editor de múltiplos links para uma meta — cada link pode ser digitado à mão,
+// escolhido a partir de material já publicado para a disciplina (acervo
+// teórico, laboratório de peças, publicados e videoaulas), ou enviado direto
+// do computador do admin.
+import { useState } from "react";
+import { Plus, Trash2, UploadCloud } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAcervoDisciplina, type OrigemAcervo } from "@/lib/acervoDisciplina";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { toast } from "sonner";
 
 export interface LinkMeta {
   titulo: string;
@@ -23,6 +28,7 @@ const ORDEM_ORIGENS: OrigemAcervo[] = ["Direito Material", "Direito Processual",
 
 export const LinksEditor = ({ materia, links, onChange }: Props) => {
   const acervo = useAcervoDisciplina(materia);
+  const [enviandoIdx, setEnviandoIdx] = useState<number | null>(null);
 
   const atualizarLink = (indice: number, campo: keyof LinkMeta, valor: string) => {
     onChange(links.map((link, i) => (i === indice ? { ...link, [campo]: valor } : link)));
@@ -33,6 +39,23 @@ export const LinksEditor = ({ materia, links, onChange }: Props) => {
     const item = acervo.find((a) => a.url === url);
     if (!item) return;
     onChange(links.map((link, i) => (i === indice ? { titulo: item.nome, url: item.url } : link)));
+  };
+
+  const enviarDoComputador = async (indice: number, arquivo: File | null) => {
+    if (!arquivo || !materia) return;
+    setEnviandoIdx(indice);
+    try {
+      const safeName = arquivo.name.replace(/[^a-zA-Z0-9.]/g, "_");
+      const fileRef = ref(storage, `materiais_alunos/${materia}/links_anexos/${Date.now()}_${safeName}`);
+      const snapshot = await uploadBytes(fileRef, arquivo);
+      const url = await getDownloadURL(snapshot.ref);
+      onChange(links.map((link, i) => (i === indice ? { titulo: link.titulo || arquivo.name, url } : link)));
+    } catch (error) {
+      console.error("Erro ao enviar arquivo do link:", error);
+      toast.error("Erro ao enviar o arquivo.");
+    } finally {
+      setEnviandoIdx(null);
+    }
   };
 
   const adicionarLink = () => {
@@ -47,7 +70,7 @@ export const LinksEditor = ({ materia, links, onChange }: Props) => {
     <div className="space-y-2">
       {links.map((link, indice) => (
         <div key={indice} className="p-3 rounded-lg border border-dashed border-border bg-muted/5 space-y-2">
-          <div className="grid md:grid-cols-[1fr_auto] gap-2 items-end">
+          <div className="grid md:grid-cols-[1fr_1fr_auto] gap-2 items-end">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-black text-muted-foreground">Escolher material já enviado (opcional)</Label>
               <select
@@ -69,6 +92,21 @@ export const LinksEditor = ({ materia, links, onChange }: Props) => {
                   );
                 })}
               </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-black text-muted-foreground">Ou enviar do computador</Label>
+              <div className="relative w-full">
+                <input
+                  type="file"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  disabled={!materia}
+                  onChange={(e) => enviarDoComputador(indice, e.target.files?.[0] || null)}
+                />
+                <div className="h-9 border rounded-md flex items-center px-2 text-sm bg-background text-muted-foreground">
+                  <UploadCloud className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">{enviandoIdx === indice ? "Enviando..." : "Escolher arquivo..."}</span>
+                </div>
+              </div>
             </div>
             <Button type="button" size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 h-9" onClick={() => removerLink(indice)}>
               <Trash2 className="h-4 w-4" />
