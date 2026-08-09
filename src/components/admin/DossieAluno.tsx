@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { LinksEditor, type LinkMeta } from "@/components/admin/LinksEditor";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
 import { toast } from "sonner";
 
@@ -21,6 +22,7 @@ interface Meta {
   atividade: string;
   orientacoes: string;
   link?: string;
+  links?: LinkMeta[];
   arquivo_url?: string;
   arquivo_nome?: string;
   status: MetaStatus;
@@ -58,6 +60,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   const [novaMetaTitulo, setNovaMetaTitulo] = useState("");
   const [novaMetaDescricao, setNovaMetaDescricao] = useState("");
   const [novaMetaLink, setNovaMetaLink] = useState("");
+  const [novaMetaLinks, setNovaMetaLinks] = useState<LinkMeta[]>([]);
   const [novaMetaArquivo, setNovaMetaArquivo] = useState<File | null>(null);
   const [novaMetaPrazo, setNovaMetaPrazo] = useState("");
   const [isUploadingMeta, setIsUploadingMeta] = useState(false);
@@ -67,6 +70,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   const [editMetaTitulo, setEditMetaTitulo] = useState("");
   const [editMetaDescricao, setEditMetaDescricao] = useState("");
   const [editMetaLink, setEditMetaLink] = useState("");
+  const [editMetaLinks, setEditMetaLinks] = useState<LinkMeta[]>([]);
   const [editMetaArquivo, setEditMetaArquivo] = useState<File | null>(null);
   const [editMetaPrazo, setEditMetaPrazo] = useState("");
   const [isEditingMeta, setIsEditingMeta] = useState(false);
@@ -184,11 +188,11 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
       }
       const prazoIso = novaMetaPrazo ? new Date(novaMetaPrazo + "T12:00:00").toISOString() : "";
       const novasMetas = [...(aluno.metas || []), {
-        atividade: novaMetaTitulo, orientacoes: novaMetaDescricao, link: novaMetaLink, 
+        atividade: novaMetaTitulo, orientacoes: novaMetaDescricao, link: novaMetaLink, links: novaMetaLinks,
         arquivo_url: arquivoUrl, arquivo_nome: arquivoNome, status: "bloqueada", concluida: false, data_sugerida: prazoIso
       }];
       await updateDoc(doc(db, "alunos", aluno.id), { metas: novasMetas });
-      setNovaMetaTitulo(""); setNovaMetaDescricao(""); setNovaMetaLink(""); setNovaMetaArquivo(null); setNovaMetaPrazo("");
+      setNovaMetaTitulo(""); setNovaMetaDescricao(""); setNovaMetaLink(""); setNovaMetaLinks([]); setNovaMetaArquivo(null); setNovaMetaPrazo("");
       toast.success("Meta adicionada com sucesso!");
     } catch (e) { toast.error("Erro ao salvar."); } finally { setIsUploadingMeta(false); }
   };
@@ -197,7 +201,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
     setMetaEditandoIdx(idx); 
     setEditMetaTitulo(meta.atividade || ""); 
     setEditMetaDescricao(meta.orientacoes || "");
-    setEditMetaLink(meta.link || ""); 
+    setEditMetaLink(meta.link || "");
+    setEditMetaLinks(meta.links || []);
     setEditMetaArquivo(null);
     setEditMetaPrazo(meta.data_sugerida ? String(meta.data_sugerida).split('T')[0] : "");
   };
@@ -218,7 +223,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
             }
             const novasMetas = [...(aluno.metas || [])];
             novasMetas[metaEditandoIdx] = {
-                ...novasMetas[metaEditandoIdx], atividade: editMetaTitulo, orientacoes: editMetaDescricao, link: editMetaLink,
+                ...novasMetas[metaEditandoIdx], atividade: editMetaTitulo, orientacoes: editMetaDescricao, link: editMetaLink, links: editMetaLinks,
                 arquivo_url: arquivoUrl, arquivo_nome: arquivoNome,
                 data_sugerida: editMetaPrazo ? new Date(editMetaPrazo + "T12:00:00").toISOString() : novasMetas[metaEditandoIdx].data_sugerida
             };
@@ -276,7 +281,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
     setShowRotaModal(false); setShowPreviewModal(true);
   };
 
-  const handleEditPreviewMeta = (index: number, campo: keyof Meta, valor: string | boolean | File | null) => {
+  const handleEditPreviewMeta = (index: number, campo: keyof Meta, valor: string | boolean | File | null | LinkMeta[]) => {
     const metasAtualizadas = [...previewMetas];
     metasAtualizadas[index] = { ...metasAtualizadas[index], [campo]: valor } as Meta;
     setPreviewMetas(metasAtualizadas);
@@ -374,25 +379,23 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
               <div className="lg:col-span-3 bg-muted/10 p-5 rounded-xl border border-border">
                 <Label className="font-bold flex items-center gap-2 mb-4"><Plus className="h-4 w-4 text-accent"/> Inserção Manual de Meta</Label>
                 <div className="space-y-4 mb-4">
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid md:grid-cols-[1fr_150px] gap-4">
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-muted-foreground">Título</Label>
                       <Input placeholder="Ex: Fazer Questões" value={novaMetaTitulo} onChange={e => setNovaMetaTitulo(e.target.value)} />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase font-black text-muted-foreground">URL (Opcional)</Label>
-                      <Input placeholder="Link de apoio" value={novaMetaLink} onChange={e => setNovaMetaLink(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-[1fr_150px] gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
-                      <RichTextEditor value={novaMetaDescricao} onChange={setNovaMetaDescricao} placeholder="Instruções para o aluno..." />
-                    </div>
-                    <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo Limite</Label>
                       <Input type="date" value={novaMetaPrazo} onChange={e => setNovaMetaPrazo(e.target.value)} />
                     </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
+                    <RichTextEditor value={novaMetaDescricao} onChange={setNovaMetaDescricao} placeholder="Instruções para o aluno..." />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-black text-muted-foreground">Links (Opcional)</Label>
+                    <LinksEditor materia={aluno.materia} links={novaMetaLinks} onChange={setNovaMetaLinks} />
                   </div>
                 </div>
                 <div className="flex gap-3 items-center">
@@ -431,10 +434,13 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                           {m.data_sugerida && <span className="ml-2 font-bold opacity-70 border-l pl-2 border-current"><Calendar className="h-3 w-3 inline mr-1 mb-0.5"/>{new Date(m.data_sugerida).toLocaleDateString('pt-BR')}</span>}
                         </span>
                         <h4 className={`font-bold mt-1 ${style.text}`}>{m.atividade}</h4>
-                        <div className="text-xs mt-1 opacity-70 prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4" dangerouslySetInnerHTML={{ __html: sanitizeRichText(m.orientacoes) }} />
-                        {(m.link || m.arquivo_url) && (
-                          <div className="flex gap-3 mt-3">
+                        <div className="text-xs mt-1 opacity-70 whitespace-pre-line prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4" dangerouslySetInnerHTML={{ __html: sanitizeRichText(m.orientacoes) }} />
+                        {(m.link || m.arquivo_url || (m.links && m.links.length > 0)) && (
+                          <div className="flex flex-wrap gap-3 mt-3">
                             {m.link && <a href={m.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 px-2 py-1 rounded"><LinkIcon className="h-3 w-3"/> Link</a>}
+                            {(m.links || []).map((link, li) => (
+                              <a key={li} href={link.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-accent bg-accent/10 px-2 py-1 rounded"><LinkIcon className="h-3 w-3"/> {link.titulo || "Link"}</a>
+                            ))}
                             {m.arquivo_url && <a href={m.arquivo_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-bold text-success bg-success/10 px-2 py-1 rounded"><FileText className="h-3 w-3"/> {m.arquivo_nome || "Anexo"}</a>}
                           </div>
                         )}
@@ -470,7 +476,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                   <div className="space-y-1"><Label className="text-xs">Prazo Limite</Label><Input type="date" value={editMetaPrazo} onChange={e => setEditMetaPrazo(e.target.value)} /></div>
                 </div>
                 <div className="space-y-1"><Label className="text-xs">Orientações</Label><RichTextEditor value={editMetaDescricao} onChange={setEditMetaDescricao} /></div>
-                <div className="space-y-1"><Label className="text-xs">Link (Opcional)</Label><Input value={editMetaLink} onChange={e => setEditMetaLink(e.target.value)} /></div>
+                <div className="space-y-1"><Label className="text-xs">Links (Opcional)</Label><LinksEditor materia={aluno.materia} links={editMetaLinks} onChange={setEditMetaLinks} /></div>
                 <div className="space-y-2 bg-muted/10 p-4 rounded-lg border border-border">
                   <Label className="block mb-2 text-xs">Anexo (Opcional)</Label>
                   <div className="relative w-full">
@@ -551,8 +557,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                                 </div>
                               </div>
                               <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label><RichTextEditor value={m.orientacoes} onChange={(html) => handleEditPreviewMeta(i, 'orientacoes', html)} /></div>
-                              <div className="grid md:grid-cols-2 gap-4 mt-2 p-3 bg-muted/10 rounded-lg border border-dashed border-border">
-                                <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Link</Label><Input value={m.link || ""} onChange={(e) => handleEditPreviewMeta(i, 'link', e.target.value)} className="h-9 text-xs" /></div>
+                              <div className="mt-2 p-3 bg-muted/10 rounded-lg border border-dashed border-border space-y-3">
+                                <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Links (Opcional)</Label><LinksEditor materia={aluno.materia} links={m.links || []} onChange={(links) => handleEditPreviewMeta(i, 'links', links)} /></div>
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo</Label>
                                   <div className="relative w-full">
                                     {/* Corrigido */}

@@ -106,17 +106,22 @@ export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno
                       Meta {currentMetaNum}: {m.atividade}
                     </h4>
                     <div
-                      className={`text-sm mt-1 leading-relaxed prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}
+                      className={`text-sm mt-1 leading-relaxed whitespace-pre-line prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}
                       dangerouslySetInnerHTML={{ __html: sanitizeRichText(m.orientacoes) }}
                     />
                     
-                    {(m.link || m.arquivo_url) && !isConcluida && (
+                    {(m.link || m.arquivo_url || (m.links && m.links.length > 0)) && !isConcluida && (
                       <div className="flex flex-wrap gap-3 mt-4">
                         {m.link && (
                           <Button variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
                             <a href={m.link} target="_blank" rel="noopener noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> Acessar Link</a>
                           </Button>
                         )}
+                        {(m.links || []).map((link, li) => (
+                          <Button key={li} variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
+                            <a href={link.url} target="_blank" rel="noopener noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> {link.titulo || "Acessar Link"}</a>
+                          </Button>
+                        ))}
                         {m.arquivo_url && (
                           <Button
                             variant="outline"

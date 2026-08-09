@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { LinksEditor } from "@/components/admin/LinksEditor";
 import { toast } from "sonner";
 import { CodigoDisciplinaSegundaFase, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 import { isAlunoSandbox } from "@/lib/ciclo";
-import { DOC_CRONOGRAMA_TEMPLATES, gerarMetasDoTemplate, MetaTemplateItem } from "@/lib/cronograma";
+import { DOC_CRONOGRAMA_TEMPLATES, gerarMetasDoTemplate, LinkMeta, MetaTemplateItem } from "@/lib/cronograma";
 
 type MetaTemplate = MetaTemplateItem;
 
@@ -102,6 +103,11 @@ const GestaoCronograma = () => {
 
   const removerMeta = (indice: number) => {
     atualizarMetas(metasAtuais.filter((_, i) => i !== indice));
+  };
+
+  const atualizarLinksMeta = (indice: number, links: LinkMeta[]) => {
+    const novasMetas = metasAtuais.map((meta, i) => (i === indice ? { ...meta, links } : meta));
+    atualizarMetas(novasMetas);
   };
 
   const handleAnexarArquivo = async (indice: number, arquivo: File | null) => {
@@ -275,29 +281,28 @@ const GestaoCronograma = () => {
                 />
               </div>
 
-              <div className="grid md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Link (Opcional)</Label>
-                  <Input
-                    value={meta.link || ""}
-                    onChange={(e) => editarMeta(indice, "link", e.target.value)}
-                    placeholder="Link de apoio"
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-black text-muted-foreground">Links (Opcional)</Label>
+                <LinksEditor
+                  materia={disciplinaSelecionada}
+                  links={meta.links || []}
+                  onChange={(links) => atualizarLinksMeta(indice, links)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo (Opcional)</Label>
+                <div className="relative w-full">
+                  <input
+                    type="file"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={(e) => handleAnexarArquivo(indice, e.target.files?.[0] || null)}
                   />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo (Opcional)</Label>
-                  <div className="relative w-full">
-                    <input
-                      type="file"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={(e) => handleAnexarArquivo(indice, e.target.files?.[0] || null)}
-                    />
-                    <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${meta.arquivo_url ? "bg-success/10 border-success/30 text-success font-bold" : "bg-background text-muted-foreground"}`}>
-                      <UploadCloud className="h-4 w-4 mr-2" />
-                      <span className="truncate">
-                        {anexandoIdx === indice ? "Enviando..." : meta.arquivo_nome || meta.arquivo_url ? meta.arquivo_nome || "Anexo salvo" : "Anexar arquivo"}
-                      </span>
-                    </div>
+                  <div className={`h-10 border rounded-md flex items-center px-3 text-sm ${meta.arquivo_url ? "bg-success/10 border-success/30 text-success font-bold" : "bg-background text-muted-foreground"}`}>
+                    <UploadCloud className="h-4 w-4 mr-2" />
+                    <span className="truncate">
+                      {anexandoIdx === indice ? "Enviando..." : meta.arquivo_nome || meta.arquivo_url ? meta.arquivo_nome || "Anexo salvo" : "Anexar arquivo"}
+                    </span>
                   </div>
                 </div>
               </div>

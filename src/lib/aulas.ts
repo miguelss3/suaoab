@@ -40,10 +40,16 @@ export interface HistoricoPeca {
   observacao_professor?: string;
 }
 
+export interface LinkMeta {
+  titulo: string;
+  url: string;
+}
+
 export interface MetaAluno {
   atividade?: string;
   orientacoes?: string;
   link?: string;
+  links?: LinkMeta[];
   arquivo_url?: string;
   arquivo_nome?: string;
   status?: string;

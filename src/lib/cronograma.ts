@@ -6,11 +6,17 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { CodigoDisciplinaSegundaFase } from "@/lib/disciplinasSegundaFase";
 
+export interface LinkMeta {
+  titulo: string;
+  url: string;
+}
+
 export interface MetaTemplateItem {
   atividade: string;
   orientacoes: string;
   diaRelativo: number;
   link?: string;
+  links?: LinkMeta[];
   arquivo_url?: string;
   arquivo_nome?: string;
 }
@@ -19,6 +25,7 @@ export interface MetaGerada {
   atividade: string;
   orientacoes: string;
   link: string;
+  links?: LinkMeta[];
   arquivo_url?: string;
   arquivo_nome?: string;
   status: "liberada" | "bloqueada";
@@ -51,6 +58,7 @@ export const gerarMetasDoTemplate = (template: MetaTemplateItem[], dataBase: Dat
       atividade: item.atividade,
       orientacoes: item.orientacoes,
       link: item.link || "",
+      links: item.links || [],
       arquivo_url: item.arquivo_url || "",
       arquivo_nome: item.arquivo_nome || "",
       status: indice === 0 ? "liberada" : "bloqueada",
