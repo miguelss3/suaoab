@@ -16,7 +16,7 @@ import { LinksEditor } from "@/components/admin/LinksEditor";
 import { toast } from "sonner";
 import { CodigoDisciplinaSegundaFase, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 import { isAlunoSandbox } from "@/lib/ciclo";
-import { DOC_CRONOGRAMA_TEMPLATES, gerarMetasDoTemplate, LinkMeta, MetaTemplateItem } from "@/lib/cronograma";
+import { DOC_CRONOGRAMA_TEMPLATES, LinkMeta, mesclarMetasComTemplate, MetaTemplateItem } from "@/lib/cronograma";
 
 type MetaTemplate = MetaTemplateItem;
 
@@ -187,19 +187,20 @@ const GestaoCronograma = () => {
 
       const nomeDisciplina = disciplinasDisponiveis.find((d) => d.codigo === disciplinaSelecionada)?.nome ?? disciplinaSelecionada;
       const confirmou = window.confirm(
-        `Isso vai SUBSTITUIR o cronograma atual de ${alunosAlvo.length} aluno(s) de ${nomeDisciplina} pelo cronograma-modelo, ` +
-        `apagando o progresso de metas que eles já tinham marcado. Essa ação não pode ser desfeita. Confirmar?`
+        `Isso vai atualizar o cronograma de ${alunosAlvo.length} aluno(s) de ${nomeDisciplina} com o conteúdo mais recente do cronograma-modelo ` +
+        `(texto, links e anexos). O progresso que cada aluno já tem — metas concluídas ou puladas — é preservado. Confirmar?`
       );
       if (!confirmou) return;
 
       const hoje = new Date();
-      const metasGeradas = gerarMetasDoTemplate(metasAtuais, hoje);
 
       for (let i = 0; i < alunosAlvo.length; i += TAMANHO_LOTE) {
         const lote = alunosAlvo.slice(i, i + TAMANHO_LOTE);
         const batch = writeBatch(db);
         lote.forEach((alunoDoc) => {
-          batch.update(doc(db, "alunos", alunoDoc.id), { metas: metasGeradas });
+          const metasExistentes = Array.isArray(alunoDoc.data().metas) ? alunoDoc.data().metas : [];
+          const metasMescladas = mesclarMetasComTemplate(metasExistentes, metasAtuais, hoje);
+          batch.update(doc(db, "alunos", alunoDoc.id), { metas: metasMescladas });
         });
         await batch.commit();
       }
@@ -255,11 +256,20 @@ const GestaoCronograma = () => {
             </div>
 
             <div className="pb-6 mb-6 border-b border-border space-y-3">
-              <div className="flex items-start gap-2 text-xs text-accent">
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={adicionarMeta}>
+                <Plus className="h-4 w-4" /> Adicionar Meta ao Cronograma-Modelo
+              </Button>
+
+              <Button variant="hero" size="lg" className="w-full h-12" onClick={handleSalvar} disabled={salvando}>
+                <Save className="h-5 w-5 mr-2" />
+                {salvando ? "Salvando..." : "Salvar Cronograma-Modelo"}
+              </Button>
+
+              <div className="flex items-start gap-2 text-xs text-accent pt-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
-                  A ação abaixo substitui o cronograma de alunos que já estão estudando esta disciplina — apaga o
-                  progresso de metas que eles já tinham marcado. Não pode ser desfeita.
+                  A ação abaixo atualiza o conteúdo do cronograma (texto, links e anexos) dos alunos que já estão
+                  estudando esta disciplina — o progresso que cada um já tem (metas concluídas ou puladas) é preservado.
                 </span>
               </div>
               <Button
@@ -380,15 +390,6 @@ const GestaoCronograma = () => {
                   </div>
                 );
               })}
-
-              <Button type="button" variant="outline" className="w-full gap-2" onClick={adicionarMeta}>
-                <Plus className="h-4 w-4" /> Adicionar Meta ao Cronograma-Modelo
-              </Button>
-
-              <Button variant="hero" size="lg" className="w-full h-12" onClick={handleSalvar} disabled={salvando}>
-                <Save className="h-5 w-5 mr-2" />
-                {salvando ? "Salvando..." : "Salvar Cronograma-Modelo"}
-              </Button>
             </div>
           </>
         )}

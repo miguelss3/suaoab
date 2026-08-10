@@ -28,9 +28,15 @@ export interface MetaGerada {
   links?: LinkMeta[];
   arquivo_url?: string;
   arquivo_nome?: string;
-  status: "liberada" | "bloqueada";
+  status: "liberada" | "bloqueada" | "concluida" | "pulada";
   concluida: boolean;
   data_sugerida: string;
+}
+
+export interface MetaExistente {
+  status?: string;
+  concluida?: boolean;
+  [key: string]: unknown;
 }
 
 export const DOC_CRONOGRAMA_TEMPLATES = doc(db, "configuracoes", "cronograma_templates");
@@ -66,4 +72,32 @@ export const gerarMetasDoTemplate = (template: MetaTemplateItem[], dataBase: Dat
       data_sugerida: data.toISOString(),
     };
   });
+};
+
+// Reaplica o cronograma-modelo a um aluno que já está estudando, sem apagar o
+// progresso que ele já tinha: para cada meta que o aluno já possuía naquela
+// posição, mantém `status`/`concluida` (liberada, bloqueada, concluída ou
+// pulada) e só atualiza o conteúdo (texto, links, anexo, data sugerida) com a
+// versão mais recente do template. Metas novas (além do que o aluno já tinha)
+// nascem como o template manda; metas extras que o aluno tinha além do
+// template (inseridas manualmente no Dossiê) são preservadas no final, intactas.
+export const mesclarMetasComTemplate = (
+  metasExistentes: MetaExistente[],
+  template: MetaTemplateItem[],
+  dataBase: Date
+): MetaGerada[] => {
+  const metasGeradas = gerarMetasDoTemplate(template, dataBase);
+
+  const mescladas = metasGeradas.map((gerada, indice) => {
+    const existente = metasExistentes[indice];
+    if (!existente) return gerada;
+    return {
+      ...gerada,
+      status: (existente.status as MetaGerada["status"]) || gerada.status,
+      concluida: existente.concluida ?? gerada.concluida,
+    };
+  });
+
+  const extras = metasExistentes.slice(metasGeradas.length) as unknown as MetaGerada[];
+  return [...mescladas, ...extras];
 };

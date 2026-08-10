@@ -3,8 +3,8 @@
 // escolhido a partir de material já publicado para a disciplina (acervo
 // teórico, laboratório de peças, publicados e videoaulas), ou enviado direto
 // do computador do admin.
-import { useState } from "react";
-import { Plus, Trash2, UploadCloud } from "lucide-react";
+import { useRef, useState } from "react";
+import { GripVertical, Plus, Trash2, UploadCloud } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ const ORDEM_ORIGENS: OrigemAcervo[] = ["Direito Material", "Direito Processual",
 export const LinksEditor = ({ materia, links, onChange }: Props) => {
   const acervo = useAcervoDisciplina(materia);
   const [enviandoIdx, setEnviandoIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const draggedIdxRef = useRef<number | null>(null);
 
   const atualizarLink = (indice: number, campo: keyof LinkMeta, valor: string) => {
     onChange(links.map((link, i) => (i === indice ? { ...link, [campo]: valor } : link)));
@@ -66,11 +68,50 @@ export const LinksEditor = ({ materia, links, onChange }: Props) => {
     onChange(links.filter((_, i) => i !== indice));
   };
 
+  // --- DRAG AND DROP (HTML5) ---
+  const handleDragStart = (indice: number) => {
+    draggedIdxRef.current = indice;
+  };
+
+  const handleDragOver = (e: React.DragEvent, indice: number) => {
+    e.preventDefault();
+    setDragOverIdx(indice);
+  };
+
+  const handleDragLeave = () => setDragOverIdx(null);
+
+  const handleDrop = (e: React.DragEvent, alvoIdx: number) => {
+    e.preventDefault();
+    setDragOverIdx(null);
+
+    const fromIdx = draggedIdxRef.current;
+    draggedIdxRef.current = null;
+    if (fromIdx === null || fromIdx === alvoIdx) return;
+
+    const novaLista = [...links];
+    const [movido] = novaLista.splice(fromIdx, 1);
+    novaLista.splice(alvoIdx, 0, movido);
+    onChange(novaLista);
+  };
+
   return (
     <div className="space-y-2">
       {links.map((link, indice) => (
-        <div key={indice} className="p-3 rounded-lg border border-dashed border-border bg-muted/5 space-y-2">
-          <div className="grid md:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+        <div
+          key={indice}
+          draggable
+          onDragStart={() => handleDragStart(indice)}
+          onDragOver={(e) => handleDragOver(e, indice)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, indice)}
+          className={`p-3 rounded-lg border border-dashed bg-muted/5 space-y-2 transition-colors ${
+            dragOverIdx === indice ? "border-accent ring-2 ring-accent/40" : "border-border"
+          }`}
+        >
+          <div className="grid md:grid-cols-[auto_1fr_1fr_auto] gap-2 items-end">
+            <div className="hidden md:flex items-center justify-center h-9 cursor-move text-muted-foreground">
+              <GripVertical className="h-4 w-4" />
+            </div>
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-black text-muted-foreground">Escolher material já enviado (opcional)</Label>
               <select
