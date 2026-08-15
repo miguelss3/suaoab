@@ -1,9 +1,9 @@
 // src/components/admin/GestaoPecas.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db, storage } from "@/lib/firebase";
 import { doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { Scale, Plus, Trash2, FileText, UploadCloud, FileSignature, Pencil, X, CheckCircle2 } from "lucide-react";
+import { Scale, Plus, Trash2, FileText, UploadCloud, FileSignature, Pencil, X, CheckCircle2, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,10 @@ const GestaoPecas = () => {
   const [editPecaNome, setEditPecaNome] = useState("");
   const [editPecaArquivo, setEditPecaArquivo] = useState<File | null>(null);
   const [isEditingPeca, setIsEditingPeca] = useState(false);
+
+  // Estados para drag-and-drop (reordenar o acervo)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const draggedIdxRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!materia) {
@@ -129,6 +133,38 @@ const GestaoPecas = () => {
     } catch (e) { toast.error("Erro ao remover peça."); }
   };
 
+  // --- DRAG AND DROP (HTML5) ---
+  const handleDragStart = (idx: number) => {
+    draggedIdxRef.current = idx;
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  };
+
+  const handleDragLeave = () => setDragOverIdx(null);
+
+  const handleDrop = async (e: React.DragEvent, alvoIdx: number) => {
+    e.preventDefault();
+    setDragOverIdx(null);
+
+    const fromIdx = draggedIdxRef.current;
+    draggedIdxRef.current = null;
+    if (fromIdx === null || fromIdx === alvoIdx) return;
+
+    const novaLista = [...pecas];
+    const [movida] = novaLista.splice(fromIdx, 1);
+    novaLista.splice(alvoIdx, 0, movida);
+
+    setPecas(novaLista);
+    try {
+      await updateDoc(doc(db, "disciplinas", materia), { pecas: novaLista });
+    } catch (e) {
+      toast.error("Erro ao salvar a nova ordem.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-card p-6 rounded-xl border border-border shadow-sm">
@@ -174,8 +210,19 @@ const GestaoPecas = () => {
                   </div>
                 ) : (
                   pecas.map((peca, idx) => (
-                    <div key={idx} className="p-3 border rounded-lg flex justify-between items-center bg-background hover:border-accent transition-colors">
+                    <div
+                      key={idx}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      className={`p-3 border rounded-lg flex justify-between items-center bg-background hover:border-accent transition-colors cursor-move ${
+                        dragOverIdx === idx ? "border-accent ring-2 ring-accent/40" : ""
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
+                        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
                         <div className="bg-muted p-2 rounded-lg">
                           <FileText className={`h-5 w-5 ${peca.url_pdf ? 'text-success' : 'text-muted-foreground'}`} />
                         </div>

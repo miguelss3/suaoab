@@ -1,10 +1,10 @@
 // src/components/aluno/GestorMetas.tsx
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Lock, Link as LinkIcon, FileText, FastForward } from "lucide-react";
+import { ChevronDown, ChevronRight, Lock, Link as LinkIcon, FileText, FastForward } from "lucide-react";
 import { toast } from "sonner";
 import { MetaAluno, PerfilAlunoPortalBase } from "@/lib/aulas";
 import { downloadProtectedPDF } from "@/lib/pdfService";
@@ -18,6 +18,11 @@ type GestorMetasProps<TPerfil extends PerfilAlunoPortalBase> = {
 };
 
 export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno, setPerfilAluno, metas, setMetas }: GestorMetasProps<TPerfil>) => {
+  const [metasAbertas, setMetasAbertas] = useState<Record<number, boolean>>({});
+  const toggleMetaAberta = (indice: number) => {
+    setMetasAbertas((prev) => ({ ...prev, [indice]: !prev[indice] }));
+  };
+
   const handleProtectedAttachmentDownload = async (arquivoUrl?: string, arquivoNome?: string) => {
     if (!arquivoUrl) return toast.error("Arquivo indisponivel para download.");
 
@@ -97,42 +102,58 @@ export const GestorMetas = <TPerfil extends PerfilAlunoPortalBase>({ perfilAluno
               )
             }
 
+            const aberta = !!metasAbertas[i];
+
             return (
               <div key={i} className={`flex flex-col sm:flex-row justify-between gap-4 p-5 rounded-xl border-2 transition-all ${isPulada ? "border-yellow-500/40 bg-yellow-500/5" : "border-border bg-background shadow-sm"}`}>
                 <div className="flex gap-4 items-start flex-1">
                   <input type="checkbox" className="h-5 w-5 accent-success mt-1 shrink-0 cursor-pointer" checked={isConcluida} onChange={(e) => handleStatusMeta(i, e.target.checked ? "concluida" : "liberada")} />
-                  <div className="flex-1">
-                    <h4 className={`font-bold text-lg flex items-center gap-2 ${isConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"} ${isPulada ? "text-yellow-600" : ""}`}>
-                      Meta {currentMetaNum}: {m.atividade}
-                    </h4>
+                  <div className="flex-1 min-w-0">
                     <div
-                      className={`text-sm mt-1 leading-relaxed whitespace-pre-line prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}
-                      dangerouslySetInnerHTML={{ __html: sanitizeRichText(m.orientacoes) }}
-                    />
-                    
-                    {(m.link || m.arquivo_url || (m.links && m.links.length > 0)) && !isConcluida && (
-                      <div className="flex flex-wrap gap-3 mt-4">
-                        {m.link && (
-                          <Button variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
-                            <a href={m.link} target="_blank" rel="noopener noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> Acessar Link</a>
-                          </Button>
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleMetaAberta(i)}
+                      onKeyDown={(e) => { if (e.key === "Enter") toggleMetaAberta(i); }}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      {aberta ? <ChevronDown className="h-4 w-4 text-primary shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                      <h4 className={`font-bold text-lg flex items-center gap-2 ${isConcluida ? "line-through opacity-50 text-muted-foreground" : "text-primary"} ${isPulada ? "text-yellow-600" : ""}`}>
+                        Meta {currentMetaNum}: {m.atividade}
+                      </h4>
+                    </div>
+
+                    {aberta && (
+                      <>
+                        <div
+                          className={`text-sm mt-1 leading-relaxed whitespace-pre-line prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 ${isConcluida ? "opacity-50" : "text-muted-foreground"}`}
+                          dangerouslySetInnerHTML={{ __html: sanitizeRichText(m.orientacoes) }}
+                        />
+
+                        {(m.link || m.arquivo_url || (m.links && m.links.length > 0)) && (
+                          <div className="flex flex-wrap gap-3 mt-4">
+                            {m.link && (
+                              <Button variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
+                                <a href={m.link} target="_blank" rel="noopener noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> Acessar Link</a>
+                              </Button>
+                            )}
+                            {(m.links || []).map((link, li) => (
+                              <Button key={li} variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
+                                <a href={link.url} target="_blank" rel="noopener noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> {link.titulo || "Acessar Link"}</a>
+                              </Button>
+                            ))}
+                            {m.arquivo_url && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="font-bold text-success border-success/30 hover:bg-success/10"
+                                onClick={() => void handleProtectedAttachmentDownload(m.arquivo_url, m.arquivo_nome)}
+                              >
+                                <FileText className="h-4 w-4 mr-2" /> {m.arquivo_nome || "Baixar Anexo"}
+                              </Button>
+                            )}
+                          </div>
                         )}
-                        {(m.links || []).map((link, li) => (
-                          <Button key={li} variant="outline" size="sm" className="font-bold text-accent border-accent/30 hover:bg-accent/10" asChild>
-                            <a href={link.url} target="_blank" rel="noopener noreferrer"><LinkIcon className="h-4 w-4 mr-2" /> {link.titulo || "Acessar Link"}</a>
-                          </Button>
-                        ))}
-                        {m.arquivo_url && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="font-bold text-success border-success/30 hover:bg-success/10"
-                            onClick={() => void handleProtectedAttachmentDownload(m.arquivo_url, m.arquivo_nome)}
-                          >
-                            <FileText className="h-4 w-4 mr-2" /> {m.arquivo_nome || "Baixar Anexo"}
-                          </Button>
-                        )}
-                      </div>
+                      </>
                     )}
                   </div>
                 </div>
