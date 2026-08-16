@@ -32,6 +32,7 @@ interface Meta {
   concluida: boolean;
   data_sugerida?: string;
   arquivo_file?: File | null;
+  origem?: "template" | "manual";
 }
 
 interface Aluno {
@@ -195,7 +196,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
       const prazoIso = novaMetaPrazo ? new Date(novaMetaPrazo + "T12:00:00").toISOString() : "";
       const novasMetas = [...(aluno.metas || []), {
         atividade: novaMetaTitulo, orientacoes: novaMetaDescricao, link: novaMetaLink, links: novaMetaLinks,
-        arquivo_url: arquivoUrl, arquivo_nome: arquivoNome, status: "bloqueada", concluida: false, data_sugerida: prazoIso
+        arquivo_url: arquivoUrl, arquivo_nome: arquivoNome, status: "bloqueada", concluida: false, data_sugerida: prazoIso,
+        origem: "manual" as const,
       }];
       await updateDoc(doc(db, "alunos", aluno.id), { metas: novasMetas });
       setNovaMetaTitulo(""); setNovaMetaDescricao(""); setNovaMetaLink(""); setNovaMetaLinks([]); setNovaMetaArquivo(null); setNovaMetaPrazo("");

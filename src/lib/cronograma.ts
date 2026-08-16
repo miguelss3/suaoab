@@ -31,11 +31,16 @@ export interface MetaGerada {
   status: "liberada" | "bloqueada" | "concluida" | "pulada";
   concluida: boolean;
   data_sugerida: string;
+  // Distingue meta gerada do cronograma-modelo de meta inserida à mão pelo
+  // Dossiê — usado por `mesclarMetasComTemplate` pra saber o que descartar
+  // quando o template encolhe.
+  origem: "template" | "manual";
 }
 
 export interface MetaExistente {
   status?: string;
   concluida?: boolean;
+  origem?: string;
 }
 
 // Formato salvo em configuracoes/cronograma_templates, um por disciplina.
@@ -88,6 +93,7 @@ export const gerarMetasDoTemplate = (template: MetaTemplateItem[], dataBase: Dat
       status: indice === 0 ? "liberada" : "bloqueada",
       concluida: false,
       data_sugerida: data.toISOString(),
+      origem: "template",
     };
   });
 };
@@ -97,8 +103,10 @@ export const gerarMetasDoTemplate = (template: MetaTemplateItem[], dataBase: Dat
 // posição, mantém `status`/`concluida` (liberada, bloqueada, concluída ou
 // pulada) e só atualiza o conteúdo (texto, links, anexo, data sugerida) com a
 // versão mais recente do template. Metas novas (além do que o aluno já tinha)
-// nascem como o template manda; metas extras que o aluno tinha além do
-// template (inseridas manualmente no Dossiê) são preservadas no final, intactas.
+// nascem como o template manda. Metas "extras" (índice além do template atual)
+// só são preservadas se tiverem `origem: "manual"` (inseridas à mão pelo
+// Dossiê) — qualquer outra (inclusive metas antigas do template que já foram
+// apagadas de lá) é descartada, pra não sobrar meta "fantasma" pro aluno.
 export const mesclarMetasComTemplate = (
   metasExistentes: MetaExistente[],
   template: MetaTemplateItem[],
@@ -116,6 +124,8 @@ export const mesclarMetasComTemplate = (
     };
   });
 
-  const extras = metasExistentes.slice(metasGeradas.length) as unknown as MetaGerada[];
+  const extras = metasExistentes
+    .slice(metasGeradas.length)
+    .filter((meta) => meta.origem === "manual") as unknown as MetaGerada[];
   return [...mescladas, ...extras];
 };
