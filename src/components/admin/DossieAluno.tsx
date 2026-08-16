@@ -3,9 +3,9 @@ import { useState, useEffect, ReactNode } from "react";
 import { db, storage } from "@/lib/firebase";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { 
-  ChevronLeft, Plus, Trash2, Unlock, Lock, 
-  Link as LinkIcon, FileText, UploadCloud, Wand2, Calendar, Pencil, X, AlertCircle, CalendarClock, Save
+import {
+  ChevronLeft, Plus, Trash2, Unlock, Lock,
+  Link as LinkIcon, FileText, UploadCloud, Wand2, Calendar, Pencil, X, AlertCircle, CalendarClock, Save, RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,10 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { LinksEditor, type LinkMeta } from "@/components/admin/LinksEditor";
+import { DatePicker } from "@/components/admin/DatePicker";
 import { sanitizeRichText } from "@/lib/sanitizeHtml";
+import { buscarCronogramaTemplate, mesclarMetasComTemplate } from "@/lib/cronograma";
+import { CodigoDisciplinaSegundaFase } from "@/lib/disciplinasSegundaFase";
 import { toast } from "sonner";
 
 type MetaStatus = "bloqueada" | "liberada" | "concluida" | "pulada";
@@ -89,6 +92,9 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   // Estados - Controle de Data de Corte (Degustação Customizada)
   const [editDataExpiracao, setEditDataExpiracao] = useState(false);
   const [novaDataExpiracao, setNovaDataExpiracao] = useState("");
+
+  // Estado - Atualizar com Cronograma-Modelo (só este aluno)
+  const [isAtualizandoTemplate, setIsAtualizandoTemplate] = useState(false);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -308,6 +314,30 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
     } catch (e) { toast.error("Erro ao aplicar rota."); } finally { setIsApplyingRota(false); }
   };
 
+  const handleAtualizarComTemplate = async () => {
+    if (!window.confirm(
+      `Isso vai atualizar o cronograma de ${aluno.nome} com o conteúdo mais recente do cronograma-modelo de ${aluno.materia} ` +
+      `(texto, links e anexos). O progresso que ele já tem — metas concluídas ou puladas — é preservado. Confirmar?`
+    )) return;
+
+    setIsAtualizandoTemplate(true);
+    try {
+      const template = await buscarCronogramaTemplate(aluno.materia as CodigoDisciplinaSegundaFase);
+      if (template.length === 0) {
+        toast.error("Não há cronograma-modelo montado para esta disciplina ainda.");
+        return;
+      }
+      const metasMescladas = mesclarMetasComTemplate(aluno.metas || [], template, new Date());
+      await updateDoc(doc(db, "alunos", aluno.id), { metas: metasMescladas });
+      toast.success("Cronograma atualizado com o modelo mais recente.");
+    } catch (error) {
+      console.error("Erro ao atualizar aluno com o cronograma-modelo:", error);
+      toast.error("Erro ao atualizar o cronograma deste aluno.");
+    } finally {
+      setIsAtualizandoTemplate(false);
+    }
+  };
+
   const handleToggleLiberarMeta = async (index: number, statusAtual: string) => {
     const novasMetas = [...(aluno.metas || [])];
     novasMetas[index].status = statusAtual === "bloqueada" ? "liberada" : "bloqueada";
@@ -343,7 +373,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                   <CalendarClock className="h-4 w-4 text-accent" />
                   {editDataExpiracao ? (
                     <div className="flex items-center gap-1">
-                      <Input type="date" className="h-7 text-xs px-2 py-0 w-[130px]" value={novaDataExpiracao} onChange={e => setNovaDataExpiracao(e.target.value)} />
+                      <DatePicker className="h-7 text-xs px-2 py-0 w-[160px]" value={novaDataExpiracao} onChange={setNovaDataExpiracao} />
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-success hover:bg-success/10 hover:text-success" onClick={handleSalvarDataExpiracao}><Save className="h-4 w-4"/></Button>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setEditDataExpiracao(false)}><X className="h-4 w-4"/></Button>
                     </div>
@@ -361,6 +391,9 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
             </div>
             
             <div className="flex gap-2 w-full md:w-auto">
+              <Button onClick={handleAtualizarComTemplate} variant="outline" disabled={isAtualizandoTemplate} className="flex-1 md:flex-none font-bold border-accent/40 text-accent hover:bg-accent/10" title="Atualiza o conteúdo com o cronograma-modelo mais recente, preservando o progresso já marcado">
+                <RefreshCw className={`h-4 w-4 mr-2 ${isAtualizandoTemplate ? "animate-spin" : ""}`} /> {isAtualizandoTemplate ? "Atualizando..." : "Atualizar com Cronograma-Modelo"}
+              </Button>
               <Button onClick={() => setShowRotaModal(true)} variant="hero" className="flex-1 md:flex-none font-bold shadow-md shadow-accent/20"><Wand2 className="h-4 w-4 mr-2" /> Gerar Rota</Button>
               <Button onClick={onClose} variant="outline" className="flex-1 md:flex-none"><ChevronLeft className="h-4 w-4 mr-2" /> FECHAR</Button>
             </div>
@@ -386,7 +419,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo Limite</Label>
-                      <Input type="date" value={novaMetaPrazo} onChange={e => setNovaMetaPrazo(e.target.value)} />
+                      <DatePicker value={novaMetaPrazo} onChange={setNovaMetaPrazo} />
                     </div>
                   </div>
                   <div className="space-y-1">
@@ -473,7 +506,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
               <div className="space-y-4">
                 <div className="grid grid-cols-[1fr_150px] gap-4">
                   <div className="space-y-1"><Label className="text-xs">Título</Label><Input value={editMetaTitulo} onChange={e => setEditMetaTitulo(e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-xs">Prazo Limite</Label><Input type="date" value={editMetaPrazo} onChange={e => setEditMetaPrazo(e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-xs">Prazo Limite</Label><DatePicker value={editMetaPrazo} onChange={setEditMetaPrazo} /></div>
                 </div>
                 <div className="space-y-1"><Label className="text-xs">Orientações</Label><RichTextEditor value={editMetaDescricao} onChange={setEditMetaDescricao} /></div>
                 <div className="space-y-1"><Label className="text-xs">Links (Opcional)</Label><LinksEditor materia={aluno.materia} links={editMetaLinks} onChange={setEditMetaLinks} /></div>
@@ -513,7 +546,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                   <input type="radio" checked={tipoDataRota === "personalizada"} onChange={() => {}} className="mt-1 accent-accent" />
                   <div className="w-full">
                     <h4 className="font-bold text-sm text-primary mb-2">Data Personalizada</h4>
-                    {tipoDataRota === "personalizada" && <Input type="date" className="mt-2" value={dataProva} onChange={e => setDataProva(e.target.value)} />}
+                    {tipoDataRota === "personalizada" && <DatePicker className="mt-2" value={dataProva} onChange={setDataProva} />}
                   </div>
                 </div>
               </div>
@@ -553,7 +586,10 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Título</Label><Input value={m.atividade} onChange={(e) => handleEditPreviewMeta(i, 'atividade', e.target.value)} className="font-bold text-primary" /></div>
                                 <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo</Label>
                                   {/* Corrigido */}
-                                  <Input type="date" value={m.data_sugerida ? String(m.data_sugerida).split('T')[0] : ''} onChange={(e) => { const val = e.target.value ? new Date(e.target.value + "T12:00:00").toISOString() : ""; handleEditPreviewMeta(i, 'data_sugerida', val); }} />
+                                  <DatePicker
+                                    value={m.data_sugerida ? String(m.data_sugerida).split('T')[0] : ''}
+                                    onChange={(novaData) => handleEditPreviewMeta(i, 'data_sugerida', new Date(`${novaData}T12:00:00`).toISOString())}
+                                  />
                                 </div>
                               </div>
                               <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label><RichTextEditor value={m.orientacoes} onChange={(html) => handleEditPreviewMeta(i, 'orientacoes', html)} /></div>

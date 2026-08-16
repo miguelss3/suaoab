@@ -36,8 +36,26 @@ export interface MetaGerada {
 export interface MetaExistente {
   status?: string;
   concluida?: boolean;
-  [key: string]: unknown;
 }
+
+// Formato salvo em configuracoes/cronograma_templates, um por disciplina.
+// `dataReferencia` (yyyy-mm-dd) é persistida em vez de recalculada a cada
+// sessão — sem isso, reabrir a tela em outro dia deslocava a exibição de
+// todas as metas, dando a impressão de que o sistema mudava as datas sozinho.
+export interface CronogramaTemplateDisciplina {
+  metas: MetaTemplateItem[];
+  dataReferencia?: string;
+}
+
+// Documentos salvos antes dessa mudança guardam o array direto, sem o
+// envelope { metas, dataReferencia } — aceito nos dois formatos.
+type CronogramaTemplateSalvo = MetaTemplateItem[] | CronogramaTemplateDisciplina;
+
+const extrairMetas = (valor: CronogramaTemplateSalvo | undefined): MetaTemplateItem[] => {
+  if (!valor) return [];
+  if (Array.isArray(valor)) return valor;
+  return Array.isArray(valor.metas) ? valor.metas : [];
+};
 
 export const DOC_CRONOGRAMA_TEMPLATES = doc(db, "configuracoes", "cronograma_templates");
 
@@ -45,8 +63,8 @@ export const buscarCronogramaTemplate = async (disciplina: CodigoDisciplinaSegun
   try {
     const snap = await getDoc(DOC_CRONOGRAMA_TEMPLATES);
     if (!snap.exists()) return [];
-    const data = snap.data() as Record<string, MetaTemplateItem[]>;
-    return Array.isArray(data[disciplina]) ? data[disciplina] : [];
+    const data = snap.data() as Record<string, CronogramaTemplateSalvo>;
+    return extrairMetas(data[disciplina]);
   } catch (error) {
     console.error("Erro ao buscar cronograma-modelo:", error);
     return [];

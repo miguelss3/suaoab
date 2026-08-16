@@ -13,10 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { LinksEditor } from "@/components/admin/LinksEditor";
+import { DatePicker } from "@/components/admin/DatePicker";
 import { toast } from "sonner";
 import { CodigoDisciplinaSegundaFase, disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
 import { isAlunoSandbox } from "@/lib/ciclo";
-import { DOC_CRONOGRAMA_TEMPLATES, LinkMeta, mesclarMetasComTemplate, MetaTemplateItem } from "@/lib/cronograma";
+import { CronogramaTemplateDisciplina, DOC_CRONOGRAMA_TEMPLATES, LinkMeta, mesclarMetasComTemplate, MetaTemplateItem } from "@/lib/cronograma";
 
 type MetaTemplate = MetaTemplateItem;
 
@@ -30,31 +31,35 @@ const GestaoCronograma = () => {
   const disciplinasDisponiveis = disciplinasSegundaFaseDisponiveis(disciplinasAtivas);
 
   const [disciplinaSelecionada, setDisciplinaSelecionada] = useState<CodigoDisciplinaSegundaFase | "">("");
-  const [templates, setTemplates] = useState<Record<string, MetaTemplate[]>>({});
+  const [templates, setTemplates] = useState<Record<string, CronogramaTemplateDisciplina>>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [anexandoIdx, setAnexandoIdx] = useState<number | null>(null);
   const [metasAbertas, setMetasAbertas] = useState<Record<number, boolean>>({});
 
-  // Data de referência só para exibir/editar o "dia relativo" num minicalendário
-  // (fixada ao abrir a tela): as datas mostradas equivalem a "se o aluno
-  // começasse hoje". O que é salvo continua sendo o dia relativo, não a data.
-  const [dataReferencia] = useState(() => {
+  const hojeString = () => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
-    return d;
-  });
+    return d.toISOString().split("T")[0];
+  };
+
+  // Data de início do cronograma-modelo desta disciplina — persistida (não
+  // recalculada a cada sessão): sem isso, reabrir a tela em outro dia deslocava
+  // a exibição de todas as metas, dando a impressão de que o sistema mudava as
+  // datas sozinho. Só muda quando o professor edita esse campo de propósito.
+  const dataReferencia = templates[disciplinaSelecionada]?.dataReferencia ?? hojeString();
 
   const diaParaData = (dia: number) => {
-    const d = new Date(dataReferencia);
+    const d = new Date(`${dataReferencia}T00:00:00`);
     d.setDate(d.getDate() + dia);
     return d.toISOString().split("T")[0];
   };
 
   const dataParaDia = (dataStr: string) => {
-    const d = new Date(dataStr + "T00:00:00");
-    const diffMs = d.getTime() - dataReferencia.getTime();
+    const d = new Date(`${dataStr}T00:00:00`);
+    const ref = new Date(`${dataReferencia}T00:00:00`);
+    const diffMs = d.getTime() - ref.getTime();
     return Math.round(diffMs / (1000 * 60 * 60 * 24));
   };
 
@@ -75,7 +80,12 @@ const GestaoCronograma = () => {
       try {
         const snap = await getDoc(DOC_CRONOGRAMA_TEMPLATES);
         if (snap.exists()) {
-          setTemplates(snap.data() as Record<string, MetaTemplate[]>);
+          const data = snap.data() as Record<string, MetaTemplate[] | CronogramaTemplateDisciplina>;
+          const normalizado: Record<string, CronogramaTemplateDisciplina> = {};
+          for (const [disciplina, valor] of Object.entries(data)) {
+            normalizado[disciplina] = Array.isArray(valor) ? { metas: valor } : valor;
+          }
+          setTemplates(normalizado);
         }
       } catch (error) {
         console.error("Erro ao carregar cronogramas-modelo:", error);
@@ -87,10 +97,20 @@ const GestaoCronograma = () => {
     carregar();
   }, []);
 
-  const metasAtuais = templates[disciplinaSelecionada] ?? [];
+  const metasAtuais = templates[disciplinaSelecionada]?.metas ?? [];
 
   const atualizarMetas = (novasMetas: MetaTemplate[]) => {
-    setTemplates((prev) => ({ ...prev, [disciplinaSelecionada]: novasMetas }));
+    setTemplates((prev) => ({
+      ...prev,
+      [disciplinaSelecionada]: { metas: novasMetas, dataReferencia: prev[disciplinaSelecionada]?.dataReferencia ?? hojeString() },
+    }));
+  };
+
+  const atualizarDataReferencia = (novaData: string) => {
+    setTemplates((prev) => ({
+      ...prev,
+      [disciplinaSelecionada]: { metas: prev[disciplinaSelecionada]?.metas ?? metasAtuais, dataReferencia: novaData },
+    }));
   };
 
   const adicionarMeta = () => {
@@ -157,7 +177,7 @@ const GestaoCronograma = () => {
     }
     setSalvando(true);
     try {
-      await setDoc(DOC_CRONOGRAMA_TEMPLATES, { [disciplinaSelecionada]: metasAtuais }, { merge: true });
+      await setDoc(DOC_CRONOGRAMA_TEMPLATES, { [disciplinaSelecionada]: { metas: metasAtuais, dataReferencia } }, { merge: true });
       toast.success("Cronograma-modelo salvo com sucesso.");
     } catch (error) {
       console.error("Erro ao salvar cronograma-modelo:", error);
@@ -255,6 +275,14 @@ const GestaoCronograma = () => {
               ))}
             </div>
 
+            <div className="mb-6 max-w-xs">
+              <Label className="text-[10px] uppercase font-black text-muted-foreground">Data de Início do Cronograma</Label>
+              <DatePicker value={dataReferencia} onChange={atualizarDataReferencia} />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Muda a exibição de todas as metas juntas. Editar a data de uma meta específica só muda ela.
+              </p>
+            </div>
+
             <div className="pb-6 mb-6 border-b border-border space-y-3">
               <Button type="button" variant="outline" className="w-full gap-2" onClick={adicionarMeta}>
                 <Plus className="h-4 w-4" /> Adicionar Meta ao Cronograma-Modelo
@@ -328,16 +356,12 @@ const GestaoCronograma = () => {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] uppercase font-black text-muted-foreground">Data da Meta</Label>
-                            <Input
-                              type="date"
+                            <DatePicker
                               value={diaParaData(meta.diaRelativo)}
-                              onChange={(e) => e.target.value && editarMeta(indice, "diaRelativo", dataParaDia(e.target.value))}
+                              onChange={(novaData) => editarMeta(indice, "diaRelativo", dataParaDia(novaData))}
                             />
                           </div>
                         </div>
-                        <p className="text-[10px] text-muted-foreground -mt-2">
-                          Considerando início hoje ({dataReferencia.toLocaleDateString("pt-BR")}) — o que importa é o espaçamento entre as metas, não a data exata.
-                        </p>
 
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label>
