@@ -2,13 +2,13 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc, addDoc, onSnapshot } from "firebase/firestore";
-import { CalendarDays, Save, AlertTriangle, BookOpen, CheckCircle2, Clock, Mail, Target, Users, Tag, Link as LinkIcon, XCircle } from "lucide-react";
+import { CalendarDays, Save, AlertTriangle, BookOpen, CheckCircle2, Clock, ExternalLink, Mail, Target, Users, Tag, Link as LinkIcon, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { calcularTetoComDecaimento, calcularVagasVisiveis, countAlunosPremium, JANELA_DECAIMENTO_VAGAS_DIAS } from "@/lib/ciclo";
-import { DEFAULT_HOTMART_CHECKOUT_URL } from "@/lib/hotmart";
+import { DEFAULT_HOTMART_CHECKOUT_URL, gerarLinkHotmartComPrefill } from "@/lib/hotmart";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import {
   DISCIPLINAS_ATIVAS_PADRAO,
@@ -218,6 +218,28 @@ const GestaoCiclos = () => {
     }
   };
 
+  // Valida rapidamente se o link colado parece mesmo um checkout da Hotmart —
+  // pra pegar na hora um erro de copiar/colar (ex.: link de outra plataforma
+  // ou a URL do painel administrativo da Hotmart em vez do link de venda).
+  const pareceLinkHotmartValido = (link: string) => {
+    if (!link.trim()) return true;
+    try {
+      const host = new URL(link.trim()).hostname;
+      return host === "hotmart.com" || host.endsWith(".hotmart.com");
+    } catch {
+      return false;
+    }
+  };
+
+  // Abre o link exatamente como ele seria gerado para um aluno de verdade
+  // (com o mesmo prefill de nome/e-mail usado em produção), pra confirmar na
+  // hora que uma alteração feita dentro da Hotmart continua funcionando —
+  // sem precisar simular uma compra real pra testar.
+  const testarLink = (link: string) => {
+    const url = gerarLinkHotmartComPrefill(link, { nome: "Teste SuaOAB", email: "teste@suaoab.com.br" });
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   const calcularExpiracaoVisual = () => {
     if (!dataProva) return "Aguardando data da prova...";
     const d = new Date(dataProva + "T12:00:00");
@@ -357,26 +379,50 @@ const GestaoCiclos = () => {
               <Label className="text-sm font-bold flex items-center gap-2">
                 <LinkIcon className="h-4 w-4 text-muted-foreground" /> Link Principal do Checkout Hotmart
               </Label>
-              <Input
-                placeholder="https://pay.hotmart.com/..."
-                value={linkCheckout}
-                onChange={(e) => setLinkCheckout(e.target.value)}
-                className="font-mono text-sm h-10"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Este link e usado pelos alunos Lead para concluir a compra premium na plataforma.</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://pay.hotmart.com/..."
+                  value={linkCheckout}
+                  onChange={(e) => setLinkCheckout(e.target.value)}
+                  className="font-mono text-sm h-10"
+                />
+                <Button type="button" variant="outline" size="sm" className="h-10 shrink-0 gap-1.5" onClick={() => testarLink(linkCheckout)} disabled={!linkCheckout.trim()}>
+                  <ExternalLink className="h-3.5 w-3.5" /> Testar
+                </Button>
+              </div>
+              {!pareceLinkHotmartValido(linkCheckout) && (
+                <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Isso não parece um link da Hotmart — confira antes de salvar.</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                É este link que abre quando um aluno em teste clica em "Garantir Vaga" dentro da plataforma (na tela de
+                bloqueio ou no banner de degustação). Se você trocar algo dentro da Hotmart (novo link de venda, oferta
+                clonada, etc.), basta colar o novo link aqui, clicar em "Testar" para confirmar que abre certo, e depois
+                em "Salvar Configurações Gerais" — não precisa mexer em nenhum outro lugar do código.
+              </p>
             </div>
 
             <div className="space-y-2 bg-muted/20 p-4 rounded-xl border border-border">
               <Label className="text-sm font-bold flex items-center gap-2">
                 <LinkIcon className="h-4 w-4 text-muted-foreground" /> Link Oculto (Hotmart) - Repescagem 50% OFF
               </Label>
-              <Input 
-                placeholder="https://pay.hotmart.com/..." 
-                value={linkRepescagem} 
-                onChange={(e) => setLinkRepescagem(e.target.value)} 
-                className="font-mono text-sm h-10" 
-              />
-              <p className="text-xs text-muted-foreground mt-1">Este link aparece apenas para alunos bloqueados pelo encerramento do ciclo ou em repescagem.</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://pay.hotmart.com/..."
+                  value={linkRepescagem}
+                  onChange={(e) => setLinkRepescagem(e.target.value)}
+                  className="font-mono text-sm h-10"
+                />
+                <Button type="button" variant="outline" size="sm" className="h-10 shrink-0 gap-1.5" onClick={() => testarLink(linkRepescagem)} disabled={!linkRepescagem.trim()}>
+                  <ExternalLink className="h-3.5 w-3.5" /> Testar
+                </Button>
+              </div>
+              {!pareceLinkHotmartValido(linkRepescagem) && (
+                <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Isso não parece um link da Hotmart — confira antes de salvar.</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Este link aparece apenas para alunos bloqueados pelo encerramento do ciclo ou em repescagem, e é o
+                mesmo usado nos e-mails automáticos de reativação (50% OFF).
+              </p>
             </div>
           </div>
 
