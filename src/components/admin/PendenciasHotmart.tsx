@@ -5,10 +5,10 @@
 // aluno logar com o e-mail certo (reconciliação automática, ver AuthModal.tsx)
 // ou o professor resolver manualmente aqui.
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functionsClient } from "@/lib/firebase";
-import { AlertTriangle, Mail, RefreshCw } from "lucide-react";
+import { AlertTriangle, Mail, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -28,6 +28,7 @@ const reconciliarCompraHotmart = httpsCallable<{ email?: string }, { reconciliad
 const PendenciasHotmart = () => {
   const [pendencias, setPendencias] = useState<PendenciaHotmart[]>([]);
   const [resolvendo, setResolvendo] = useState<string | null>(null);
+  const [descartando, setDescartando] = useState<string | null>(null);
 
   useEffect(() => {
     // Sem orderBy de propósito: evita depender de um índice composto do
@@ -62,6 +63,26 @@ const PendenciasHotmart = () => {
     }
   };
 
+  // Pra descartar pendências que não são compras de verdade (ex.: testes feitos
+  // com o Postman/simulador do webhook) sem precisar mexer direto no Firestore.
+  const descartarPendencia = async (id: string) => {
+    if (!window.confirm("Descartar esta pendência? Use só se tiver certeza de que não é uma compra real aguardando reconciliação.")) return;
+    setDescartando(id);
+    try {
+      await updateDoc(doc(db, "hotmart_pendencias", id), {
+        pendente: false,
+        resolvido_por: "admin_manual_descarte",
+        resolvido_em: serverTimestamp(),
+      });
+      toast.success("Pendência descartada.");
+    } catch (error) {
+      console.error("Erro ao descartar pendência Hotmart:", error);
+      toast.error("Erro ao descartar. Veja o console para detalhes.");
+    } finally {
+      setDescartando(null);
+    }
+  };
+
   if (pendencias.length === 0) return null;
 
   return (
@@ -88,10 +109,22 @@ const PendenciasHotmart = () => {
                 → {p.status_desejado || "?"} ({p.ultimo_evento || "evento desconhecido"})
               </span>
             </div>
-            <Button size="sm" variant="outline" className="gap-2 shrink-0" disabled={resolvendo === p.email} onClick={() => resolverManualmente(p.email)}>
-              <RefreshCw className={`h-3.5 w-3.5 ${resolvendo === p.email ? "animate-spin" : ""}`} />
-              {resolvendo === p.email ? "Tentando..." : "Tentar Novamente"}
-            </Button>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" variant="outline" className="gap-2" disabled={resolvendo === p.email} onClick={() => resolverManualmente(p.email)}>
+                <RefreshCw className={`h-3.5 w-3.5 ${resolvendo === p.email ? "animate-spin" : ""}`} />
+                {resolvendo === p.email ? "Tentando..." : "Tentar Novamente"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                disabled={descartando === p.id}
+                onClick={() => descartarPendencia(p.id)}
+                title="Descartar (use se não for uma compra real, ex.: teste)"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>

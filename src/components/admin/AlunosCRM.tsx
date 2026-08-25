@@ -1,7 +1,7 @@
 // src/components/admin/AlunosCRM.tsx
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { Search, AlertCircle, AlertTriangle, Ban, Trash2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -55,12 +55,18 @@ const AlunosCRM = () => {
   const [erroSincronizacao, setErroSincronizacao] = useState(false);
 
   useEffect(() => {
-    const qAlunos = query(collection(db, "alunos"), orderBy("data_cadastro", "desc"));
+    // Importante: SEM orderBy("data_cadastro") na query — o Firestore exclui
+    // silenciosamente da resposta qualquer documento que não tenha esse campo
+    // preenchido. Um aluno assim ficava invisível em todas as abas daqui (e por
+    // isso "sumia" da contagem), mas ainda aparecia no Painel de Vendas, que lê
+    // a coleção sem esse filtro — causando os números desencontrados entre as
+    // duas telas. Ordena no cliente depois de buscar todo mundo.
     const unsub = onSnapshot(
-      qAlunos,
+      collection(db, "alunos"),
       (snap) => {
         setErroSincronizacao(false);
         const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AlunoCRM, 'id'>) })) as AlunoCRM[];
+        data.sort((a, b) => (paraData(b.data_cadastro)?.getTime() ?? 0) - (paraData(a.data_cadastro)?.getTime() ?? 0));
         setAlunos(data);
         setAlunoSelecionado((atual) => {
           if (!atual) return atual;
