@@ -1,21 +1,20 @@
 // src/components/admin/VisaoAluno.tsx
+// "Clone" do Portal do Aluno, embutido no Dossiê — mostra e permite editar,
+// ao vivo, exatamente o que um aluno específico vê na própria conta (metas,
+// laboratório, discursivas, simulados, videoaulas). Só existe embutido no
+// Dossiê agora; a aba avulsa no menu principal foi removida por ser redundante.
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, collection, query, where, setDoc } from "firebase/firestore";
-import { Eye, BookOpen, Clock, Briefcase, PenTool, Timer, PlayCircle, X, AlertTriangle, Scale, Landmark, Gavel } from "lucide-react";
-import { Label } from "@/components/ui/label";
+import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
+import { BookOpen, Clock, Briefcase, PenTool, Timer, PlayCircle, X, Scale, Landmark, Gavel } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { AulaGlobal, DisciplinaCodigo, getTimestampMillis, HistoricoPeca, MaterialPublicado, MetaAluno, PecaLaboratorio } from "@/lib/aulas";
 import { compararPorOrdem } from "@/lib/utils";
-import { disciplinasSegundaFaseDisponiveis, useDisciplinasSegundaFaseAtivas } from "@/lib/disciplinasSegundaFase";
-import { isAlunoSandbox } from "@/lib/ciclo";
 
 // Importamos os mesmos componentes que o aluno real utiliza
 import { GestorMetas } from "@/components/aluno/GestorMetas";
 import { GestorPecas } from "@/components/aluno/GestorPecas";
-
-const UID_SANDBOX = "admin_sandbox_uid";
 
 interface PerfilAluno {
   uid: string;
@@ -77,22 +76,15 @@ const mapDocToHistorico = (docSnap: { id: string; data: () => Record<string, unk
   };
 };
 
-const VisaoAluno = () => {
-  const disciplinasAtivas = useDisciplinasSegundaFaseAtivas();
-  const disciplinasDisponiveis = disciplinasSegundaFaseDisponiveis(disciplinasAtivas);
-  const [disciplinaAtiva, setDisciplinaAtiva] = useState<DisciplinaCodigo>("DPEN");
-  const [perfilFantasma, setPerfilFantasma] = useState<PerfilAluno | null>(null);
+type Props = {
+  aluno: { id: string; materia: string };
+};
 
-  // Mantém a disciplina de teste sempre habilitada: se a atual foi desligada em
-  // Ciclos e Prazos (ou nenhuma ainda foi escolhida), cai para a primeira disponível.
-  useEffect(() => {
-    if (disciplinasDisponiveis.length === 0) return;
-    setDisciplinaAtiva((atual) =>
-      disciplinasDisponiveis.some((d) => d.codigo === atual) ? atual : (disciplinasDisponiveis[0].codigo as DisciplinaCodigo)
-    );
-  }, [disciplinasDisponiveis]);
-  
-  // Estados para os conteúdos da disciplina
+const VisaoAluno = ({ aluno }: Props) => {
+  const disciplinaAtiva = aluno.materia as DisciplinaCodigo;
+  const uidAlvo = aluno.id;
+
+  const [perfilFantasma, setPerfilFantasma] = useState<PerfilAluno | null>(null);
   const [metas, setMetas] = useState<MetaAluno[]>([]);
   const [cadernos, setCadernos] = useState<MaterialPublicado[]>([]);
   const [simulados, setSimulados] = useState<MaterialPublicado[]>([]);
@@ -105,53 +97,13 @@ const VisaoAluno = () => {
   const [erroAulas, setErroAulas] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Estados do Modal da Sala de Aula (Sandbox)
+  // Estados do Modal da Sala de Aula
   const [aulaSandboxVisivel, setAulaSandboxVisivel] = useState(false);
   const [aulaAtiva, setAulaAtiva] = useState<AulaGlobal | null>(null);
 
-  // 0. Descobre se já existe um aluno REAL (não-sandbox) matriculado nesta
-  // disciplina. Se existir, o simulador passa a mostrar e editar os dados dele
-  // de verdade em vez do perfil fantasma — útil pra conferir exatamente o que
-  // o seu aluno real está vendo agora. Sem aluno real ainda, cai no fantasma.
-  const [uidAlvo, setUidAlvo] = useState<string>(UID_SANDBOX);
-  const usandoAlunoReal = uidAlvo !== UID_SANDBOX;
-
+  // Ouve o perfil e as metas reais deste aluno.
   useEffect(() => {
-    if (!disciplinaAtiva) return;
-    const qAlunoReal = query(collection(db, "alunos"), where("materia", "==", disciplinaAtiva));
-    const unsub = onSnapshot(
-      qAlunoReal,
-      (snap) => {
-        const alunoReal = snap.docs.find((d) => !isAlunoSandbox({ id: d.id, email: d.data().email }));
-        setUidAlvo(alunoReal ? alunoReal.id : UID_SANDBOX);
-      },
-      (error) => {
-        console.error("Erro ao procurar aluno real da disciplina:", error);
-        setUidAlvo(UID_SANDBOX);
-      }
-    );
-    return () => unsub();
-  }, [disciplinaAtiva]);
-
-  // 1. Inicializa/Ouve o perfil exibido: fantasma (sandbox) OU aluno real.
-  useEffect(() => {
-    const docRef = doc(db, "alunos", uidAlvo);
-
-    // O perfil fantasma só é criado/mantido quando NÃO há aluno real na
-    // disciplina — nunca sobrescrever os dados de um aluno de verdade aqui.
-    if (uidAlvo === UID_SANDBOX) {
-      setDoc(docRef, {
-        nome: "Modo Sandbox (Professor)",
-        email: "sandbox@suaoab.com.br",
-        materia: disciplinaAtiva,
-        status: "premium",
-        matricula: "000000",
-        metaZeroConcluida: true,
-        metas: []
-      }, { merge: true }).catch((error) => console.error("Erro ao inicializar sandbox", error));
-    }
-
-    const unsub = onSnapshot(docRef, (docSnap) => {
+    const unsub = onSnapshot(doc(db, "alunos", uidAlvo), (docSnap) => {
       if (docSnap.exists()) {
         const data = { uid: docSnap.id, ...docSnap.data() } as PerfilAluno;
         setPerfilFantasma(data);
@@ -159,11 +111,10 @@ const VisaoAluno = () => {
       }
       setLoading(false);
     });
-
     return () => unsub();
-  }, [uidAlvo, disciplinaAtiva]);
+  }, [uidAlvo]);
 
-  // 2. Ouve os Materiais, Aulas e Histórico da Disciplina Selecionada
+  // Ouve os Materiais, Aulas e Histórico da Disciplina do Aluno
   useEffect(() => {
     if (!disciplinaAtiva) return;
 
@@ -213,7 +164,7 @@ const VisaoAluno = () => {
         });
       },
       (error) => {
-        console.error("Erro ao carregar videoaulas no sandbox:", error);
+        console.error("Erro ao carregar videoaulas na Visão do Aluno:", error);
         setErroAulas("Nao foi possivel carregar as videoaulas da disciplina agora.");
         setAulas([]);
         setAulaAtiva(null);
@@ -223,48 +174,10 @@ const VisaoAluno = () => {
     return () => { unsubMateriais(); unsubLab(); unsubHist(); unsubAulas(); };
   }, [disciplinaAtiva, uidAlvo]);
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground font-bold">A carregar Ambiente Seguro...</div>;
+  if (loading) return <div className="p-8 text-center text-muted-foreground font-bold">A carregar...</div>;
 
   return (
     <div className="space-y-6">
-      
-      {/* SELETOR DE DISCIPLINA */}
-      <div className="bg-accent/10 border-2 border-accent/20 p-5 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-accent/20 rounded-full"><Eye className="h-6 w-6 text-accent" /></div>
-          <div>
-            <h3 className="font-bold text-accent text-lg leading-tight">Simulador de Visão do Aluno</h3>
-            <p className="text-xs text-muted-foreground">Teste como o seu conteúdo aparece para os alunos em tempo real.</p>
-          </div>
-        </div>
-        <div className="w-full md:w-64">
-          <Label className="text-[10px] uppercase font-black text-muted-foreground mb-1 block">Escolher Disciplina de Teste</Label>
-          <select
-            className="w-full h-10 border-2 border-accent/40 rounded-lg px-3 bg-background text-sm font-bold text-primary focus:ring-accent cursor-pointer"
-            value={disciplinaAtiva}
-            onChange={e => setDisciplinaAtiva(e.target.value as DisciplinaCodigo)}
-          >
-            {disciplinasDisponiveis.map(({ codigo, nome }) => (
-              <option key={codigo} value={codigo}>{nome}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {usandoAlunoReal && (
-        <div className="bg-destructive/10 border-2 border-destructive/30 p-4 rounded-xl flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-destructive text-sm">
-              Atenção: você está vendo e editando os dados REAIS de {perfilFantasma?.nome || "um aluno matriculado"} nesta disciplina.
-            </p>
-            <p className="text-xs text-destructive/80">
-              Não é mais uma simulação — concluir uma meta, apagar um envio, etc. aqui altera o progresso real dele.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* CLONE DO PORTAL DO ALUNO */}
       <div className="bg-background border border-border p-6 rounded-2xl shadow-inner">
         <div className="grid lg:grid-cols-3 gap-8 opacity-95">
@@ -365,27 +278,27 @@ const VisaoAluno = () => {
                 <h3 className="text-lg font-bold text-primary italic flex items-center gap-2"><BookOpen className="h-5 w-5 text-accent"/> Videoaulas</h3>
                 <span className="text-xs font-black bg-accent/10 text-accent px-2 py-1 rounded">{aulas.length} AULAS</span>
               </div>
-              <Button 
-                className="w-full h-12 font-bold" 
-                variant="hero" 
-                onClick={() => setAulaSandboxVisivel(true)} 
+              <Button
+                className="w-full h-12 font-bold"
+                variant="hero"
+                onClick={() => setAulaSandboxVisivel(true)}
                 disabled={aulas.length === 0}
               >
                 {aulas.length === 0 ? "Nenhuma Aula Publicada" : "▶ Entrar na Sala de Aula"}
               </Button>
               {erroAulas && <p className="mt-3 text-sm text-destructive">{erroAulas}</p>}
             </div>
-            
+
             <GestorPecas perfilAluno={perfilFantasma} historico={historico} />
           </div>
         </div>
       </div>
 
-      {/* MODAL SALA DE AULA (SANDBOX) */}
+      {/* MODAL SALA DE AULA */}
       {aulaSandboxVisivel && (
-        <div className="fixed inset-0 z- flex items-center justify-center p-4 bg-background/95 backdrop-blur-sm animate-in zoom-in-95">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/95 backdrop-blur-sm animate-in zoom-in-95">
           <div className="bg-card border border-border w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-            
+
             <div className="p-4 border-b bg-muted/10 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-primary flex items-center gap-2">
                 <PlayCircle className="h-5 w-5 text-accent"/> Sala de Aula
@@ -394,16 +307,16 @@ const VisaoAluno = () => {
                 <X className="h-5 w-5"/>
               </Button>
             </div>
-            
+
             <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
               {/* Vídeo e Descrição */}
               <div className="flex-1 overflow-y-auto p-6 bg-muted/5 custom-scrollbar">
                 {aulaAtiva ? (
                   <div className="bg-card rounded-xl shadow-lg border border-border overflow-hidden">
                     <div className="relative w-full aspect-video bg-black">
-                      <iframe 
-                        src={`https://www.youtube.com/embed/${aulaAtiva.youtubeId}?rel=0&modestbranding=1`} 
-                        className="absolute top-0 left-0 w-full h-full border-0" 
+                      <iframe
+                        src={`https://www.youtube.com/embed/${aulaAtiva.youtubeId}?rel=0&modestbranding=1`}
+                        className="absolute top-0 left-0 w-full h-full border-0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                       ></iframe>
@@ -422,15 +335,15 @@ const VisaoAluno = () => {
                   </div>
                 )}
               </div>
-              
+
               {/* Playlist Lateral */}
               <div className="w-full lg:w-80 border-l border-border bg-card flex flex-col shrink-0">
                 <div className="p-4 font-bold border-b bg-muted/10 text-sm">Playlist da Disciplina</div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                   {aulas.map((aula, idx) => (
-                    <button 
-                      key={aula.id} 
-                      onClick={() => setAulaAtiva(aula)} 
+                    <button
+                      key={aula.id}
+                      onClick={() => setAulaAtiva(aula)}
                       className={`w-full text-left p-3 rounded-lg border-2 transition-colors ${aulaAtiva?.id === aula.id ? 'border-accent bg-accent/5' : 'border-transparent hover:bg-muted/10'}`}
                     >
                       <div className="text-[10px] uppercase font-black text-muted-foreground mb-1">

@@ -1,11 +1,20 @@
 // src/components/admin/PainelVendas.tsx
 import { useEffect, useMemo, useState } from "react";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, getDocs, onSnapshot, query, where, writeBatch } from "firebase/firestore";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { AlertTriangle, BarChart3, TrendingUp, Users, UserCheck, UserX, Wallet, Sparkles } from "lucide-react";
+import { AlertTriangle, BarChart3, Eraser, TrendingUp, Users, UserCheck, UserX, Wallet, Sparkles } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { classificarAluno, paraData } from "@/lib/ciclo";
+import { toast } from "sonner";
+
+// Enquanto o site está em fase de teste, o professor precisa zerar as vendas
+// (contas de teste, compras simuladas) sem afetar os 44 alunos reais da
+// Graduação nem o perfil de sandbox usado internamente.
+const TAMANHO_LOTE = 400;
+const PALAVRA_CONFIRMACAO = "ZERAR";
 
 interface AlunoVendas {
   id: string;
@@ -55,6 +64,9 @@ const PainelVendas = () => {
   const [alunos, setAlunos] = useState<AlunoVendas[] | null>(null);
   const [oferta, setOferta] = useState<OfertaAtual | null>(null);
   const [erroSincronizacao, setErroSincronizacao] = useState(false);
+  const [modalZerarAberto, setModalZerarAberto] = useState(false);
+  const [confirmacaoZerar, setConfirmacaoZerar] = useState("");
+  const [zerando, setZerando] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -132,6 +144,57 @@ const PainelVendas = () => {
     };
   }, [alunos, oferta]);
 
+  const zerarVendas = async () => {
+    if (!alunos || confirmacaoZerar !== PALAVRA_CONFIRMACAO) return;
+    setZerando(true);
+    try {
+      // Preserva sempre Graduação (alunos reais) e sandbox (perfil interno de
+      // testes do professor) — só apaga em_teste/premium/inativo, que é o que
+      // as vendas de teste da Hotmart geram.
+      const alunosParaApagar = alunos.filter((a) => {
+        const categoria = classificarAluno(a);
+        return categoria !== "graduacao" && categoria !== "sandbox";
+      });
+
+      for (let i = 0; i < alunosParaApagar.length; i += TAMANHO_LOTE) {
+        const lote = alunosParaApagar.slice(i, i + TAMANHO_LOTE);
+        const batch = writeBatch(db);
+        lote.forEach((a) => batch.delete(doc(db, "alunos", a.id)));
+        await batch.commit();
+      }
+
+      // Limpa o histórico de peças órfão (referências a alunos que acabaram de ser apagados).
+      const idsApagados = new Set(alunosParaApagar.map((a) => a.id));
+      if (idsApagados.size > 0) {
+        const historicoSnap = await getDocs(collection(db, "historico_pecas"));
+        const historicoOrfao = historicoSnap.docs.filter((d) => idsApagados.has(d.data().aluno_id));
+        for (let i = 0; i < historicoOrfao.length; i += TAMANHO_LOTE) {
+          const lote = historicoOrfao.slice(i, i + TAMANHO_LOTE);
+          const batch = writeBatch(db);
+          lote.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+        }
+      }
+
+      // Descarta também as pendências de reconciliação da Hotmart, que não fazem mais sentido sem os alunos de teste.
+      const pendenciasSnap = await getDocs(query(collection(db, "hotmart_pendencias"), where("pendente", "==", true)));
+      if (!pendenciasSnap.empty) {
+        const batch = writeBatch(db);
+        pendenciasSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      toast.success(`${alunosParaApagar.length} conta(s) de teste removida(s). Graduação e sandbox foram preservados.`);
+      setModalZerarAberto(false);
+      setConfirmacaoZerar("");
+    } catch (error) {
+      console.error("[PainelVendas] Erro ao zerar vendas de teste:", error);
+      toast.error("Erro ao zerar as vendas de teste. Veja o console para detalhes.");
+    } finally {
+      setZerando(false);
+    }
+  };
+
   if (!alunos || !metricas) {
     return <div className="p-10 text-center text-sm text-muted-foreground font-bold">Carregando métricas...</div>;
   }
@@ -158,6 +221,16 @@ const PainelVendas = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+          onClick={() => setModalZerarAberto(true)}
+        >
+          <Eraser className="h-4 w-4" /> Zerar Vendas de Teste
+        </Button>
+      </div>
       {erroSincronizacao && (
         <div className="flex items-start gap-2 bg-destructive/10 border-2 border-destructive/30 rounded-xl p-4 text-sm text-destructive">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -258,6 +331,55 @@ const PainelVendas = () => {
           </p>
         )}
       </div>
+
+      {modalZerarAberto && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-background/95 backdrop-blur-sm">
+          <div className="bg-card border-2 border-destructive/30 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-6 w-6 text-destructive shrink-0" />
+              <div>
+                <h3 className="font-display font-bold text-primary text-lg">Zerar Vendas de Teste</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Isso apaga permanentemente {metricas.emTeste + metricas.premium + metricas.inativos} conta(s) —
+                  todo aluno "Em Teste", "Premium" ou "Inativo" — junto com seu histórico de peças enviadas. Alunos
+                  da Graduação e o perfil de sandbox não são afetados. Essa ação não pode ser desfeita.
+                </p>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                Digite {PALAVRA_CONFIRMACAO} para confirmar
+              </label>
+              <Input
+                value={confirmacaoZerar}
+                onChange={(e) => setConfirmacaoZerar(e.target.value.toUpperCase())}
+                placeholder={PALAVRA_CONFIRMACAO}
+                className="mt-1"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setModalZerarAberto(false);
+                  setConfirmacaoZerar("");
+                }}
+                disabled={zerando}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={confirmacaoZerar !== PALAVRA_CONFIRMACAO || zerando}
+                onClick={zerarVendas}
+              >
+                {zerando ? "Zerando..." : "Zerar Vendas"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

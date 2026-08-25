@@ -1,11 +1,12 @@
 // src/components/admin/DossieAluno.tsx
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, ReactNode, Suspense } from "react";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import { db, storage } from "@/lib/firebase";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   ChevronLeft, Plus, Trash2, Unlock, Lock,
-  Link as LinkIcon, FileText, UploadCloud, Wand2, Calendar, Pencil, X, AlertCircle, CalendarClock, Save, RefreshCw
+  Link as LinkIcon, FileText, UploadCloud, Eye, Calendar, Pencil, X, AlertCircle, CalendarClock, Save, RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,6 @@ interface Meta {
   status: MetaStatus;
   concluida: boolean;
   data_sugerida?: string;
-  arquivo_file?: File | null;
   origem?: "template" | "manual";
 }
 
@@ -45,7 +45,7 @@ interface Aluno {
   data_expiracao?: any;
 }
 
-type TipoDataRota = "oficial" | "personalizada";
+const VisaoAluno = lazyWithReload(() => import("@/components/admin/VisaoAluno"));
 
 const getDateOnlyString = (value: unknown) => {
   if (typeof value === "string") return value;
@@ -79,16 +79,10 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   const [editMetaPrazo, setEditMetaPrazo] = useState("");
   const [isEditingMeta, setIsEditingMeta] = useState(false);
 
-  // Estados - Motor Adaptativo (ROTA)
-  const [showRotaModal, setShowRotaModal] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewMetas, setPreviewMetas] = useState<Meta[]>([]);
-  const [tipoDataRota, setTipoDataRota] = useState<TipoDataRota>("oficial");
-  const [dataProva, setDataProva] = useState("");
-  const [globalDataProva, setGlobalDataProva] = useState(""); 
-  const [globalDataExpiracao, setGlobalDataExpiracao] = useState(""); 
-  const [isApplyingRota, setIsApplyingRota] = useState(false);
-  const [qtdMetasPersonalizadas, setQtdMetasPersonalizadas] = useState("10"); 
+  const [globalDataExpiracao, setGlobalDataExpiracao] = useState("");
+
+  // Estado - Visão do Aluno embutida (mostra a tela real deste aluno específico)
+  const [modoVisaoAluno, setModoVisaoAluno] = useState(false);
 
   // Estados - Controle de Data de Corte (Degustação Customizada)
   const [editDataExpiracao, setEditDataExpiracao] = useState(false);
@@ -102,7 +96,6 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
       try {
         const snap = await getDoc(doc(db, "configuracoes", "ciclo_atual"));
         if (snap.exists()) {
-          if (snap.data().data_prova) setGlobalDataProva(snap.data().data_prova);
           if (snap.data().data_expiracao) setGlobalDataExpiracao(getDateOnlyString(snap.data().data_expiracao));
         }
       } catch (error) { console.error("Erro ao buscar ciclo atual", error); }
@@ -241,81 +234,6 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
         } catch (e) { toast.error("Erro ao atualizar a meta."); } finally { setIsEditingMeta(false); }
     }
 
-  const calcularRotaPreview = () => {
-    const alvo = tipoDataRota === "oficial" ? globalDataProva : dataProva;
-    if (!alvo) return toast.error("Por favor, defina ou escolha uma data alvo.");
-    const hoje = new Date(); const prova = new Date(alvo + "T12:00:00");
-    const diffTime = prova.getTime() - hoje.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    if (diffDays <= 0) return toast.error("A data limite deve ser no futuro.");
-
-    const qtdMetasNovas = parseInt(qtdMetasPersonalizadas, 10);
-    if (isNaN(qtdMetasNovas) || qtdMetasNovas <= 0) return toast.error("Quantidade inválida.");
-
-    const metasAtuais: Meta[] = aluno.metas || [];
-    const metasPreservadas = metasAtuais.filter((m, idx) => idx === 0 || m.status === 'concluida' || m.status === 'pulada');
-
-    const ciclosMentor = [
-      { titulo: "Identificação de Peça e Esqueleto Estrutural", texto: "O primeiro passo para o sucesso é não errar a peça!" },
-      { titulo: "Leitura Dirigida e Expansão de Marcações", texto: "Vamos reforçar a base teórica." },
-      { titulo: "Laboratório Prático: Redação Completa", texto: "É o momento de colocar a teoria no papel." },
-      { titulo: "Bateria de Discursivas: Foco no Espelho", texto: "A banca pontua com base em palavras-chave." },
-      { titulo: "Revisão Cirúrgica e Caderno de Erros", texto: "Aprender com os próprios erros é o caminho mais rápido." },
-      { titulo: "Mapeamento de Jurisprudência e Súmulas", texto: "Muitas teses vencedoras e pontos fáceis estão nas Súmulas!" },
-      { titulo: "Treino de Agilidade sob Pressão", texto: "O tempo é o seu maior adversário na 2ª Fase." },
-      { titulo: "Estruturação de Preliminares e Mérito", texto: "Uma peça excelente começa nas preliminares." },
-      { titulo: "Simulação de Resgate: Teses Subsidiárias", texto: "Treine a sua atenção aos detalhes." },
-      { titulo: "Revisão Ativa e Fixação de Roteiros", texto: "Dia de consolidar o conhecimento!" }
-    ];
-
-    const metasGeradas: Meta[] = [];
-    const intervaloMs = diffTime / qtdMetasNovas;
-
-    for (let i = 0; i < qtdMetasNovas; i++) {
-      let metaDate = new Date(hoje.getTime() + (intervaloMs * (i + 1)));
-      if (metaDate > prova) metaDate = new Date(prova);
-      const cicloAtual = ciclosMentor[i % ciclosMentor.length];
-      let tituloAtividade = cicloAtual.titulo; let textoOrientacao = cicloAtual.texto;
-      if (i === qtdMetasNovas - 1) {
-         tituloAtividade = "Simulado Final e Preparação de Véspera";
-         textoOrientacao = "O grande momento está a chegar! Faça este simulado nas mesmas condições da prova real.";
-      }
-      metasGeradas.push({
-        atividade: tituloAtividade, orientacoes: textoOrientacao, link: "", arquivo_url: "", arquivo_nome: "", arquivo_file: null, 
-        status: i < 2 ? "liberada" : "bloqueada", concluida: false, data_sugerida: metaDate.toISOString()
-      });
-    }
-    setPreviewMetas([...metasPreservadas, ...metasGeradas]);
-    setShowRotaModal(false); setShowPreviewModal(true);
-  };
-
-  const handleEditPreviewMeta = (index: number, campo: keyof Meta, valor: string | boolean | File | null | LinkMeta[]) => {
-    const metasAtualizadas = [...previewMetas];
-    metasAtualizadas[index] = { ...metasAtualizadas[index], [campo]: valor } as Meta;
-    setPreviewMetas(metasAtualizadas);
-  };
-
-  const confirmarRotaAdaptativa = async () => {
-    setIsApplyingRota(true);
-    try {
-      const metasFinalizadas = [...previewMetas];
-      for (let i = 0; i < metasFinalizadas.length; i++) {
-        const m = metasFinalizadas[i];
-        if (m.arquivo_file) {
-          const safeName = m.arquivo_file.name.replace(/[^a-zA-Z0-9.]/g, "_");
-          const fileRef = ref(storage, `materiais_alunos/${aluno.materia}/metas_anexos/${Date.now()}_${safeName}`);
-          const snapshot = await uploadBytes(fileRef, m.arquivo_file);
-          m.arquivo_url = await getDownloadURL(snapshot.ref);
-          m.arquivo_nome = m.arquivo_file.name;
-          delete m.arquivo_file; 
-        }
-      }
-      await updateDoc(doc(db, "alunos", aluno.id), { metas: metasFinalizadas });
-      toast.success("Rota Adaptativa Aplicada com sucesso!");
-      setShowPreviewModal(false); setPreviewMetas([]);
-    } catch (e) { toast.error("Erro ao aplicar rota."); } finally { setIsApplyingRota(false); }
-  };
-
   const handleAtualizarComTemplate = async () => {
     if (!window.confirm(
       `Isso vai atualizar o cronograma de ${aluno.nome} com o conteúdo mais recente do cronograma-modelo de ${aluno.materia} ` +
@@ -363,7 +281,7 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/80 backdrop-blur-sm animate-in fade-in">
-        <div className="bg-card border border-border w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="bg-card border border-border w-full max-w-6xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
           
           <div className="p-6 border-b bg-muted/10 flex justify-between items-start md:items-center flex-col md:flex-row gap-4">
             <div>
@@ -396,12 +314,24 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
               <Button onClick={handleAtualizarComTemplate} variant="outline" disabled={isAtualizandoTemplate} className="flex-1 md:flex-none font-bold border-accent/40 text-accent hover:bg-accent/10" title="Atualiza o conteúdo com o cronograma-modelo mais recente, preservando o progresso já marcado">
                 <RefreshCw className={`h-4 w-4 mr-2 ${isAtualizandoTemplate ? "animate-spin" : ""}`} /> {isAtualizandoTemplate ? "Atualizando..." : "Atualizar com Cronograma-Modelo"}
               </Button>
-              <Button onClick={() => setShowRotaModal(true)} variant="hero" className="flex-1 md:flex-none font-bold shadow-md shadow-accent/20"><Wand2 className="h-4 w-4 mr-2" /> Gerar Rota</Button>
+              <Button
+                onClick={() => setModoVisaoAluno((v) => !v)}
+                variant={modoVisaoAluno ? "outline" : "hero"}
+                className="flex-1 md:flex-none font-bold shadow-md shadow-accent/20"
+              >
+                <Eye className="h-4 w-4 mr-2" /> {modoVisaoAluno ? "Voltar à Edição" : "Visão do Aluno"}
+              </Button>
               <Button onClick={onClose} variant="outline" className="flex-1 md:flex-none"><ChevronLeft className="h-4 w-4 mr-2" /> FECHAR</Button>
             </div>
           </div>
           
           <div className="p-6 overflow-y-auto space-y-8 custom-scrollbar">
+            {modoVisaoAluno ? (
+              <Suspense fallback={<div className="p-10 text-center text-sm text-muted-foreground font-bold">Carregando...</div>}>
+                <VisaoAluno aluno={{ id: aluno.id, materia: aluno.materia }} />
+              </Suspense>
+            ) : (
+              <>
             <div className="grid lg:grid-cols-5 gap-6">
               <div className="lg:col-span-2 bg-muted/10 p-6 rounded-xl border border-border flex flex-col justify-center">
                 <div className="flex justify-between items-end mb-3">
@@ -494,6 +424,8 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                 });
               })()}
             </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -527,93 +459,6 @@ const DossieAluno = ({ aluno, onClose }: { aluno: Aluno; onClose: () => void }) 
                 <Button variant="outline" onClick={() => setMetaEditandoIdx(null)}>Cancelar</Button>
                 <Button variant="accent" onClick={handleSalvarEdicao} disabled={isEditingMeta}>{isEditingMeta ? "Salvando..." : "Salvar Alterações"}</Button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {showRotaModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in zoom-in-95">
-            <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
-              <button onClick={() => setShowRotaModal(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X className="h-5 w-5"/></button>
-              <h3 className="text-xl font-display font-bold text-primary mb-6 flex items-center gap-2"><Wand2 className="h-5 w-5 text-accent"/> Gerar Rota</h3>
-              <div className="space-y-4">
-                <div className={`p-4 border-2 rounded-xl cursor-pointer flex items-start gap-3 transition-colors ${tipoDataRota === "oficial" ? "border-accent bg-accent/5" : "border-border"}`} onClick={() => setTipoDataRota("oficial")}>
-                  <input type="radio" checked={tipoDataRota === "oficial"} onChange={() => {}} className="mt-1 accent-accent" />
-                  <div>
-                    <h4 className="font-bold text-sm text-primary">Data Oficial do Exame</h4>
-                    <p className="text-xs text-muted-foreground mt-1">{globalDataProva ? `Exame: ${new Date(globalDataProva + "T12:00:00").toLocaleDateString('pt-BR')}` : "Nenhuma data configurada"}</p>
-                  </div>
-                </div>
-                <div className={`p-4 border-2 rounded-xl cursor-pointer flex items-start gap-3 transition-colors ${tipoDataRota === "personalizada" ? "border-accent bg-accent/5" : "border-border"}`} onClick={() => setTipoDataRota("personalizada")}>
-                  <input type="radio" checked={tipoDataRota === "personalizada"} onChange={() => {}} className="mt-1 accent-accent" />
-                  <div className="w-full">
-                    <h4 className="font-bold text-sm text-primary mb-2">Data Personalizada</h4>
-                    {tipoDataRota === "personalizada" && <DatePicker className="mt-2" value={dataProva} onChange={setDataProva} />}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-6 p-4 border-2 border-border rounded-xl bg-muted/10">
-                <h4 className="font-bold text-sm text-primary mb-1">Volume de Metas</h4>
-                <Input type="number" min="1" max="50" value={qtdMetasPersonalizadas} onChange={e => setQtdMetasPersonalizadas(e.target.value)} className="font-bold text-lg h-12" />
-              </div>
-              <Button variant="hero" className="w-full mt-8 h-12" onClick={calcularRotaPreview}>Avançar para Edição</Button>
-            </div>
-          </div>
-        )}
-
-        {showPreviewModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in slide-in-from-bottom-4">
-            <div className="bg-card border border-border w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
-               <div className="p-6 border-b bg-muted/10 flex justify-between items-center">
-                 <div><h3 className="text-xl font-bold text-primary">Edição de Rota (Pré-visualização)</h3></div>
-                 <button onClick={() => setShowPreviewModal(false)} className="text-muted-foreground hover:text-foreground" disabled={isApplyingRota}><X className="h-5 w-5"/></button>
-               </div>
-               <div className="p-6 overflow-y-auto space-y-4 custom-scrollbar">
-                  {(() => {
-                     let previewCounter = 1;
-                     return previewMetas.map((m, i) => {
-                        const isBoasVindas = m.atividade?.includes("Boas-Vindas");
-                        const currentPreviewNum = isBoasVindas ? 0 : previewCounter++;
-                        if (m.status === 'concluida' || isBoasVindas) {
-                           return (
-                              <div key={i} className="p-4 rounded-xl border-l-4 border-l-success border-border bg-success/5 opacity-60 flex justify-between items-center">
-                                 <div><span className="text-xs font-black uppercase text-success tracking-wider mb-1 block">Meta {currentPreviewNum} (Concluída)</span><h4 className="font-bold text-foreground text-sm">{m.atividade}</h4></div>
-                              </div>
-                           );
-                        }
-                        return (
-                           <div key={i} className="p-5 rounded-xl border-2 border-border bg-background shadow-sm space-y-4">
-                              <div className="flex justify-between items-center mb-1"><span className="text-xs font-black uppercase text-accent tracking-wider bg-accent/10 px-2 py-1 rounded">Meta {currentPreviewNum}</span></div>
-                              <div className="grid md:grid-cols-[1fr_150px] gap-4">
-                                <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Título</Label><Input value={m.atividade} onChange={(e) => handleEditPreviewMeta(i, 'atividade', e.target.value)} className="font-bold text-primary" /></div>
-                                <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Prazo</Label>
-                                  {/* Corrigido */}
-                                  <DatePicker
-                                    value={m.data_sugerida ? String(m.data_sugerida).split('T')[0] : ''}
-                                    onChange={(novaData) => handleEditPreviewMeta(i, 'data_sugerida', new Date(`${novaData}T12:00:00`).toISOString())}
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Orientações</Label><RichTextEditor value={m.orientacoes} onChange={(html) => handleEditPreviewMeta(i, 'orientacoes', html)} /></div>
-                              <div className="mt-2 p-3 bg-muted/10 rounded-lg border border-dashed border-border space-y-3">
-                                <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Links (Opcional)</Label><LinksEditor materia={aluno.materia} links={m.links || []} onChange={(links) => handleEditPreviewMeta(i, 'links', links)} /></div>
-                                <div className="space-y-1"><Label className="text-[10px] uppercase font-black text-muted-foreground">Anexo</Label>
-                                  <div className="relative w-full">
-                                    {/* Corrigido */}
-                                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleEditPreviewMeta(i, 'arquivo_file', e.target.files && e.target.files.length > 0 ? e.target.files[0] : null)} />
-                                    <div className={`h-9 border rounded-md flex items-center px-3 text-xs ${m.arquivo_file || m.arquivo_url ? 'bg-success/10 border-success/30 text-success font-bold' : 'bg-background border-input text-muted-foreground'}`}><UploadCloud className="h-4 w-4 mr-2"/><span className="truncate">{m.arquivo_file ? m.arquivo_file.name : (m.arquivo_nome || "Anexar PDF")}</span></div>
-                                  </div>
-                                </div>
-                              </div>
-                           </div>
-                        );
-                     });
-                  })()}
-               </div>
-               <div className="p-6 border-t bg-background flex gap-4">
-                 <Button variant="outline" className="flex-1 h-12" onClick={() => setShowPreviewModal(false)} disabled={isApplyingRota}>Cancelar</Button>
-                 <Button variant="accent" className="flex-1 h-12 text-lg" onClick={confirmarRotaAdaptativa} disabled={isApplyingRota}><Wand2 className={`h-5 w-5 mr-2 ${isApplyingRota ? 'animate-spin' : ''}`} /> {isApplyingRota ? "Processando..." : "Gravar Rota"}</Button>
-               </div>
             </div>
           </div>
         )}

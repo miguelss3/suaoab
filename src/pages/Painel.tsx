@@ -3,7 +3,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, FileText, PenTool, Cog, BookOpen, CalendarDays, CalendarRange, Upload, Eye, TrendingUp } from "lucide-react";
+import { LogOut, Users, FileText, PenTool, Cog, BookOpen, CalendarDays, CalendarRange, Upload, TrendingUp } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { ADMIN_EMAIL } from "@/lib/constants";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -22,7 +22,6 @@ const MotorGerador = lazyWithReload(() => import("@/components/admin/MotorGerado
 const PublicarMaterial = lazyWithReload(() => import("@/components/admin/PublicarMaterial"));
 const GestaoCronograma = lazyWithReload(() => import("@/components/admin/GestaoCronograma"));
 const GestaoCiclos = lazyWithReload(() => import("@/components/admin/GestaoCiclos"));
-const VisaoAluno = lazyWithReload(() => import("@/components/admin/VisaoAluno"));
 const AdminGraduacao = lazyWithReload(() => import("@/components/admin/AdminGraduacao"));
 
 const AbaFallback = () => (
@@ -75,10 +74,6 @@ const Painel = () => {
               <TrendingUp className="h-4 w-4"/> Painel de Vendas
             </TabsTrigger>
 
-            <TabsTrigger value="sandbox" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
-              <Eye className="h-4 w-4"/> Visão do Aluno
-            </TabsTrigger>
-
             <TabsTrigger value="crm" className="font-bold flex gap-2 border bg-card data-[state=active]:border-accent data-[state=active]:text-accent">
               <Users className="h-4 w-4"/> Alunos CRM
             </TabsTrigger>
@@ -114,7 +109,6 @@ const Painel = () => {
 
           <Suspense fallback={<AbaFallback />}>
             <TabsContent value="vendas"><PainelVendas /></TabsContent>
-            <TabsContent value="sandbox"><VisaoAluno /></TabsContent>
             <TabsContent value="crm"><AlunosCRM /></TabsContent>
             <TabsContent value="cronograma"><GestaoCronograma /></TabsContent>
             <TabsContent value="correcoes"><FilaCorrecao /></TabsContent>
