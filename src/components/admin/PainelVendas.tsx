@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { BarChart3, TrendingUp, Users, UserCheck, UserX, Wallet, Sparkles } from "lucide-react";
+import { AlertTriangle, BarChart3, TrendingUp, Users, UserCheck, UserX, Wallet, Sparkles } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { classificarAluno, paraData } from "@/lib/ciclo";
@@ -54,18 +54,33 @@ const CardMetrica = ({
 const PainelVendas = () => {
   const [alunos, setAlunos] = useState<AlunoVendas[] | null>(null);
   const [oferta, setOferta] = useState<OfertaAtual | null>(null);
+  const [erroSincronizacao, setErroSincronizacao] = useState(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "alunos"), (snap) => {
-      setAlunos(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AlunoVendas, "id">) })));
-    });
+    const unsub = onSnapshot(
+      collection(db, "alunos"),
+      (snap) => {
+        setErroSincronizacao(false);
+        setAlunos(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AlunoVendas, "id">) })));
+      },
+      (error) => {
+        // Sem isso, se a escuta em tempo real cair (rede, permissão, etc.), o
+        // painel continua mostrando os últimos números conhecidos como se
+        // fossem atuais, sem nenhum aviso — exatamente o tipo de divergência
+        // silenciosa que já causou números desencontrados com o Alunos CRM.
+        console.error("[PainelVendas] Erro ao sincronizar alunos em tempo real:", error);
+        setErroSincronizacao(true);
+      }
+    );
     return () => unsub();
   }, []);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "configuracoes", "oferta_atual"), (snap) => {
-      setOferta(snap.exists() ? (snap.data() as OfertaAtual) : {});
-    });
+    const unsub = onSnapshot(
+      doc(db, "configuracoes", "oferta_atual"),
+      (snap) => setOferta(snap.exists() ? (snap.data() as OfertaAtual) : {}),
+      (error) => console.error("[PainelVendas] Erro ao sincronizar oferta atual:", error)
+    );
     return () => unsub();
   }, []);
 
@@ -143,6 +158,15 @@ const PainelVendas = () => {
 
   return (
     <div className="space-y-6">
+      {erroSincronizacao && (
+        <div className="flex items-start gap-2 bg-destructive/10 border-2 border-destructive/30 rounded-xl p-4 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            Não foi possível manter os números sincronizados em tempo real agora — os valores abaixo podem estar
+            desatualizados. Atualize a página (F5) para confirmar.
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
         <CardMetrica icone={Users} label="Em Teste" valor={String(metricas.emTeste)} />
         <CardMetrica icone={UserCheck} label="Premium" valor={String(metricas.premium)} destaque />

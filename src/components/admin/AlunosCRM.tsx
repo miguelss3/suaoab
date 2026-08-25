@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, updateDoc, orderBy, getDoc, deleteDoc } from "firebase/firestore";
-import { Search, AlertCircle, Ban, Trash2, Mail } from "lucide-react";
+import { Search, AlertCircle, AlertTriangle, Ban, Trash2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -52,28 +52,44 @@ const AlunosCRM = () => {
   const [linkRepescagem, setLinkRepescagem] = useState("");
   const [extensaoEmailAtiva, setExtensaoEmailAtiva] = useState(false);
   const [filaRepescagem, setFilaRepescagem] = useState<AlunoParaRepescagem[] | null>(null);
+  const [erroSincronizacao, setErroSincronizacao] = useState(false);
 
   useEffect(() => {
     const qAlunos = query(collection(db, "alunos"), orderBy("data_cadastro", "desc"));
-    const unsub = onSnapshot(qAlunos, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AlunoCRM, 'id'>) })) as AlunoCRM[];
-      setAlunos(data);
-      setAlunoSelecionado((atual) => {
-        if (!atual) return atual;
-        return data.find(a => a.id === atual.id) ?? atual;
-      });
-    });
+    const unsub = onSnapshot(
+      qAlunos,
+      (snap) => {
+        setErroSincronizacao(false);
+        const data = snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AlunoCRM, 'id'>) })) as AlunoCRM[];
+        setAlunos(data);
+        setAlunoSelecionado((atual) => {
+          if (!atual) return atual;
+          return data.find(a => a.id === atual.id) ?? atual;
+        });
+      },
+      (error) => {
+        // Sem isso, se a escuta em tempo real cair (rede, permissão, etc.), a
+        // lista congela nos últimos dados conhecidos sem nenhum aviso — pode
+        // gerar números desencontrados com outras telas (ex.: Painel de Vendas).
+        console.error("[AlunosCRM] Erro ao sincronizar alunos em tempo real:", error);
+        setErroSincronizacao(true);
+      }
+    );
     return () => unsub();
   }, []);
 
   // Link de repescagem (50% OFF) e status da extensão de e-mail vêm das mesmas
   // configurações usadas em Ciclos e Prazos.
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "configuracoes", "oferta_atual"), (snap) => {
-      const data = snap.data();
-      setLinkRepescagem(typeof data?.link_repescagem === "string" ? data.link_repescagem : "");
-      setExtensaoEmailAtiva(data?.extensao_email_ativa === true);
-    });
+    const unsub = onSnapshot(
+      doc(db, "configuracoes", "oferta_atual"),
+      (snap) => {
+        const data = snap.data();
+        setLinkRepescagem(typeof data?.link_repescagem === "string" ? data.link_repescagem : "");
+        setExtensaoEmailAtiva(data?.extensao_email_ativa === true);
+      },
+      (error) => console.error("[AlunosCRM] Erro ao sincronizar oferta atual:", error)
+    );
     return () => unsub();
   }, []);
 
@@ -294,6 +310,15 @@ const AlunosCRM = () => {
 
   return (
     <div className="space-y-6 relative">
+      {erroSincronizacao && (
+        <div className="flex items-start gap-2 bg-destructive/10 border-2 border-destructive/30 rounded-xl p-4 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            Não foi possível manter esta lista sincronizada em tempo real agora — os números abaixo podem estar
+            desatualizados. Atualize a página (F5) para confirmar.
+          </span>
+        </div>
+      )}
       <PendenciasHotmart />
 
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-card p-4 rounded-xl border border-border">
