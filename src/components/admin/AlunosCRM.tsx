@@ -12,6 +12,7 @@ import { calcularVagasVisiveis, classificarAluno, countAlunosPremium, MOTIVOS_IN
 import { AlunoParaRepescagem } from "@/lib/repescagem";
 import ModalEnvioRepescagem from "./ModalEnvioRepescagem";
 import DossieAluno from "./DossieAluno";
+import PendenciasHotmart from "./PendenciasHotmart";
 
 type MetaStatus = "bloqueada" | "liberada" | "concluida" | "pulada";
 
@@ -293,6 +294,8 @@ const AlunosCRM = () => {
 
   return (
     <div className="space-y-6 relative">
+      <PendenciasHotmart />
+
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-card p-4 rounded-xl border border-border">
         <h3 className="font-display font-bold text-primary italic">Dossiês Acadêmicos</h3>
         <div className="relative w-full sm:w-64">

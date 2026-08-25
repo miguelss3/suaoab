@@ -26,6 +26,36 @@ const ALLOWED_STORAGE_BUCKETS = new Set(["sua-oab.firebasestorage.app", "sua-oab
 
 const normalizeEmail = (email?: string | null) => (typeof email === "string" ? email.trim().toLowerCase() : "");
 
+// Contas que o webhook da Hotmart nunca deve tocar, mesmo que o e-mail do
+// comprador bata por coincidência: a conta de simulação do professor, e
+// qualquer aluno de Graduação (acesso vitalício, fora do funil de Premium).
+// Espelha a mesma classificação usada em src/lib/ciclo.ts no front-end e em
+// `manutencaoDiariaAlunos` mais abaixo — qualquer mudança nessa regra de
+// negócio deve ser replicada nos três lugares.
+const isSandboxAluno = (id: string, email: unknown) => {
+  const emailNormalizado = normalizeEmail(typeof email === "string" ? email : undefined);
+  return id === "admin_sandbox_uid" || emailNormalizado === "miguelss3@yahoo.com.br" || emailNormalizado === "sandbox@suaoab.com.br";
+};
+
+const isGraduacaoAluno = (faseEstudo: unknown, acessoVitalicio: unknown) => {
+  if (acessoVitalicio === true) return true;
+  const fase = typeof faseEstudo === "string" ? faseEstudo.trim().toLowerCase() : "";
+  return fase === "estudante de graduação" || fase === "graduacao";
+};
+
+// Extrai o ID único da transação do payload da Hotmart (data.purchase.transaction),
+// usado para não reprocessar o mesmo evento duas vezes se a Hotmart reenviar
+// o webhook (retry) — comportamento documentado da própria Hotmart.
+const extrairTransactionId = (dados: unknown): string | undefined => {
+  if (!dados || typeof dados !== "object") return undefined;
+  const data = (dados as Record<string, unknown>).data;
+  if (!data || typeof data !== "object") return undefined;
+  const purchase = (data as Record<string, unknown>).purchase;
+  if (!purchase || typeof purchase !== "object") return undefined;
+  const transaction = (purchase as Record<string, unknown>).transaction;
+  return typeof transaction === "string" ? transaction : undefined;
+};
+
 const isAllowedStorageUrl = (value?: string) => {
   if (!value) return false;
 
@@ -48,12 +78,9 @@ const isAllowedStorageUrl = (value?: string) => {
   }
 };
 
-const uniqueRefs = (refs: admin.firestore.DocumentReference[]) => {
-  const byPath = new Map<string, admin.firestore.DocumentReference>();
-  refs.forEach((ref) => byPath.set(ref.path, ref));
-  return [...byPath.values()];
-};
-
+// Retorna os documentos (não só as referências) já deduplicados por caminho —
+// precisamos ler os dados de cada aluno pra decidir se ele é protegido
+// (sandbox/graduação) e se o evento já foi aplicado antes (idempotência).
 const localizarAlunosPorEmail = async (email: string, emailOriginal?: string) => {
   const alunosRef = db.collection("alunos");
   const consultas = [alunosRef.where("email_normalizado", "==", email).get(), alunosRef.where("email", "==", email).get()];
@@ -63,38 +90,99 @@ const localizarAlunosPorEmail = async (email: string, emailOriginal?: string) =>
   }
 
   const resultados = await Promise.all(consultas);
-  return uniqueRefs(resultados.flatMap((snapshot) => snapshot.docs.map((docSnap) => docSnap.ref)));
+  const porCaminho = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  resultados.forEach((snapshot) => snapshot.docs.forEach((docSnap) => porCaminho.set(docSnap.ref.path, docSnap)));
+  return [...porCaminho.values()];
 };
+
+interface ResultadoAtualizacaoHotmart {
+  encontrados: number;
+  atualizados: number;
+  ignoradosProtegidos: number;
+  ignoradosIdempotentes: number;
+}
 
 const atualizarStatusAlunosHotmart = async (
   emailOriginal: string,
   status: "premium" | "inativo",
-  ultimoEvento: string
-) => {
-  const emailNormalizado = normalizeEmail(emailOriginal);
-  if (!emailNormalizado) return 0;
+  ultimoEvento: string,
+  transactionId?: string
+): Promise<ResultadoAtualizacaoHotmart> => {
+  const resultado: ResultadoAtualizacaoHotmart = { encontrados: 0, atualizados: 0, ignoradosProtegidos: 0, ignoradosIdempotentes: 0 };
 
-  const refs = await localizarAlunosPorEmail(emailNormalizado, emailOriginal);
-  if (refs.length === 0) return 0;
+  const emailNormalizado = normalizeEmail(emailOriginal);
+  if (!emailNormalizado) return resultado;
+
+  const docs = await localizarAlunosPorEmail(emailNormalizado, emailOriginal);
+  resultado.encontrados = docs.length;
+  if (docs.length === 0) return resultado;
 
   const batch = db.batch();
-  refs.forEach((ref) => {
+  let temEscrita = false;
+
+  docs.forEach((docSnap) => {
+    const dados = docSnap.data();
+
+    // Nunca mexe em conta de simulação do professor nem em aluno de Graduação
+    // (acesso vitalício, fora do funil de Premium) — mesmo que o e-mail bata.
+    if (isSandboxAluno(docSnap.id, dados.email) || isGraduacaoAluno(dados.faseEstudo, dados.acessoVitalicio)) {
+      resultado.ignoradosProtegidos += 1;
+      console.warn("[hotmartWebhook] Aluno protegido (sandbox/graduação) — webhook não altera este cadastro.", {
+        alunoId: docSnap.id,
+        email: emailNormalizado,
+        evento: ultimoEvento,
+      });
+      return;
+    }
+
+    const statusAtual = typeof dados.status === "string" ? dados.status : "";
+
+    // Idempotência: mesma transação da Hotmart já aplicada e status já é o
+    // desejado — não reprocessa (a Hotmart pode reenviar o mesmo webhook).
+    const mesmaTransacaoJaAplicada = !!transactionId && dados.ultima_transacao_hotmart === transactionId;
+    if (statusAtual === status && mesmaTransacaoJaAplicada) {
+      resultado.ignoradosIdempotentes += 1;
+      console.log("[hotmartWebhook] Evento já processado antes (mesma transação e status) — ignorado.", {
+        alunoId: docSnap.id,
+        email: emailNormalizado,
+        evento: ultimoEvento,
+        transactionId,
+      });
+      return;
+    }
+
+    // Só carimba a data de conversão na transição real para premium — evita
+    // que um webhook duplicado "reinicie" a data usada no gráfico do Painel
+    // de Vendas.
+    const viraPremiumAgora = status === "premium" && statusAtual !== "premium";
+
     batch.set(
-      ref,
+      docSnap.ref,
       {
         status,
         email_normalizado: emailNormalizado,
         ultimo_evento_hotmart: ultimoEvento,
         atualizado_em_hotmart: admin.firestore.FieldValue.serverTimestamp(),
-        // Usado pelo Painel de Vendas para o gráfico de evolução de matrículas Premium.
-        ...(status === "premium" ? { data_conversao_premium: admin.firestore.FieldValue.serverTimestamp() } : {}),
+        ...(transactionId ? { ultima_transacao_hotmart: transactionId } : {}),
+        ...(viraPremiumAgora ? { data_conversao_premium: admin.firestore.FieldValue.serverTimestamp() } : {}),
       },
       { merge: true }
     );
-  });
-  await batch.commit();
+    temEscrita = true;
+    resultado.atualizados += 1;
 
-  return refs.length;
+    console.log("[hotmartWebhook] Status do aluno será atualizado.", {
+      alunoId: docSnap.id,
+      email: emailNormalizado,
+      statusAnterior: statusAtual || "(vazio)",
+      statusNovo: status,
+      evento: ultimoEvento,
+      transactionId,
+    });
+  });
+
+  if (temEscrita) await batch.commit();
+  return resultado;
 };
 
 const registrarEventoHotmart = async (evento: string, email: string, payload: unknown) => {
@@ -154,18 +242,50 @@ const reconciliarPendenciaHotmart = async (emailInformado?: string | null, orige
     return { reconciliado: false, status: undefined as string | undefined, quantidade: 0 };
   }
 
-  const pendencia = pendenciaSnap.data() as { status_desejado?: "premium" | "inativo"; pendente?: boolean } | undefined;
+  const pendencia = pendenciaSnap.data() as { status_desejado?: "premium" | "inativo"; pendente?: boolean; payload?: unknown } | undefined;
   if (!pendencia?.pendente || !pendencia.status_desejado) {
     return { reconciliado: false, status: pendencia?.status_desejado, quantidade: 0 };
   }
 
-  const quantidade = await atualizarStatusAlunosHotmart(email, pendencia.status_desejado, `PENDENCIA_${origem.toUpperCase()}`);
-  if (quantidade > 0) {
+  const transactionId = extrairTransactionId(pendencia.payload);
+  const resultado = await atualizarStatusAlunosHotmart(email, pendencia.status_desejado, `PENDENCIA_${origem.toUpperCase()}`, transactionId);
+  console.log("[reconciliarCompraHotmart] Reconciliação manual executada.", { email, origem, ...resultado });
+
+  if (resultado.atualizados > 0) {
     await concluirPendenciaHotmart(email, pendencia.status_desejado, origem);
-    return { reconciliado: true, status: pendencia.status_desejado, quantidade };
+    return { reconciliado: true, status: pendencia.status_desejado, quantidade: resultado.atualizados };
   }
 
   return { reconciliado: false, status: pendencia.status_desejado, quantidade: 0 };
+};
+
+// Decide o que fazer com o resultado de `atualizarStatusAlunosHotmart` dentro
+// do webhook: fecha a pendência se algo mudou de fato, só registra em log se
+// não havia nada a mudar (idempotente ou conta protegida), ou cria/atualiza
+// uma pendência para reconciliação manual se nenhum cadastro foi encontrado
+// com o e-mail do comprador.
+const tratarResultadoHotmart = async (
+  resultado: ResultadoAtualizacaoHotmart,
+  emailNormalizado: string,
+  status: "premium" | "inativo",
+  evento: string,
+  payload: unknown
+) => {
+  if (resultado.atualizados > 0) {
+    await concluirPendenciaHotmart(emailNormalizado, status, "webhook");
+    console.log(`[hotmartWebhook] Sucesso: ${resultado.atualizados} aluno(s) com e-mail ${emailNormalizado} atualizado(s) para ${status}.`, resultado);
+    return;
+  }
+
+  if (resultado.ignoradosIdempotentes > 0 || resultado.ignoradosProtegidos > 0) {
+    console.log(`[hotmartWebhook] Nenhuma alteração necessária para ${emailNormalizado} (evento já processado ou conta protegida).`, resultado);
+    return;
+  }
+
+  // resultado.encontrados === 0: nenhum cadastro com esse e-mail — provável
+  // compra feita com um e-mail diferente do usado no cadastro do site.
+  await salvarPendenciaHotmart(emailNormalizado, status, evento, payload);
+  console.warn(`[hotmartWebhook] Nenhum aluno encontrado para ${emailNormalizado} — pendência registrada para reconciliação manual no painel.`, { evento });
 };
 
 export const nextMatricula = onCall(async () => {
@@ -274,7 +394,7 @@ export const hotmartWebhook = onRequest(
     const hottokBody = (req.body as Record<string, unknown>)?.hottok;
     const hottokRecebido = hottokHeader || (typeof hottokBody === "string" ? hottokBody : undefined);
     if (hottokRecebido !== HOTTOK.value()) {
-      console.warn("Tentativa de invasão bloqueada: Hottok inválido.", { hottokHeader: !!hottokHeader, hottokBody: !!hottokBody });
+      console.warn("[hotmartWebhook] Tentativa de invasão bloqueada: Hottok inválido.", { hottokHeader: !!hottokHeader, hottokBody: !!hottokBody });
       res.status(401).send("Acesso não autorizado");
       return;
     }
@@ -282,46 +402,42 @@ export const hotmartWebhook = onRequest(
     try {
       const dados = req.body as {
         event?: string;
-        data?: { buyer?: { email?: string } };
+        data?: { buyer?: { email?: string }; purchase?: { transaction?: string } };
       };
       const evento = String(dados.event || "");
       const emailOriginal = dados.data?.buyer?.email || "";
       const emailNormalizado = normalizeEmail(emailOriginal);
+      const transactionId = extrairTransactionId(dados);
+
+      // Log de recebimento — primeira coisa registrada, antes de qualquer
+      // processamento, pra sempre ter rastro mesmo se algo falhar depois.
+      console.log("[hotmartWebhook] Evento recebido.", {
+        evento,
+        email: emailNormalizado || "(sem email)",
+        transactionId: transactionId || "(sem id)",
+      });
 
       await registrarEventoHotmart(evento, emailNormalizado, dados);
 
       if (!emailNormalizado) {
-        console.warn("Webhook Hotmart recebido sem e-mail do comprador.");
+        console.warn("[hotmartWebhook] Evento recebido sem e-mail do comprador — nada a processar.", { evento });
         res.status(200).send("Recebido sem email");
         return;
       }
 
-      // Verifica se o evento é de COMPRA APROVADA
       if (evento === "PURCHASE_APPROVED") {
-        const atualizados = await atualizarStatusAlunosHotmart(emailOriginal, "premium", evento);
-
-        if (atualizados > 0) {
-          await concluirPendenciaHotmart(emailNormalizado, "premium", "webhook");
-          console.log(`Sucesso: Aluno ${emailNormalizado} atualizado para premium!`);
-        } else {
-          await salvarPendenciaHotmart(emailNormalizado, "premium", evento, dados);
-          console.log(`Aviso: Compra aprovada para ${emailNormalizado} guardada como pendente.`);
-        }
+        const resultado = await atualizarStatusAlunosHotmart(emailOriginal, "premium", evento, transactionId);
+        await tratarResultadoHotmart(resultado, emailNormalizado, "premium", evento, dados);
       } else if (HOTMART_REVERSAL_EVENTS.has(evento)) {
-        const atualizados = await atualizarStatusAlunosHotmart(emailOriginal, "inativo", evento);
-
-        if (atualizados > 0) {
-          await concluirPendenciaHotmart(emailNormalizado, "inativo", "webhook");
-          console.log(`Reversao Hotmart aplicada para ${emailNormalizado}.`);
-        } else {
-          await salvarPendenciaHotmart(emailNormalizado, "inativo", evento, dados);
-          console.log(`Aviso: Reversao Hotmart para ${emailNormalizado} guardada como pendente.`);
-        }
+        const resultado = await atualizarStatusAlunosHotmart(emailOriginal, "inativo", evento, transactionId);
+        await tratarResultadoHotmart(resultado, emailNormalizado, "inativo", evento, dados);
+      } else {
+        console.log("[hotmartWebhook] Evento sem ação de status configurada — só registrado no histórico.", { evento, email: emailNormalizado });
       }
 
       res.status(200).send("Recebido com sucesso pela SuaOAB");
     } catch (error) {
-      console.error("Erro interno no Webhook:", error);
+      console.error("[hotmartWebhook] Erro interno no Webhook:", error);
       res.status(500).send("Erro interno do servidor");
     }
   }
@@ -332,19 +448,9 @@ export const hotmartWebhook = onRequest(
 // Espelha a classificação de src/lib/ciclo.ts (front-end) — qualquer mudança
 // nas regras de negócio (graduação, sandbox, expiração) deve ser replicada
 // aqui também. Roda no servidor uma vez por dia, independente de qualquer
-// admin estar com o painel aberto no navegador.
+// admin estar com o painel aberto no navegador. (`isSandboxAluno`/`isGraduacaoAluno`
+// estão definidas no topo do arquivo, reaproveitadas também pelo webhook da Hotmart.)
 // ─────────────────────────────────────────────────────────────────────────
-
-const isSandboxAluno = (id: string, email: unknown) => {
-  const emailNormalizado = normalizeEmail(typeof email === "string" ? email : undefined);
-  return id === "admin_sandbox_uid" || emailNormalizado === "miguelss3@yahoo.com.br" || emailNormalizado === "sandbox@suaoab.com.br";
-};
-
-const isGraduacaoAluno = (faseEstudo: unknown, acessoVitalicio: unknown) => {
-  if (acessoVitalicio === true) return true;
-  const fase = typeof faseEstudo === "string" ? faseEstudo.trim().toLowerCase() : "";
-  return fase === "estudante de graduação" || fase === "graduacao";
-};
 
 const paraDataFirestore = (valor: unknown): Date | null => {
   if (!valor) return null;

@@ -99,6 +99,14 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    // ─── Pendências de reconciliação da Hotmart ─────────────────────────────
+    // Gravado pelo webhook (Admin SDK, ignora estas regras) quando o e-mail do
+    // comprador não bate com nenhum cadastro. Só o admin lê/gerencia, pelo
+    // painel de Pendências Hotmart.
+    match /hotmart_pendencias/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     // ─── Fallback — nega tudo que não esteja explicitamente permitido ────────
     match /{document=**} {
       allow read, write: if false;
